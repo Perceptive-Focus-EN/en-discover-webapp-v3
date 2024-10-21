@@ -1,14 +1,24 @@
 import axios from 'axios';
 import fs from 'fs';
+import dotenv from 'dotenv';
 
-const OPENAI_API_KEY = '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';
+// Load environment variables from .env file
+dotenv.config();
+
+// Load the OpenAI API key from environment variables
+const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+
+if (!OPENAI_API_KEY) {
+    console.error("Error: OPENAI_API_KEY is not defined in the environment variables.");
+    process.exit(1); // Exit the process if API key is missing
+}
 
 /**
  * Function to get a description of an image using GPT-4 Vision.
  * @param {string} imagePath - The local path to the image file.
  * @return {Promise<string>} - The description of the image.
  */
-async function describeImage(imagePath: any) {
+async function describeImage(imagePath: string): Promise<string> {
     // Convert image to Base64
     const base64Image = encodeImageToBase64(imagePath);
 
@@ -19,7 +29,7 @@ async function describeImage(imagePath: any) {
             {
                 role: "user",
                 content: [
-                    { type: "text", text: "Whats in this image?" },
+                    { type: "text", text: "What's in this image?" },
                     { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
                 ]
             }
@@ -48,7 +58,7 @@ async function describeImage(imagePath: any) {
  * @param {string} imagePath - Path to the image file.
  * @return {string} - The Base64 encoded string of the image.
  */
-function encodeImageToBase64(imagePath: fs.PathOrFileDescriptor) {
+function encodeImageToBase64(imagePath: fs.PathOrFileDescriptor): string {
     return fs.readFileSync(imagePath, { encoding: 'base64' });
 }
 

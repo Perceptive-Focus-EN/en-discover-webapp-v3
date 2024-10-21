@@ -1,14 +1,28 @@
 import axios from 'axios';
+import dotenv from 'dotenv';
 
+// Load environment variables from .env file
+dotenv.config();
 
+// Define base URL for OpenAI API
 const OPENAI_BASE_URL = 'https://api.openai.com/v1/chat/';
-const OPENAI_API_KEY = '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';
+// Load the API key from environment variables
+const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
 
+if (!OPENAI_API_KEY) {
+    throw new Error("Error: OPENAI_API_KEY is not defined in the environment variables.");
+}
 
-export const fetchImage = async (text: string, enhancedPrompt?: string) => {
+/**
+ * Fetches an image from OpenAI's DALL-E model.
+ * @param {string} text - The prompt text for image generation.
+ * @param {string} [enhancedPrompt] - An optional enhanced prompt.
+ * @returns {Promise<string | null>} - The URL of the generated image.
+ */
+export const fetchImage = async (text: string, enhancedPrompt?: string): Promise<string | null> => {
     const requestBody = {
-        model: "dall-e-3",  // Use the DALL-E model
-        prompt: enhancedPrompt || text,  // Use enhancedPrompt if available, otherwise default to text
+        model: "dall-e-3",
+        prompt: enhancedPrompt || text,
         n: 1,
         size: "1024x1024",
     };
@@ -16,7 +30,8 @@ export const fetchImage = async (text: string, enhancedPrompt?: string) => {
     try {
         const response = await axios.post(`${OPENAI_BASE_URL}images/generations`, requestBody, {
             headers: {
-                'Authorization': `Bearer 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`
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,  // Use environment variable
+                'Content-Type': 'application/json'
             }
         });
         const generatedImageUrl = response.data?.data?.[0]?.url;
@@ -27,17 +42,23 @@ export const fetchImage = async (text: string, enhancedPrompt?: string) => {
     }
 };
 
-
+/**
+ * Generates a response from OpenAI's GPT model.
+ * @param {string} prompt - The input prompt for text generation.
+ * @returns {Promise<string>} - The generated response text.
+ */
 export const generateResponse = async (prompt: string): Promise<string> => {
+    const requestBody = {
+        model: "gpt-4",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 3000,
+        temperature: 0.7,
+    };
+
     try {
-        const response = await axios.post(`${OPENAI_BASE_URL}completions`, {
-            model: "gpt-4",
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 3000,
-            temperature: 0.7
-        }, {
+        const response = await axios.post(`${OPENAI_BASE_URL}completions`, requestBody, {
             headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,  // Use environment variable
                 'Content-Type': 'application/json'
             }
         });
@@ -55,29 +76,3 @@ export const generateResponse = async (prompt: string): Promise<string> => {
         }
     }
 };
-
-
-
-// Ensure you're extracting the generated text correctly from the response
-
-
-// 
-// export const generateResponse = async (prompt: string) => {
-    // try {
-        // const response = await axios.post(`${OPENAI_BASE_URL}completions`, {
-            // model: "gpt-3.5-turbo-instruct",
-            // prompt: prompt, // Use the 'prompt' parameter directly
-            // max_tokens: 3000,
-            // temperature: 0.7
-        // }, {
-            // headers: {
-                // 'Authorization': `Bearer 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`
-            // }
-        // });
-        // const generatedContent = response.data.choices[0].text;
-        // return generatedContent.trim();
-    // } catch (error) {
-        // console.error("Story Generation Error:", (error as any).response?.data || (error as any).message);
-        // throw error;
-    // }
-// };
