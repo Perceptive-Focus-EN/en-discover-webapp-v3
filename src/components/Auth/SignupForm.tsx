@@ -1,0 +1,160 @@
+// src/components/Auth/SignupForm.tsx
+import React, { useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { Box, TextField, Button, Typography, MenuItem } from '@mui/material';
+import { SignupRequest } from '../../types/Signup/interfaces';
+import { ACCOUNT_TYPES, UserAccountType } from '../../constants/AccessKey/accounts';
+
+const SignupForm: React.FC = () => {
+  const [formData, setFormData] = useState<SignupRequest>({
+    firstName: '',
+    lastName: '',
+    password: '',
+    mobile: '',
+    email: '',
+    tenantName: '',
+    accountType: 'PERSONAL' as UserAccountType,
+    isVerified: false,
+    onboardingStage: '1'
+  });
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const { signup, error, setError } = useAuth();
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null); // Clear any previous errors
+
+    if (formData.password !== confirmPassword) {
+      setError("Passwords don't match");
+      return;
+    }
+
+    try {
+      await signup(formData);
+      // Navigation is handled in the AuthContext
+    } catch (err) {
+      // Error is already set in the AuthContext
+      console.error('Signup failed:', err);
+    }
+  };
+
+  return (
+    <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
+      <TextField
+        margin="normal"
+        required
+        fullWidth
+        id="email"
+        label="Email Address"
+        name="email"
+        autoComplete="email"
+        value={formData.email}
+        onChange={handleChange}
+      />
+      <TextField
+        margin="normal"
+        required
+        fullWidth
+        id="firstName"
+        label="First Name"
+        name="firstName"
+        autoComplete="given-name"
+        value={formData.firstName}
+        onChange={handleChange}
+      />
+      <TextField
+        margin="normal"
+        required
+        fullWidth
+        id="lastName"
+        label="Last Name"
+        name="lastName"
+        autoComplete="family-name"
+        value={formData.lastName}
+        onChange={handleChange}
+      />
+      <TextField
+        margin="normal"
+        required
+        fullWidth
+        id="tenantName"
+        label="Tenant Name"
+        name="tenantName"
+        value={formData.tenantName}
+        onChange={handleChange}
+      />
+      <TextField
+        select
+        margin="normal"
+        required
+        fullWidth
+        id="accountType"
+        label="Account Type"
+        name="accountType"
+        value={formData.accountType}
+        onChange={handleChange}
+      >
+        {Object.entries(ACCOUNT_TYPES).map(([key, value]) => (
+          <MenuItem key={key} value={value}>
+            {key}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        margin="normal"
+        required
+        fullWidth
+        id="mobile"
+        label="Mobile Number"
+        name="mobile"
+        autoComplete="tel"
+        value={formData.mobile}
+        onChange={handleChange}
+      />
+      <TextField
+        margin="normal"
+        required
+        fullWidth
+        name="password"
+        label="Password"
+        type="password"
+        id="password"
+        autoComplete="new-password"
+        value={formData.password}
+        onChange={handleChange}
+      />
+      <TextField
+        margin="normal"
+        required
+        fullWidth
+        name="confirmPassword"
+        label="Confirm Password"
+        type="password"
+        id="confirmPassword"
+        autoComplete="new-password"
+        value={confirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
+      />
+      {error && (
+        <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+          {error}
+        </Typography>
+      )}
+      <Button
+        type="submit"
+        fullWidth
+        variant="contained"
+        sx={{ mt: 3, mb: 2 }}
+      >
+        Sign Up
+      </Button>
+    </Box>
+  );
+};
+
+export default SignupForm;

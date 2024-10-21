@@ -1,0 +1,180 @@
+// src/constants/azureUserTemplates.ts
+
+import { PERMISSIONS, Permissions } from './AccessKey/permissions';
+import { ROLES } from './AccessKey/AccountRoles';
+import { UserAccountType } from './AccessKey/accounts';
+import { AccessLevel } from './AccessKey/access_levels';
+
+export interface UserWithCustomPermissions {
+  accountType: UserAccountType;
+  accessLevel: AccessLevel;
+  additionalPermissions: Permissions[];
+}
+
+export const AZURE_USER_TEMPLATES = {
+  azureAdministrator: {
+    accountType: 'BUSINESS' as UserAccountType,
+    accessLevel: AccessLevel.L4,
+    additionalPermissions: [
+      PERMISSIONS.RESOURCE_CREATE,
+      PERMISSIONS.RESOURCE_READ,
+      PERMISSIONS.RESOURCE_UPDATE,
+      PERMISSIONS.RESOURCE_DELETE,
+      PERMISSIONS.STORAGE_CREATE,
+      PERMISSIONS.STORAGE_READ,
+      PERMISSIONS.STORAGE_UPDATE,
+      PERMISSIONS.STORAGE_DELETE,
+      PERMISSIONS.NETWORK_CREATE,
+      PERMISSIONS.NETWORK_READ,
+      PERMISSIONS.NETWORK_UPDATE,
+      PERMISSIONS.NETWORK_DELETE,
+      PERMISSIONS.COMPUTE_CREATE,
+      PERMISSIONS.COMPUTE_READ,
+      PERMISSIONS.COMPUTE_UPDATE,
+      PERMISSIONS.COMPUTE_DELETE,
+      PERMISSIONS.DATABASE_CREATE,
+      PERMISSIONS.DATABASE_READ,
+      PERMISSIONS.DATABASE_UPDATE,
+      PERMISSIONS.DATABASE_DELETE,
+      PERMISSIONS.SECURITY_CREATE,
+      PERMISSIONS.SECURITY_READ,
+      PERMISSIONS.SECURITY_UPDATE,
+      PERMISSIONS.SECURITY_DELETE,
+      PERMISSIONS.IDENTITY_CREATE,
+      PERMISSIONS.IDENTITY_READ,
+      PERMISSIONS.IDENTITY_UPDATE,
+      PERMISSIONS.IDENTITY_DELETE,
+      PERMISSIONS.AI_CREATE,
+      PERMISSIONS.AI_READ,
+      PERMISSIONS.AI_UPDATE,
+      PERMISSIONS.AI_DELETE,
+      PERMISSIONS.ANALYTICS_CREATE,
+      PERMISSIONS.ANALYTICS_READ,
+      PERMISSIONS.ANALYTICS_UPDATE,
+      PERMISSIONS.ANALYTICS_DELETE,
+      PERMISSIONS.IOT_CREATE,
+      PERMISSIONS.IOT_READ,
+      PERMISSIONS.IOT_UPDATE,
+      PERMISSIONS.IOT_DELETE,
+      PERMISSIONS.DEVOPS_CREATE,
+      PERMISSIONS.DEVOPS_READ,
+      PERMISSIONS.DEVOPS_UPDATE,
+      PERMISSIONS.DEVOPS_DELETE,
+      PERMISSIONS.FUNCTION_CREATE,
+      PERMISSIONS.FUNCTION_READ,
+      PERMISSIONS.FUNCTION_UPDATE,
+      PERMISSIONS.FUNCTION_DELETE,
+      PERMISSIONS.INSIGHTS_CREATE,
+      PERMISSIONS.INSIGHTS_READ,
+      PERMISSIONS.INSIGHTS_UPDATE,
+      PERMISSIONS.INSIGHTS_DELETE,
+      PERMISSIONS.BILLING_VIEW,
+      PERMISSIONS.SUBSCRIPTION_VIEW,
+      PERMISSIONS.SETTINGS_MANAGE,
+    ],
+  },
+  azureDevOpsEngineer: {
+    role: ROLES.Business.EMPLOYEE,
+    customPermissions: [
+      PERMISSIONS.RESOURCE_READ,
+      PERMISSIONS.RESOURCE_UPDATE,
+      PERMISSIONS.COMPUTE_READ,
+      PERMISSIONS.COMPUTE_UPDATE,
+      PERMISSIONS.DEVOPS_CREATE,
+      PERMISSIONS.DEVOPS_READ,
+      PERMISSIONS.DEVOPS_UPDATE,
+      PERMISSIONS.DEVOPS_DELETE,
+      PERMISSIONS.FUNCTION_CREATE,
+      PERMISSIONS.FUNCTION_READ,
+      PERMISSIONS.FUNCTION_UPDATE,
+      PERMISSIONS.FUNCTION_DELETE,
+    ],
+  },
+  azureSecurityAnalyst: {
+    role: ROLES.Business.EMPLOYEE,
+    customPermissions: [
+      PERMISSIONS.RESOURCE_READ,
+      PERMISSIONS.SECURITY_READ,
+      PERMISSIONS.SECURITY_UPDATE,
+      PERMISSIONS.IDENTITY_READ,
+      PERMISSIONS.IDENTITY_UPDATE,
+      PERMISSIONS.NETWORK_READ,
+      PERMISSIONS.INSIGHTS_READ,
+    ],
+  },
+  azureDatabaseAdministrator: {
+    role: ROLES.Business.EMPLOYEE,
+    customPermissions: [
+      PERMISSIONS.DATABASE_CREATE,
+      PERMISSIONS.DATABASE_READ,
+      PERMISSIONS.DATABASE_UPDATE,
+      PERMISSIONS.DATABASE_DELETE,
+      PERMISSIONS.STORAGE_READ,
+      PERMISSIONS.STORAGE_UPDATE,
+    ],
+  },
+  azureAIEngineer: {
+    role: ROLES.Business.EMPLOYEE,
+    customPermissions: [
+      PERMISSIONS.AI_CREATE,
+      PERMISSIONS.AI_READ,
+      PERMISSIONS.AI_UPDATE,
+      PERMISSIONS.AI_DELETE,
+      PERMISSIONS.COMPUTE_READ,
+      PERMISSIONS.COMPUTE_UPDATE,
+      PERMISSIONS.STORAGE_READ,
+      PERMISSIONS.STORAGE_UPDATE,
+    ],
+  },
+  azureNetworkEngineer: {
+    role: ROLES.Business.EMPLOYEE,
+    customPermissions: [
+      PERMISSIONS.NETWORK_CREATE,
+      PERMISSIONS.NETWORK_READ,
+      PERMISSIONS.NETWORK_UPDATE,
+      PERMISSIONS.NETWORK_DELETE,
+      PERMISSIONS.SECURITY_READ,
+      PERMISSIONS.SECURITY_UPDATE,
+    ],
+  },
+  azureReadOnlyAnalyst: {
+    role: ROLES.Business.VIEWER,
+    customPermissions: [
+      PERMISSIONS.RESOURCE_READ,
+      PERMISSIONS.STORAGE_READ,
+      PERMISSIONS.NETWORK_READ,
+      PERMISSIONS.COMPUTE_READ,
+      PERMISSIONS.DATABASE_READ,
+      PERMISSIONS.SECURITY_READ,
+      PERMISSIONS.IDENTITY_READ,
+      PERMISSIONS.AI_READ,
+      PERMISSIONS.ANALYTICS_READ,
+      PERMISSIONS.IOT_READ,
+      PERMISSIONS.DEVOPS_READ,
+      PERMISSIONS.FUNCTION_READ,
+      PERMISSIONS.INSIGHTS_READ,
+      PERMISSIONS.BILLING_VIEW,
+      PERMISSIONS.SUBSCRIPTION_VIEW,
+      PERMISSIONS.ANALYTICS_VIEW,
+    ],
+  },
+} as const;
+
+export type AzureUserTemplateKey = keyof typeof AZURE_USER_TEMPLATES;
+
+export const getAzureUserTemplate = (key: AzureUserTemplateKey): UserWithCustomPermissions => {
+  const template = AZURE_USER_TEMPLATES[key];
+  if ('accountType' in template) {
+    return {
+      accountType: template.accountType,
+      accessLevel: template.accessLevel,
+      additionalPermissions: [...template.additionalPermissions],
+    };
+  } else {
+    return {
+      accountType: 'BUSINESS' as UserAccountType, // Default or fallback account type
+      accessLevel: AccessLevel.L1, // Default or fallback access level
+      additionalPermissions: [...template.customPermissions],
+    };
+  }
+}

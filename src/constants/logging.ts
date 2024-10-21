@@ -1,0 +1,59 @@
+// src/constants/logging.ts
+
+import { SystemContext } from "@/types/logging";
+
+export const LOG_LEVELS = {
+  ERROR: 'error',
+  WARN: 'warn',
+  INFO: 'info',
+  DEBUG: 'debug',
+} as const;
+
+export const LOG_METRICS = {
+  ERROR: 'ERROR',
+  WARN: 'WARN',
+  INFO: 'INFO',
+  DEBUG: 'DEBUG',
+  DATABASE_ERROR: 'DATABASE_ERROR',
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR',
+  AUTHORIZATION_ERROR: 'AUTHORIZATION_ERROR',
+  RESOURCE_LIMIT_ERROR: 'RESOURCE_LIMIT_ERROR',
+  ONBOARDING_ERROR: 'ONBOARDING_ERROR',
+  UNAUTHORIZED_ERROR: 'UNAUTHORIZED_ERROR',
+  SIGNUP_ERROR: 'SIGNUP_ERROR',
+  API_ERROR: 'API_ERROR',
+  PAYMENT_ERROR: 'PAYMENT_ERROR',
+  SUBSCRIPTION_ERROR: 'SUBSCRIPTION_ERROR',
+  NOTIFICATION_ERROR: 'NOTIFICATION_ERROR',
+  SESSION_ERROR: 'SESSION_ERROR',
+  TENANT_ERROR: 'TENANT_ERROR',
+  WEBHOOK_ERROR: 'WEBHOOK_ERROR',
+  FEATURE_FLAG_ERROR: 'FEATURE_FLAG_ERROR',
+  LOGGING_ERROR: 'LOGGING_ERROR',
+  METRICS_ERROR: 'METRICS_ERROR',
+} as const;
+
+export const API_ENDPOINTS = {
+  LOG: '/api/logs',
+  METRICS: '/api/metrics',
+} as const;
+
+export const HTTP_STATUS = {
+  OK: 200,
+  CREATED: 201,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  INTERNAL_SERVER_ERROR: 500,
+  METHOD_NOT_ALLOWED: 405,
+  BAD_REQUEST: 400,
+  INVALID_LOG_FORMAT: 406,
+};
+
+
+export const SYSTEM_CONTEXT_INSTANCE: SystemContext = {
+  systemId: 'main-app',
+  systemName: 'en-discover-app',
+  environment: process.env.NODE_ENV as 'development' | 'staging' | 'production'
+};

@@ -1,0 +1,23 @@
+
+// ACCESS LEVELS ARE DETERMINED BY ROLES SELECTED BY ORGANIZATIONS AUTOMATICALLY
+// BUT ORGANZATIONS CAN CHANGE ACCESS LEVELS FOR EACH ROLE AS WELL
+
+export const ACCESS_LEVELS = {
+  L4: 'ACCESS:L4',
+  L3: 'ACCESS:L3',
+  L2: 'ACCESS:L2',
+  L1: 'ACCESS:L1',
+  L0: 'ACCESS:L0',
+} as const;
+
+
+// Access Levels (mapped to your existing structure)
+export enum AccessLevel {
+  L0 = 'ACCESS:L0',
+  L1 = 'ACCESS:L1',
+  L2 = 'ACCESS:L2',
+  L3 = 'ACCESS:L3',
+  L4 = 'ACCESS:L4'
+}
+
+

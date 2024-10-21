@@ -1,0 +1,41 @@
+// src/constants/AccessKey/permissions/member.ts
+
+import { PERMISSIONS } from '../permissions';
+
+export type MemberPermission = typeof PERMISSIONS.MEMBER[keyof typeof PERMISSIONS.MEMBER];
+
+export const L0_PERMISSIONS: MemberPermission[] = [
+  PERMISSIONS.MEMBER.PROFILE_VIEW,
+  PERMISSIONS.MEMBER.FRIEND_LIST_VIEW,
+];
+
+export const L1_PERMISSIONS: MemberPermission[] = [
+  ...L0_PERMISSIONS,
+  PERMISSIONS.MEMBER.PROFILE_UPDATE,
+  PERMISSIONS.MEMBER.FRIEND_REQUEST_SEND,
+  PERMISSIONS.MEMBER.FRIEND_REQUEST_ACCEPT,
+];
+
+export const L2_PERMISSIONS: MemberPermission[] = [
+  ...L1_PERMISSIONS,
+  PERMISSIONS.MEMBER.STORAGE_CREATE,
+  PERMISSIONS.MEMBER.STORAGE_READ,
+];
+
+export const L3_PERMISSIONS: MemberPermission[] = [
+  ...L2_PERMISSIONS,
+  PERMISSIONS.MEMBER.STORAGE_UPDATE,
+];
+
+export const L4_PERMISSIONS: MemberPermission[] = [
+  ...L3_PERMISSIONS,
+  PERMISSIONS.MEMBER.STORAGE_DELETE,
+];
+
+export const MEMBER_PERMISSIONS: Record<string, MemberPermission[]> = {
+  L0: L0_PERMISSIONS,
+  L1: L1_PERMISSIONS,
+  L2: L2_PERMISSIONS,
+  L3: L3_PERMISSIONS,
+  L4: L4_PERMISSIONS,
+};

@@ -1,0 +1,1 @@
+export const useMockDatabase = process.env.USE_MOCK_DATABASE === 'true';
