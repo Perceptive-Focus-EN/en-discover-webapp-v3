@@ -125,7 +125,7 @@ async function meHandler(
     logger.info(`Me handler successful for user: ${user.email}`);
     res.status(200).json(loginResponse);
   } catch (error) {
-    logger.error('Error in me handler:', error);
+    logger.error(new Error('Error in me handler'), { error });
     if (error instanceof Error) {
       res.status(500).json({ error: `Internal server error: ${error.message}` });
     } else {

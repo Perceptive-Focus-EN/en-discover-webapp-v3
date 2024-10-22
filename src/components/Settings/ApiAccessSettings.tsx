@@ -16,7 +16,7 @@ import { Add as AddIcon, Delete as DeleteIcon, FileCopy as FileCopyIcon } from '
 import SecurityBadgePreview from '../AccessKeyForms/SecurityBadgePreview';
 import { useRouter } from 'next/router';
 
-interface ApiAccessSettingsProps {
+export interface ApiAccessSettingsProps {
   settings: ApiAccessSettingsType | undefined;
   onUpdate: (newSettings: ApiAccessSettingsType) => void;
 }

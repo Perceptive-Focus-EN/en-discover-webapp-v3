@@ -47,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
-    logger.error('Error in emotion-mapping API:', error);
+    logger.error(new Error('Error in emotion-mapping API'), { error });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

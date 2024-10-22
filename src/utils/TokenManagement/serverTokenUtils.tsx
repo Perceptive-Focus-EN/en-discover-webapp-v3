@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { logger } from '../ErrorHandling/logger';
 import { redisService } from '../../services/cache/redisService';
+import { LOG_METRICS, LogMetrics } from '../../constants/logging';
 
 const REFRESH_PREFIX = 'refresh:';
 const REFRESH_EXPIRY = 7 * 24 * 60 * 60; // 7 days in seconds
@@ -12,7 +13,6 @@ const BLACKLIST_PREFIX = 'blacklist:';
 const EMAIL_VERIFICATION_PREFIX = 'email_verification:';
 const EMAIL_VERIFICATION_EXPIRY = 24 * 3600; // 24 hours in seconds
 
-// Ensure JWT_SECRET is defined
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is not set.');
 }
@@ -49,12 +49,12 @@ export const verifyAccessToken = (token: string): any => {
   try {
     return jwt.verify(token, process.env.JWT_SECRET!);
   } catch (error) {
-    logger.error('Access token verification failed:', { error });
+    logger.error(new Error('Access token verification failed'), { error });
     return null;
   }
 };
 
-export const isTokenExpired = (token: string, p0: number): boolean => {
+export const isTokenExpired = (token: string): boolean => {
   if (!token) {
     logger.warn('Attempted to check expiration of null or undefined token');
     return true;
@@ -71,7 +71,7 @@ export const isTokenExpired = (token: string, p0: number): boolean => {
     logger.warn('Token does not contain expiration information');
     return true;
   } catch (error) {
-    logger.error('Token parsing failed:', { error });
+    logger.error(new Error('Token parsing failed'), { error });
     return true;
   }
 };
@@ -84,10 +84,10 @@ export const setRefreshToken = async (sessionId: string, refreshToken: string): 
   try {
     await redisService.storeRefreshToken(sessionId, refreshToken);
     logger.info(`Set refresh token for session: ${sessionId}`);
-    logger.increment('refresh_token_set');
+    logger.increment(LOG_METRICS.REDIS_STORE_REFRESH_TOKEN_ERROR);
   } catch (error) {
-    logger.error(`Error setting refresh token for session: ${sessionId}`, { error });
-    logger.increment('refresh_token_set_error');
+    logger.error(new Error(`Error setting refresh token for session: ${sessionId}`), { error });
+    logger.increment(LOG_METRICS.REDIS_STORE_REFRESH_TOKEN_ERROR);
     throw error;
   }
 };
@@ -97,15 +97,15 @@ export const getRefreshToken = async (sessionId: string): Promise<string | null>
     const token = await redisService.getRefreshToken(sessionId);
     if (token) {
       logger.info(`Retrieved refresh token for session: ${sessionId}`);
-      logger.increment('refresh_token_retrieved');
+      logger.increment(LOG_METRICS.REDIS_GET_REFRESH_TOKEN_ERROR);
     } else {
       logger.info(`No refresh token found for session: ${sessionId}`);
-      logger.increment('refresh_token_not_found');
+      logger.increment(LOG_METRICS.REDIS_GET_REFRESH_TOKEN_ERROR);
     }
     return token;
   } catch (error) {
-    logger.error(`Error getting refresh token for session: ${sessionId}`, { error });
-    logger.increment('refresh_token_retrieval_error');
+    logger.error(new Error(`Error getting refresh token for session: ${sessionId}`), { error });
+    logger.increment(LOG_METRICS.REDIS_GET_REFRESH_TOKEN_ERROR);
     throw error;
   }
 };
@@ -114,10 +114,10 @@ export const deleteRefreshToken = async (sessionId: string): Promise<void> => {
   try {
     await redisService.deleteRefreshToken(sessionId);
     logger.info(`Deleted refresh token for session: ${sessionId}`);
-    logger.increment('refresh_token_deleted');
+    logger.increment(LOG_METRICS.REDIS_REMOVE_REFRESH_TOKEN_ERROR);
   } catch (error) {
-    logger.error(`Error deleting refresh token for session: ${sessionId}`, { error });
-    logger.increment('refresh_token_deletion_error');
+    logger.error(new Error(`Error deleting refresh token for session: ${sessionId}`), { error });
+    logger.increment(LOG_METRICS.REDIS_REMOVE_REFRESH_TOKEN_ERROR);
     throw error;
   }
 };
@@ -133,9 +133,10 @@ export const blacklistToken = async (token: string): Promise<void> => {
   try {
     await redisService.setValue(`${BLACKLIST_PREFIX}${token}`, 'blacklisted', 24 * 60 * 60); // 24 hours TTL
     logger.info('Token added to blacklist');
+    logger.increment(LOG_METRICS.REDIS_SET_ERROR);
   } catch (error) {
-    logger.error('Error blacklisting token:', { token, error });
-    logger.increment('blacklist_token_error');
+    logger.error(new Error('Error blacklisting token'), { token, error });
+    logger.increment(LOG_METRICS.REDIS_SET_ERROR);
     throw error;
   }
 };
@@ -146,17 +147,15 @@ export const isTokenBlacklisted = async (token: string): Promise<boolean> => {
     logger.info(`Checked blacklist status for token`);
     return blacklisted !== null;
   } catch (error) {
-    logger.error('Error checking if token is blacklisted:', { token, error });
-    logger.increment('is_token_blacklisted_error');
+    logger.error(new Error('Error checking if token is blacklisted'), { token, error });
+    logger.increment(LOG_METRICS.REDIS_GET_ERROR);
     throw error;
   }
 };
 
 export const checkRefreshTokenExpiration = (storedToken: string): boolean => {
-  return isTokenExpired(storedToken, 0);
+  return isTokenExpired(storedToken);
 };
-
-// <------------- EMAIL TOKENING BELOW THIS LINE ----------->
 
 export const generateEmailVerificationToken = (payload: EmailVerificationPayload): string => {
   const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '24h' });
@@ -167,10 +166,10 @@ export const setEmailVerificationToken = async (userId: string, token: string): 
   try {
     await redisService.setValue(`${EMAIL_VERIFICATION_PREFIX}${userId}`, token, EMAIL_VERIFICATION_EXPIRY);
     logger.info(`Set email verification token for user: ${userId}`);
-    logger.increment('email_verification_token_set');
+    logger.increment(LOG_METRICS.REDIS_STORE_REFRESH_TOKEN_ERROR);
   } catch (error) {
-    logger.error(`Error setting email verification token for user: ${userId}`, { error });
-    logger.increment('email_verification_token_set_error');
+    logger.error(new Error(`Error setting email verification token for user: ${userId}`), { error });
+    logger.increment(LOG_METRICS.REDIS_STORE_REFRESH_TOKEN_ERROR);
     throw error;
   }
 };
@@ -180,25 +179,25 @@ export const getEmailVerificationToken = async (userId: string): Promise<string 
     const token = await redisService.getValue(`${EMAIL_VERIFICATION_PREFIX}${userId}`);
     if (token) {
       logger.info(`Retrieved email verification token for user: ${userId}`);
-      logger.increment('email_verification_token_retrieved');
+      logger.increment(LOG_METRICS.REDIS_GET_REFRESH_TOKEN_ERROR);
     } else {
       logger.info(`No email verification token found for user: ${userId}`);
-      logger.increment('email_verification_token_not_found');
+      logger.increment(LOG_METRICS.REDIS_GET_REFRESH_TOKEN_ERROR);
     }
     return token;
   } catch (error) {
-    logger.error(`Error getting email verification token for user: ${userId}`, { error });
-    logger.increment('email_verification_token_retrieval_error');
+    logger.error(new Error(`Error getting email verification token for user: ${userId}`), { error });
+    logger.increment(LOG_METRICS.REDIS_GET_REFRESH_TOKEN_ERROR);
     throw error;
   }
 };
 
-export const verifyEmailToken = (token: string): { userId: string; email: string } | null => {
+export const verifyEmailToken = (token: string): DecodedToken | null => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; email: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as DecodedToken;
     return decoded;
   } catch (error) {
-    logger.error('Error verifying email token:', { error });
+    logger.error(new Error('Error verifying email token'), { error });
     return null;
   }
 };
@@ -207,10 +206,10 @@ export const blacklistEmailVerificationToken = async (userId: string): Promise<v
   try {
     await redisService.deleteValue(`${EMAIL_VERIFICATION_PREFIX}${userId}`);
     logger.info(`Blacklisted email verification token for user: ${userId}`);
-    logger.increment('email_verification_token_blacklisted');
+    logger.increment(LOG_METRICS.REDIS_REMOVE_REFRESH_TOKEN_ERROR);
   } catch (error) {
-    logger.error(`Error blacklisting email verification token for user: ${userId}`, { error });
-    logger.increment('email_verification_token_blacklist_error');
+    logger.error(new Error(`Error blacklisting email verification token for user: ${userId}`), { error });
+    logger.increment(LOG_METRICS.REDIS_REMOVE_REFRESH_TOKEN_ERROR);
     throw error;
   }
 };

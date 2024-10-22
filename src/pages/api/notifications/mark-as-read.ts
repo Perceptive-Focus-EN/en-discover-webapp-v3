@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await markNotificationAsRead(notificationId);
     res.status(200).json({ message: 'Notification marked as read' });
   } catch (error) {
-    logger.error('Error marking notification as read:', error);
+    logger.error(new Error('Error marking notification as read'), { error });
     res.status(500).json({ message: 'Internal server error' });
   }
 }

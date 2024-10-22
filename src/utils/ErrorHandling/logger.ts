@@ -1,15 +1,12 @@
-// src/utils/ErrorHandling/logger.ts
-import { ERROR_MESSAGES } from '../../constants/errorMessages';
-import { LOG_LEVELS, LOG_METRICS, API_ENDPOINTS, SYSTEM_CONTEXT_INSTANCE } from '../../constants/logging';
-import { METRIC_TYPES, METRIC_UNITS } from '../../constants/metrics';
 import axios from 'axios';
+import { AppError } from '../../errors/AppError';
+import { LOG_LEVELS, LOG_METRICS, LogMetrics, API_ENDPOINTS, SYSTEM_CONTEXT_INSTANCE } from '../../constants/logging';
 import { LogEntry, SystemContext } from '../../types/logging';
-import * as CustomErrors from '../../errors/errors';
+import { METRIC_TYPES, METRIC_UNITS } from '../../constants/metrics';
 
-// Create an instance of SystemContext with appropriate values
 class Logger {
   private logQueue: LogEntry[] = [];
-  private metrics: Map<string, { value: number; unit: string; type: keyof typeof METRIC_TYPES }> = new Map();
+  private metrics: Map<LogMetrics, { value: number; unit: string; type: keyof typeof METRIC_TYPES }> = new Map();
   private batchSize = 20;
   private isServerSide: boolean;
   private systemContext: SystemContext;
@@ -29,6 +26,60 @@ class Logger {
     }, 10000);
   }
 
+  // Helper function to construct full URLs
+  private getFullUrl(endpoint: string): string {
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+    try {
+      return new URL(endpoint, baseUrl).toString();
+    } catch (error) {
+      console.error('Failed to construct full URL:', error);
+      throw new Error('Invalid base URL for logger');
+    }
+  }
+
+  error(error: AppError | Error, context?: Record<string, any>) {
+    const errorData = error instanceof AppError 
+      ? error.toJSON()
+      : { name: error.name, message: error.message, stack: error.stack };
+
+    this.log('ERROR', errorData.message, {
+      errorCode: (error as AppError).code,
+      errorName: error.name,
+      errorStack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      ...context,
+      ...(errorData as AppError).metadata ? (errorData as AppError).metadata : {},
+    });
+
+    this.increment(error instanceof AppError ? error.code as LogMetrics : LOG_METRICS.ERROR);
+  }
+
+  warn(message: string, metadata: any = {}) {
+    this.log('WARN', message, metadata);
+    this.increment(LOG_METRICS.WARN);
+  }
+
+  info(message: string, metadata: any = {}) {
+    this.log('INFO', message, metadata);
+    this.increment(LOG_METRICS.INFO);
+  }
+
+  debug(message: string, metadata: any = {}) {
+    this.log('DEBUG', message, metadata);
+    this.increment(LOG_METRICS.DEBUG);
+  }
+
+  increment(metric: LogMetrics, value: number = 1) {
+    const currentData = this.metrics.get(metric) || { 
+      value: 0, 
+      unit: METRIC_UNITS.COUNT, 
+      type: METRIC_TYPES.COUNTER as keyof typeof METRIC_TYPES 
+    };
+    this.metrics.set(metric, {
+      ...currentData,
+      value: currentData.value + value,
+    });
+  }
+
   private log(level: keyof typeof LOG_LEVELS, message: string, metadata: any = {}) {
     const timestamp = new Date().toISOString();
     const logEntry: LogEntry = {
@@ -40,12 +91,8 @@ class Logger {
       level,
       message,
       timestamp,
-      metadata: {
-        ...metadata
-      },
+      metadata: { ...metadata },
     };
-    // Always log to console for both server-side and client-side
-    (console as any)[level.toLowerCase()](`[${level}] ${message}`, metadata);
 
     if (!this.isServerSide) {
       this.logQueue.push(logEntry);
@@ -53,153 +100,56 @@ class Logger {
         this.processLogQueue();
       }
     } else {
-      // For server-side, we send logs to the API
       this.sendServerSideLog(logEntry);
     }
 
-    const metricName = LOG_METRICS[level as keyof typeof LOG_METRICS];
-    this.increment(metricName);
+    if (process.env.NODE_ENV === 'development') {
+      console[level.toLowerCase() as 'log' | 'info' | 'warn' | 'error'](`[${level}] ${message}`, metadata);
+    }
   }
 
-  // for client side logs to be sent to the databse for saving/storage
   private async processLogQueue() {
-    if (this.logQueue.length === 0 || this.isServerSide) return;
+    if (this.logQueue.length === 0) return;
+
     const logsToSend = this.logQueue.splice(0, this.batchSize);
+    const url = this.getFullUrl(API_ENDPOINTS.LOG);
+    
     try {
-      await axios.post('/api/logs', { logs: logsToSend });
+      await axios.post(url, logsToSend);
     } catch (error) {
-      console.error(ERROR_MESSAGES.FAILED_TO_SEND_LOG, error);
-      // Re-add logs to the queue
+      console.error('Error sending logs:', error);
       this.logQueue.unshift(...logsToSend);
+      this.increment(LOG_METRICS.LOGGING_ERROR);
     }
-  }
-
-
-  // for server-side logging data to be stored in database/storage
-  private async sendServerSideLog(logEntry: LogEntry) {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
-    await axios.post(`${baseUrl}/api/logs`, { logs: [logEntry] });
-  } catch (error) {
-    console.error('Failed to send server-side log:', error);
-  }
-}
-
-    error(error: Error | string, metadata: any = {}) {
-    const errorMessage = error instanceof Error ? error.message : error;
-    const errorMetadata = error instanceof Error ? { ...metadata, stack: error.stack } : metadata;
-
-    let errorType = 'UnknownError';
-    let metricName: keyof typeof LOG_METRICS = 'ERROR';
-
-    // Determine the error type and corresponding metric
-    if (error instanceof Error) {
-      errorType = error.constructor.name;
-      switch (true) {
-        case error instanceof CustomErrors.DatabaseError:
-          metricName = 'DATABASE_ERROR';
-          break;
-        case error instanceof CustomErrors.ValidationError:
-          metricName = 'VALIDATION_ERROR';
-          break;
-        case error instanceof CustomErrors.AuthenticationError:
-          metricName = 'AUTHENTICATION_ERROR';
-          break;
-        case error instanceof CustomErrors.AuthorizationError:
-          metricName = 'AUTHORIZATION_ERROR';
-          break;
-        case error instanceof CustomErrors.ResourceLimitError:
-          metricName = 'RESOURCE_LIMIT_ERROR';
-          break;
-        case error instanceof CustomErrors.OnboardingError:
-          metricName = 'ONBOARDING_ERROR';
-          break;
-        case error instanceof CustomErrors.UnauthorizedError:
-          metricName = 'UNAUTHORIZED_ERROR';
-          break;
-        case error instanceof CustomErrors.SignupError:
-          metricName = 'SIGNUP_ERROR';
-          break;
-        case error instanceof CustomErrors.ApiError:
-          metricName = 'API_ERROR';
-          break;
-        case error instanceof CustomErrors.PaymentError:
-          metricName = 'PAYMENT_ERROR';
-          break;
-        case error instanceof CustomErrors.SubscriptionError:
-          metricName = 'SUBSCRIPTION_ERROR';
-          break;
-        case error instanceof CustomErrors.NotificationError:
-          metricName = 'NOTIFICATION_ERROR';
-          break;
-        case error instanceof CustomErrors.SessionError:
-          metricName = 'SESSION_ERROR';
-          break;
-        case error instanceof CustomErrors.TenantError:
-          metricName = 'TENANT_ERROR';
-          break;
-        case error instanceof CustomErrors.WebhookError:
-          metricName = 'WEBHOOK_ERROR';
-          break;
-        case error instanceof CustomErrors.FeatureFlagError:
-          metricName = 'FEATURE_FLAG_ERROR';
-          break;
-        case error instanceof CustomErrors.LoggingError:
-          metricName = 'LOGGING_ERROR';
-          break;
-        case error instanceof CustomErrors.MetricsError:
-          metricName = 'METRICS_ERROR';
-          break;
-      }
-    }
-
-    this.increment(metricName);
-    this.log('ERROR', errorMessage, { ...errorMetadata, errorType });
-  }
-
-  warn(message: string, metadata: any = {}) {
-    this.log('WARN', message, metadata);
-  }
-
-  info(message: string, metadata: any = {}) {
-    this.log('INFO', message, metadata);
-  }
-
-  debug(message: string, metadata: any = {}) {
-    this.log('DEBUG', message, metadata);
-  }
-
-  increment(metric: keyof typeof LOG_METRICS, value: number = 1) {
-    const currentData = this.metrics.get(metric) || { value: 0, unit: METRIC_UNITS.COUNT, type: METRIC_TYPES.COUNTER as keyof typeof METRIC_TYPES };
-    this.metrics.set(metric, { ...currentData, value: currentData.value + value });
-  }
-
-  gauge(metric: keyof typeof LOG_METRICS, value: number, unit: keyof typeof METRIC_UNITS = 'COUNT') {
-    this.metrics.set(metric, { value, unit, type: 'GAUGE' });
-  }
-
-  logPerformance(metricName: keyof typeof LOG_METRICS, duration: number) {
-    this.info(`Performance metric [${metricName}]: ${duration}ms`, { metricName, duration });
-    this.gauge(metricName, duration, 'MILLISECONDS');
   }
 
   private async sendMetrics() {
-    if (this.isServerSide || this.metrics.size === 0) return;
-    const metrics = Array.from(this.metrics.entries()).map(([name, data]) => ({
-      name,
-      value: data.value,
-      unit: data.unit,
-      type: data.type
+    if (this.metrics.size === 0) return;
+
+    const metricsToSend = Array.from(this.metrics.entries()).map(([key, { value, unit, type }]) => ({
+      metric: key,
+      value,
+      unit,
+      type,
+      timestamp: new Date().toISOString(),
+      systemId: this.systemContext.systemId,
+      environment: this.systemContext.environment,
     }));
+
+    const url = this.getFullUrl(API_ENDPOINTS.METRICS);
+
     try {
-      await axios.post(API_ENDPOINTS.METRICS, { metrics });
+      await axios.post(url, metricsToSend);
       this.metrics.clear();
     } catch (error) {
-      console.error(ERROR_MESSAGES.FAILED_TO_SEND_METRICS, error);
+      console.error('Error sending metrics:', error);
+      this.increment(LOG_METRICS.METRICS_ERROR);
     }
+  }
+
+  private async sendServerSideLog(logEntry: LogEntry) {
+    console[logEntry.level.toLowerCase() as 'log' | 'info' | 'warn' | 'error'](`[${logEntry.level}] ${logEntry.message}`, logEntry.metadata);
   }
 }
 
-
 export const logger = new Logger(SYSTEM_CONTEXT_INSTANCE);
-

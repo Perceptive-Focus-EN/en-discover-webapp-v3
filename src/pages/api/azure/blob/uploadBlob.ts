@@ -14,14 +14,14 @@ async function uploadBlobHandler(req: NextApiRequest, res: NextApiResponse) {
   
   try {
     if (!azureBlobStorageInstance) {
-      logger.error('Azure Blob Storage instance is not initialized.');
+      logger.error(new Error('Azure Blob Storage instance is not initialized.'));
       return res.status(500).json({ message: 'Azure Blob Storage instance is not initialized' });
     }
     await azureBlobStorageInstance.uploadBlob(blobName, Buffer.from(data));
     logger.info(`Blob ${blobName} uploaded successfully.`);
     res.status(200).json({ message: 'Blob uploaded successfully' });
   } catch (error) {
-    logger.error('Error uploading blob:', error);
+    logger.error(new Error('Error uploading blob'), { error });
     res.status(500).json({ message: 'Failed to upload blob' });
   }
 }

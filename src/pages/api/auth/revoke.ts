@@ -64,7 +64,7 @@ export default async function revokeHandler(req: NextApiRequest, res: NextApiRes
 
     res.status(200).json(authResponse);
   } catch (error) {
-    logger.error('Error revoking tokens:', error);
+    logger.error(new Error('Error revoking tokens'), { error });
     res.status(500).json({ error: 'Failed to revoke tokens' });
   }
 }

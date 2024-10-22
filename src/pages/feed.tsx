@@ -18,11 +18,19 @@ const FeedPageContent: React.FC = () => {
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const { user } = useAuth();
     const { emotions } = useMoodBoard();
-    const { addPost } = useFeed() as { addPost: (newPost: PostData) => Promise<void> };
     const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
     const [activeEmotions, setActiveEmotions] = useState<number[]>([]);
     const [key, setKey] = useState(0);
     const [feedType, setFeedType] = useState<'forYou' | 'following' | 'global'>('forYou');
+
+    const [posts, setPosts] = useState<PostData[]>([]);
+
+
+    const addPost = async (newPost: PostData) => {
+
+        setPosts((prevPosts) => [newPost, ...prevPosts]);
+
+    };
 
     if (!user) {
         return (
@@ -176,7 +184,7 @@ const FeedPageContent: React.FC = () => {
                         onClose={() => setIsFilterDrawerOpen(false)}
                         emotions={emotions}
                         activeEmotions={activeEmotions}
-                        onToggleEmotion={handleEmotionToggle}
+                        onEmotionToggle={handleEmotionToggle}
                     />
                 </>
             )}

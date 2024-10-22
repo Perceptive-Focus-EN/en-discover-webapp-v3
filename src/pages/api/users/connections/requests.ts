@@ -72,7 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json({ receivedRequests, sentRequests });
   } catch (error) {
-    logger.error('Error fetching connection requests:', error);
+    logger.error(new Error('Error fetching connection requests'), { error });
     res.status(
       error instanceof Error && error.message === 'Invalid token' ? 401 :
       error instanceof Error && error.message === 'User not found' ? 404 :

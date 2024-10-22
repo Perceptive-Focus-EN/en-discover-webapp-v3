@@ -19,7 +19,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { nfcId } = req.body;
 
   if (!tenantId || !nfcId) {
-    logger.error('Missing required parameters', { tenantId, nfcId });
+    logger.error(new Error('Missing required parameters'), { tenantId, nfcId });
     return res.status(400).json({ message: 'Missing required parameters' });
   }
 
@@ -49,7 +49,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Log performance metric
     const duration = Date.now() - startTime;
-    logger.logPerformance('nfc_access_duration', duration);
+    logger.info('nfc_access_duration', { duration });
 
   } catch (error) {
     let errorToLog: Error;

@@ -1,7 +1,6 @@
 // src/services/EmotionAnalyzer.ts
 
 import { getCosmosClient } from '../config/azureCosmosClient';
-import { logger } from '../utils/ErrorHandling/logger';
 import { redisService } from '../services/cache/redisService';
 import { MoodEntry, EmotionFrequency, EmotionIntensity, EmotionTrigger, EmotionTrend } from '../components/EN/types/emotionAnalytics';
 import { Collection } from 'mongodb';
@@ -18,7 +17,7 @@ class EmotionAnalyzer {
       const { db } = await getCosmosClient();
       this.moodEntriesCollection = db.collection('MoodEntries');
     } catch (error) {
-      logger.error('Failed to initialize MoodEntries collection', error);
+      throw new Error('Error initializing MoodEntries collection');
     }
   }
 
@@ -32,7 +31,7 @@ class EmotionAnalyzer {
     await this.ensureCollection();
     const userId_currentTenantId = `${userId}_${currentTenantId}`;
     const cacheKey = `recent_mood_entries:${userId_currentTenantId}:${limit}`;
-    
+
     try {
       const cachedEntries = await redisService.getValue(cacheKey);
       if (cachedEntries) {
@@ -50,15 +49,19 @@ class EmotionAnalyzer {
           emotionName: doc.emotionName,
           volume: doc.volume,
           date: doc.date,
-          sources: doc.sources || []
+          sources: doc.sources || [],
+          emotionId: doc.emotionId,
+          color: doc.color,
+          timeStamp: doc.timeStamp,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt
         })) as MoodEntry[];
 
       await redisService.setValue(cacheKey, JSON.stringify(entries), 300); // Cache for 5 minutes
 
       return entries;
     } catch (error) {
-      logger.error('Error getting recent mood entries', { userId, currentTenantId, error });
-      throw error;
+      throw new Error('Error getting recent mood entries');
     }
   }
 
@@ -83,15 +86,19 @@ class EmotionAnalyzer {
           emotionName: doc.emotionName,
           volume: doc.volume,
           date: doc.date,
-          sources: doc.sources || []
+          sources: doc.sources || [],
+          emotionId: doc.emotionId,
+          color: doc.color,
+          timeStamp: doc.timeStamp,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt
         })) as MoodEntry[];
 
       await redisService.setValue(cacheKey, JSON.stringify(entries), 300); // Cache for 5 minutes
 
       return entries;
     } catch (error) {
-      logger.error('Error getting recent mood entries from home tenant', { userId, error });
-      throw error;
+      throw new Error('Error getting recent mood entries from home tenant');
     }
   }
 
@@ -115,15 +122,19 @@ class EmotionAnalyzer {
           emotionName: doc.emotionName,
           volume: doc.volume,
           date: doc.date,
-          sources: doc.sources || []
+          sources: doc.sources || [],
+          emotionId: doc.emotionId,
+          color: doc.color,
+          timeStamp: doc.timeStamp,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt
         })) as MoodEntry[];
 
       await redisService.setValue(cacheKey, JSON.stringify(entries), 3600); // Cache for 1 hour
 
       return entries;
     } catch (error) {
-      logger.error('Error getting all user mood entries', { userId, error });
-      throw error;
+      throw new Error('Error getting all user mood entries');
     }
   }
 
@@ -164,8 +175,7 @@ class EmotionAnalyzer {
 
       return frequency;
     } catch (error) {
-      logger.error('Error getting emotion frequency', { userId, currentTenantId, error });
-      throw error;
+      throw new Error('Error getting emotion frequency');
     }
   }
 
@@ -201,8 +211,7 @@ class EmotionAnalyzer {
 
       return intensity;
     } catch (error) {
-      logger.error('Error getting average emotion intensity', { userId, currentTenantId, error });
-      throw error;
+      throw new Error('Error getting average emotion intensity');
     }
   }
 
@@ -239,8 +248,7 @@ class EmotionAnalyzer {
 
       return triggers;
     } catch (error) {
-      logger.error('Error getting emotion triggers', { userId, currentTenantId, error });
-      throw error;
+      throw new Error('Error getting emotion triggers');
     }
   }
 
@@ -281,8 +289,7 @@ class EmotionAnalyzer {
 
       return trends;
     } catch (error) {
-      logger.error('Error getting emotion trends', { userId, currentTenantId, error });
-      throw error;
+      throw new Error('Error getting emotion trends');
     }
   }
 }

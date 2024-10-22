@@ -2,7 +2,7 @@ import { InstituteTypes, BaseInstituteTypes, getRolesForInstituteType, getBaseTy
 import { SYSTEM_LEVEL_ROLES } from '../AccountRoles/system-level-roles';
 import { ACCESS_LEVELS } from '../../../constants/AccessKey/access_levels';
 import { PERMISSIONS } from '../../../constants/AccessKey/permissions';
-import { Subscription_Type } from '../../../constants/AccessKey/accounts';
+import { Subscription_Type, Subscription_TypeEnum } from '../../../constants/AccessKey/accounts';
 import * as authManager from '../../../utils/TokenManagement/authManager';
 
 interface InstituteAccessKeyParams {
@@ -63,7 +63,7 @@ if (user) {
     SYSTEM_LEVEL_ROLES: SYSTEM_LEVEL_ROLES.TENANT,
     INSTITUTE_TYPE: InstituteTypes.UNIVERSITY,
     TITLE: 'DEAN', // Assuming 'DEAN' is one of the available Roles for UNIVERSITY
-    SUBSCRIPTION_TYPE: 'TRIAL', // Corrected to use string literal type
+    SUBSCRIPTION_TYPE: Subscription_TypeEnum.TRIAL, // Corrected to use enum type
     ACCESS_LEVEL: ACCESS_LEVELS.L4,
     PERMISSIONS: [
       ...Object.values(PERMISSIONS.INSTITUTE),

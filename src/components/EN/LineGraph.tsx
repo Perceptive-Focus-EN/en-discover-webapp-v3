@@ -92,7 +92,7 @@ const LineGraph: React.FC<LineGraphProps> = ({ emotions }) => {
               fontWeight: hoveredEmotion === emotion ? 'bold' : 'normal',
             }}
           >
-            {emotion.label}
+            {emotion.emotionName}
           </text>
         </g>
       ))}
@@ -117,7 +117,7 @@ const LineGraph: React.FC<LineGraphProps> = ({ emotions }) => {
             fontSize="12"
             fill={theme.palette.text.primary}
           >
-            {`${hoveredEmotion.label}: ${yValues[emotions.findIndex(e => e.id === hoveredEmotion.id)]}`}
+            {`${hoveredEmotion.emotionName}: ${yValues[emotions.findIndex(e => e.id === hoveredEmotion.id)]}`}
           </text>
         </g>
       )}

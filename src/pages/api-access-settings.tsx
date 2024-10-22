@@ -1,12 +1,12 @@
 import React from 'react';
 import ApiAccessSettings from '../components/Settings/ApiAccessSettings';
-import { ApiAccessSettingsType } from '../components/Settings/ApiAccessSettings';
+import { ApiAccessSettings as ApiAccessSettingsType} from '../types/Settings/interfaces';
 
 interface ApiKeyInfo {
     key: string;
-    createdAt: string;
+    createdAt: Date;
     name: string;
-    lastUsed: string;
+    lastUsed: Date;
 }
 
 interface Settings {

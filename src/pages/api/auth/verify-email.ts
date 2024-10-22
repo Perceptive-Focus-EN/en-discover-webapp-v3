@@ -74,12 +74,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       logger.info(`Email verified successfully for user: ${decodedToken.userId}`);
       res.status(200).json({ message: 'Email verified successfully. You can now proceed with your account.' });
     } catch (updateError) {
-      logger.error(`Error updating user: ${decodedToken.userId}`, updateError);
+      logger.error(new Error(`Error updating user: ${decodedToken.userId}`), { error: updateError });
       return res.status(500).json({ message: 'Failed to update user. Please try again.' });
     }
 
   } catch (error) {
-    logger.error('Error in email verification process:', error);
+    logger.error(new Error('Error in email verification process'), { error });
     res.status(500).json({ message: 'An unexpected error occurred. Please try again later.' });
   }
 }

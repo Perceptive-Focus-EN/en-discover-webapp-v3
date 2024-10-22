@@ -27,7 +27,7 @@ export async function fetchUnreadNotificationCount(userId: string): Promise<numb
 
     return count;
   } catch (error) {
-    logger.error('Error fetching unread notification count:', error);
+    logger.error(error as Error, { message: 'Error fetching unread notification count:' });
     throw new DatabaseError('Failed to fetch unread notification count');
   }
 }
@@ -42,7 +42,7 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
       { $set: { isRead: true } }
     );
   } catch (error) {
-    logger.error('Error marking notification as read:', error);
+    logger.error(new Error('Error marking notification as read'), { error });
     throw new DatabaseError('Failed to mark notification as read');
   }
 }
@@ -60,7 +60,7 @@ export async function createNotification(userId: string, message: string, type: 
       createdAt: new Date()
     });
   } catch (error) {
-    logger.error('Error creating notification:', error);
+    logger.error(new Error('Error creating notification'), { error });
     throw new DatabaseError('Failed to create notification');
   }
 }
@@ -75,7 +75,7 @@ export async function markAllNotificationsAsRead(userId: string): Promise<void> 
       { $set: { isRead: true } }
     );
   } catch (error) {
-    logger.error('Error marking all notifications as read:', error);
+    logger.error(new Error('Error marking all notifications as read:'), { error });
     throw new DatabaseError('Failed to mark all notifications as read');
   }
 }
@@ -94,7 +94,7 @@ export async function fetchNotifications(userId: string, limit: number = 20, ski
 
     return notifications as Notification[];
   } catch (error) {
-    logger.error('Error fetching notifications:', error);
+    logger.error(new Error('Error fetching notifications:'), { error });
     throw new DatabaseError('Failed to fetch notifications');
   }
 }

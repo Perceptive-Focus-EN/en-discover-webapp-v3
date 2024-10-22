@@ -68,7 +68,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     logger.info(`Verification email resent successfully for user: ${userId}`);
     res.status(200).json({ message: 'Verification email resent successfully' });
   } catch (error) {
-    logger.error('Error resending verification email:', error);
+    logger.error(new Error('Error resending verification email'), { error });
     res.status(500).json({ message: 'Internal server error' });
   }
 }

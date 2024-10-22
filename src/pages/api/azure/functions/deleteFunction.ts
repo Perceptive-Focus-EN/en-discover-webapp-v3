@@ -24,7 +24,7 @@ async function deleteFunctionHandler(req: NextApiRequest, res: NextApiResponse) 
     logger.info(`Function app ${name} deletion initiated successfully`);
     res.status(202).json({ message: 'Function app deletion initiated successfully' });
   } catch (error) {
-    logger.error('Error deleting function app:', error);
+    logger.error(new Error('Error deleting function app'), { error });
     res.status(500).json({ message: 'Failed to initiate function app deletion' });
   }
 }

@@ -18,7 +18,7 @@ async function createContainerHandler(req: NextApiRequest, res: NextApiResponse)
     logger.info(`Container ${containerName} created successfully`);
     res.status(200).json({ message: 'Container created successfully' });
   } catch (error) {
-    logger.error('Error creating container:', error);
+    logger.error(new Error('Error creating container'), { error });
     res.status(500).json({ message: 'Failed to create container' });
   }
 }

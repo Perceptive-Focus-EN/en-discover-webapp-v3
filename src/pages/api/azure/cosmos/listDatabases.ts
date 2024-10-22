@@ -21,7 +21,7 @@ async function listDatabasesHandler(req: NextApiRequest, res: NextApiResponse) {
     logger.info('Databases listed successfully');
     res.status(200).json(databases);
   } catch (error) {
-    logger.error('Error listing databases:', error);
+    logger.error(new Error('Error listing databases'), { error });
     res.status(500).json({ message: 'Failed to list databases' });
   }
 }

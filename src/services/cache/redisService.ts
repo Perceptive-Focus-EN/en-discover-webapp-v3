@@ -1,7 +1,10 @@
+// src/services/cache/redisService.ts
+
 import Redis from 'ioredis';
 import dotenv from 'dotenv';
 import { logger } from '../../utils/ErrorHandling/logger';
 import crypto from 'crypto';
+import { LOG_METRICS } from '../../constants/logging';
 
 dotenv.config();
 
@@ -37,13 +40,12 @@ class RedisService {
       });
 
       this.client.on('error', (error) => {
-        logger.error('Redis connection error:', { error });
-        logger.increment('redis_connection_error');
+        logger.error(new Error('Redis connection error'), { error });
         if (!this.reconnectTimer) {
           this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;
             this.connect();
-          }, 5000); // Try to reconnect after 5 seconds
+          }, 5000); // Retry connection after 5 seconds
         }
       });
 
@@ -52,7 +54,7 @@ class RedisService {
         this.isConnecting = false;
       });
     } catch (error) {
-      logger.error('Failed to initialize Redis client:', { error });
+      logger.error(new Error('Failed to initialize Redis client'), { error });
       this.isConnecting = false;
       throw error;
     }
@@ -75,7 +77,7 @@ class RedisService {
       logger.info('Redis connection successful');
       return true;
     } catch (error) {
-      logger.error('Redis connection check failed:', { error });
+      logger.error(new Error('Redis connection check failed'), { error });
       return false;
     }
   }
@@ -90,8 +92,7 @@ class RedisService {
         logger.info(`Session ID ${sessionId} deleted successfully.`);
       }
     } catch (error) {
-      logger.error('Error deleting session from Redis:', { sessionId, error });
-      logger.increment('redis_delete_session_error');
+      logger.error(new Error('Error deleting session from Redis'), { sessionId, error });
       throw error;
     }
   }
@@ -101,16 +102,13 @@ class RedisService {
       await this.ensureConnection();
       const value = await this.client!.get(key);
       if (value) {
-        logger.info(`Redis hit for key: ${key}`);
-        logger.increment('redis_hit');
+        logger.info('Redis hit for key', { key, metric: LOG_METRICS.REDIS_HIT });
       } else {
-        logger.info(`Redis miss for key: ${key}`);
-        logger.increment('redis_miss');
+        logger.info('Redis miss for key', { key, metric: LOG_METRICS.REDIS_MISS });
       }
       return value;
     } catch (error) {
-      logger.error('Error getting value from Redis:', { key, error });
-      logger.increment('redis_get_error');
+      logger.error(new Error('Error getting value from Redis'), { key, error });
       throw error;
     }
   }
@@ -123,10 +121,9 @@ class RedisService {
       } else {
         await this.client!.set(key, value, 'EX', this.DEFAULT_TTL);
       }
-      logger.info(`Value set for key: ${key} with TTL: ${expiryTime || this.DEFAULT_TTL}`);
+      logger.info('Value set for key', { key, ttl: expiryTime || this.DEFAULT_TTL });
     } catch (error) {
-      logger.error('Error setting value in Redis:', { key, value, expiryTime, error });
-      logger.increment('redis_set_error');
+      logger.error(new Error('Error setting value in Redis'), { key, value, expiryTime, error });
       throw error;
     }
   }
@@ -141,8 +138,7 @@ class RedisService {
         logger.info(`Deleted value for key: ${key}`);
       }
     } catch (error) {
-      logger.error('Error deleting value from Redis:', { key, error });
-      logger.increment('redis_delete_error');
+      logger.error(new Error('Error deleting value from Redis'), { key, error });
       throw error;
     }
   }
@@ -150,46 +146,41 @@ class RedisService {
   async storeUserToken(userId: string, token: string): Promise<void> {
     try {
       await this.ensureConnection();
-      await this.client!.set(`user:token:${userId}`, token, 'EX', 60 * 60 * 24 * 7); // expires in 7 days
-      logger.info(`Token stored for userId: ${userId}`);
+      await this.client!.set(`user:token:${userId}`, token, 'EX', 60 * 60 * 24 * 7); // 7-day TTL
+      logger.info('Token stored for user', { userId });
     } catch (error) {
-      logger.error('Error storing user token in Redis:', { userId, error });
-      logger.increment('redis_store_user_token_error');
+      logger.error(new Error('Error storing user token in Redis'), { userId, error });
       throw error;
     }
   }
 
-  
   async removeUserToken(userId: string): Promise<void> {
     try {
       await this.ensureConnection();
       const result = await this.client!.del(`user:token:${userId}`);
       if (result === 0) {
-        logger.warn(`Token for userId ${userId} not found during deletion.`);
+        logger.warn(`Token for user ${userId} not found during deletion.`);
       } else {
-        logger.info(`Token removed for userId: ${userId}`);
+        logger.info('Token removed for user', { userId });
       }
     } catch (error) {
-      logger.error('Error removing user token from Redis:', { userId, error });
-      logger.increment('redis_remove_user_token_error');
+      logger.error(new Error('Error removing user token from Redis'), { userId, error });
       throw error;
     }
   }
-
 
   async getUserToken(userId: string): Promise<string | null> {
     try {
       await this.ensureConnection();
       const token = await this.client!.get(`user:token:${userId}`);
       if (token) {
-        logger.info(`Token retrieved for userId: ${userId}`);
+        logger.info('Token retrieved for user', { userId });
       } else {
-        logger.info(`No token found for userId: ${userId}`);
+        logger.info('No token found for user', { userId });
       }
       return token;
     } catch (error) {
-      logger.error('Error getting user token from Redis:', { userId, error });
-      logger.increment('redis_get_user_token_error');
+      logger.error(new Error('Error getting user token from Redis'), { userId, error });
       throw error;
     }
   }
@@ -199,7 +190,7 @@ class RedisService {
       await this.ensureConnection();
       const ttl = await this.client!.ttl(key);
       if (ttl >= 0) {
-        logger.info(`TTL for key ${key} is ${ttl} seconds.`);
+        logger.info('TTL for key', { key, ttl });
       } else if (ttl === -1) {
         logger.warn(`Key ${key} exists but has no associated expire.`);
       } else if (ttl === -2) {
@@ -207,8 +198,7 @@ class RedisService {
       }
       return ttl;
     } catch (error) {
-      logger.error('Error getting TTL from Redis:', { key, error });
-      logger.increment('redis_ttl_error');
+      logger.error(new Error('Error getting TTL from Redis'), { key, error });
       throw error;
     }
   }
@@ -216,11 +206,10 @@ class RedisService {
   async storeRefreshToken(sessionId: string, refreshToken: string): Promise<void> {
     try {
       await this.ensureConnection();
-      await this.client!.set(`refresh_token:${sessionId}`, refreshToken, 'EX', 60 * 60 * 24 * 7); // expires in 7 days
-      logger.info(`Refresh token stored for sessionId: ${sessionId}`);
+      await this.client!.set(`refresh_token:${sessionId}`, refreshToken, 'EX', 60 * 60 * 24 * 7); // 7-day TTL
+      logger.info('Refresh token stored for session', { sessionId });
     } catch (error) {
-      logger.error('Error storing refresh token in Redis:', { sessionId, error });
-      logger.increment('redis_store_refresh_token_error');
+      logger.error(new Error('Error storing refresh token in Redis'), { sessionId, error });
       throw error;
     }
   }
@@ -230,14 +219,13 @@ class RedisService {
       await this.ensureConnection();
       const token = await this.client!.get(`refresh_token:${sessionId}`);
       if (token) {
-        logger.info(`Refresh token retrieved for sessionId: ${sessionId}`);
+        logger.info('Refresh token retrieved for session', { sessionId });
       } else {
-        logger.info(`No refresh token found for sessionId: ${sessionId}`);
+        logger.info('No refresh token found for session', { sessionId });
       }
       return token;
     } catch (error) {
-      logger.error('Error getting refresh token from Redis:', { sessionId, error });
-      logger.increment('redis_get_refresh_token_error');
+      logger.error(new Error('Error getting refresh token from Redis'), { sessionId, error });
       throw error;
     }
   }
@@ -247,51 +235,46 @@ class RedisService {
       await this.ensureConnection();
       const result = await this.client!.del(`refresh_token:${sessionId}`);
       if (result === 0) {
-        logger.warn(`Refresh token for sessionId ${sessionId} not found during deletion.`);
+        logger.warn(`Refresh token for session ${sessionId} not found during deletion.`);
       } else {
-        logger.info(`Refresh token removed for sessionId: ${sessionId}`);
+        logger.info('Refresh token removed for session', { sessionId });
       }
     } catch (error) {
-      logger.error('Error removing refresh token from Redis:', { sessionId, error });
-      logger.increment('redis_remove_refresh_token_error');
+      logger.error(new Error('Error removing refresh token from Redis'), { sessionId, error });
       throw error;
     }
   }
 
-
   async storeSession(jwtToken: string, sessionData: string, expiryTime?: number): Promise<void> {
-    const sessionId = crypto.randomBytes(16).toString('hex'); // Generate a shorter session ID
+    const sessionId = crypto.randomBytes(16).toString('hex'); // Generate session ID
     try {
       await this.ensureConnection();
       await this.client!.set(`session:${sessionId}`, sessionData, 'EX', expiryTime || this.DEFAULT_TTL);
       await this.client!.set(`jwt:${sessionId}`, jwtToken, 'EX', expiryTime || this.DEFAULT_TTL);
-      logger.info(`Session stored for sessionId: ${sessionId}`);
+      logger.info('Session stored', { sessionId });
     } catch (error) {
-      logger.error('Error storing session in Redis:', { sessionId, error });
-      logger.increment('redis_store_session_error');
+      logger.error(new Error('Error storing session in Redis'), { sessionId, error });
       throw error;
     }
   }
-
 
   async getSession(jwtToken: string): Promise<string | null> {
     try {
       await this.ensureConnection();
       const sessionId = await this.client!.get(`jwt:${jwtToken}`);
       if (!sessionId) {
-        logger.info(`No session found for JWT token`);
+        logger.info('No session found for JWT token', { jwtToken });
         return null;
       }
       const sessionData = await this.client!.get(`session:${sessionId}`);
       if (sessionData) {
-        logger.info(`Session retrieved for sessionId: ${sessionId}`);
+        logger.info('Session retrieved', { sessionId });
       } else {
-        logger.info(`No session data found for sessionId: ${sessionId}`);
+        logger.info('No session data found', { sessionId });
       }
       return sessionData;
     } catch (error) {
-      logger.error('Error getting session from Redis:', { error });
-      logger.increment('redis_get_session_error');
+      logger.error(new Error('Error getting session from Redis'), { error });
       throw error;
     }
   }

@@ -87,7 +87,11 @@ const MoodBubbleChart: React.FC<MoodBubbleChartProps> = ({ emotions }) => {
 
   useEffect(() => {
     if (selectedEmotion && drawerOpen) {
-      fetchMoodData({ emotion: selectedEmotion.emotionName, timeRange });
+      fetchMoodData({
+        emotion: selectedEmotion, timeRange,
+        startDate: '',
+        endDate: ''
+      });
     }
   }, [selectedEmotion, timeRange, drawerOpen, fetchMoodData]);
 

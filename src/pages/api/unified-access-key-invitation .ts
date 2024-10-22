@@ -70,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get tenant name
     const tenant = await tenantsCollection.findOne({ _id: invitationData.ASSOCIATED_TENANT_ID });
     if (!tenant) {
-      logger.error(`Tenant not found: ${invitationData.ASSOCIATED_TENANT_ID}`);
+      logger.error(new Error(`Tenant not found: ${invitationData.ASSOCIATED_TENANT_ID}`));
       return res.status(400).json({ error: 'Invalid tenant' });
     }
 
@@ -115,13 +115,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (error) {
     if (error instanceof DatabaseError) {
-      logger.error('Database error in unified access key invitation handler:', error);
+      logger.error(new Error('Database error in unified access key invitation handler'), { error });
       return res.status(500).json({ error: 'A database error occurred while processing the request' });
     } else if (error instanceof ValidationError) {
       logger.warn('Validation error in unified access key invitation handler:', error);
       return res.status(400).json({ error: 'Invalid input data' });
     } else {
-      logger.error('Unexpected error in unified access key invitation handler:', error);
+      logger.error(new Error('Unexpected error in unified access key invitation handler'), { error });
       return res.status(500).json({ error: 'An unexpected error occurred while processing the request' });
     }
   }

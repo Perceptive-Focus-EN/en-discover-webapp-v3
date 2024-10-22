@@ -47,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json({ sessionId: session.id, url: session.url });
   } catch (error) {
-    logger.error('Error creating checkout session:', error);
+    logger.error(new Error('Error creating checkout session'), { error });
     res.status(500).json({ error: 'Error creating checkout session' });
   }
 }

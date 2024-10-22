@@ -49,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metricsCollector.increment(DEFAULT_METRICS.API_CALLS);
       res.status(HTTP_STATUS.OK).json({ message: 'Metrics stored successfully' });
     } catch (err) {
-      logger.error('Failed to store metrics:', { error: err });
+      logger.error(new Error('Failed to store metrics'), { error: err });
       metricsCollector.increment(DEFAULT_METRICS.ERROR_COUNT);
       res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ error: ERROR_MESSAGES.FAILED_TO_STORE_METRICS });
     }

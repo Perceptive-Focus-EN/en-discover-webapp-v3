@@ -111,7 +111,7 @@ async function onboardingStepsHandler(req: NextApiRequest, res: NextApiResponse<
     });
 
   } catch (error) {
-    logger.error('Error updating onboarding step:', error);
+    logger.error(new Error('Error updating onboarding step'), { error });
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ message: `Error updating onboarding step: ${errorMessage}`, user: null });
   }
@@ -119,7 +119,6 @@ async function onboardingStepsHandler(req: NextApiRequest, res: NextApiResponse<
 
 function createUserResponse(user: WithId<ExtendedUserInfo>): ExtendedUserInfo {
   return {
-    _id: user._id.toString(),
     userId: user.userId || '',
     email: user.email || '',
     firstName: user.firstName || '',
@@ -151,7 +150,6 @@ function createUserResponse(user: WithId<ExtendedUserInfo>): ExtendedUserInfo {
     accountType: user.accountType || '',
     subscriptionType: user.subscriptionType || '',
     personalTenantId: user.personalTenantId || '',
-    userTypes: user.userTypes || [],
     currentTenantId: user.currentTenantId || '',
     tenantAssociations: user.tenantAssociations || [],
   };

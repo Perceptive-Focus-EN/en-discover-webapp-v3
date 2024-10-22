@@ -48,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userGrowth
     });
   } catch (error) {
-    logger.error('Error fetching user stats for tenant:', { tenantId, error });
+    logger.error(new Error('Error fetching user stats for tenant'), { tenantId, error });
     res.status(500).json({ error: 'Failed to fetch user stats' });
   }
 }

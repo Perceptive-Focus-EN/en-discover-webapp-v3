@@ -61,7 +61,7 @@ async function switchTenantHandler(req: NextApiRequest, res: NextApiResponse) {
       user: extendedUserInfo 
     });
   } catch (error) {
-    logger.error('Error switching tenant:', error);
+    logger.error(new Error('Error switching tenant'), { error });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

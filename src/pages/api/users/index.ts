@@ -55,7 +55,7 @@ async function updateUserInfoHandler(
     logger.info(`User info updated for user ${decodedToken.userId}`);
     res.status(200).json(extendedUserInfo);
   } catch (error) {
-    logger.error('Error updating user info:', error);
+    logger.error(new Error('Error updating user info'), { error });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

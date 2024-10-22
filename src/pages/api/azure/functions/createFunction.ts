@@ -28,7 +28,7 @@ async function createFunctionHandler(req: NextApiRequest, res: NextApiResponse) 
     logger.info(`Function App ${name} created successfully`);
     res.status(200).json(result);
   } catch (error) {
-    logger.error('Error creating Function App:', error);
+    logger.error(new Error('Error creating Function App'), { error });
     res.status(500).json({ message: 'Failed to create Function App' });
   }
 }

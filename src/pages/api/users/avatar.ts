@@ -37,7 +37,7 @@ export default async function uploadAvatarHandler(
     const form = new IncomingForm();
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        logger.error('Error parsing form data:', err);
+        logger.error(new Error('Error parsing form data'), { error: err });
         return res.status(500).json({ error: 'Error parsing form data' });
       }
 
@@ -89,7 +89,7 @@ export default async function uploadAvatarHandler(
       res.status(200).json({ avatarUrl });
     });
   } catch (error) {
-    logger.error('Error uploading avatar:', error);
+    logger.error(new Error('Error uploading avatar'), { error });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

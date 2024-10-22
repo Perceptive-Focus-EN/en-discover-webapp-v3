@@ -112,7 +112,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     ...authUser,
                     userId: authUser!.userId ?? '', // Ensure userId is not undefined
                     role: authUser!.role, // Ensure role is included
-                    userTypes: authUser!.userTypes, // Ensure userTypes is included
+                    // userTypes: authUser!.userTypes, // Ensure userTypes is included
                     tenantId: authUser!.tenantId ?? '', // Ensure tenantId is not undefined
                     tenant: authUser!.tenant ?? null, // Ensure tenant is not undefined
                     softDelete: authUser!.softDelete ?? null, // Ensure softDelete is not undefined

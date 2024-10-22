@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json({ count });
   } catch (error) {
-    logger.error('Error fetching unread notification count:', error);
+    logger.error(new Error('Error fetching unread notification count'), { error });
     res.status(500).json({ message: 'Internal server error' });
   }
 }

@@ -40,7 +40,7 @@ export class TransactionManager {
       logger.info('Transaction committed successfully');
       return result!;
     } catch (error) {
-      logger.error('Transaction aborted due to error', { 
+      logger.error(new Error('Transaction aborted due to error'), { 
         message: (error as Error).message, 
         stack: (error as Error).stack 
       });
@@ -59,7 +59,7 @@ export class TransactionManager {
         return await this.executeTransaction(operations);
       } catch (error) {
         if (attempt === maxRetries) {
-          logger.error(`Transaction failed after ${maxRetries} attempts`, { 
+          logger.error(new Error('Transaction failed after maximum retries'), {
             message: (error as Error).message, 
             stack: (error as Error).stack 
           });

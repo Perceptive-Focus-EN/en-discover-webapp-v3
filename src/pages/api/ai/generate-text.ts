@@ -21,7 +21,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     res.status(200).json({ generatedText });
   } catch (error) {
     // Error handling using your logger
-    logger.error('Error generating text:', error);
+    logger.error(new Error('Error generating text'), { error });
     res.status(500).json({ error: 'Failed to generate text' });
   }
 };

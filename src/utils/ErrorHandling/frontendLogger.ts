@@ -105,25 +105,25 @@ class FrontendLogger {
       simpleLogger.info(`User message (${level}): ${message}`);
     }
   }
-  
-  private async flushLogs(retryCount = 0) {
-    if (this.logQueue.length === 0) return;
 
-    const logsToSend = this.logQueue.splice(0, this.batchSize);
-    try {
-      const response = await axiosInstance.post('/api/logs', { logs: logsToSend });
-      simpleLogger.info('Logs sent successfully:', response.status);
-    } catch (error) {
-      simpleLogger.error('Failed to send logs:', error);
-      this.logQueue.unshift(...logsToSend);
-      if (retryCount < 3) {
-        setTimeout(() => this.flushLogs(retryCount + 1), 1000 * Math.pow(2, retryCount));
-      } else {
-        this.storeLogsLocally(logsToSend);
-      }
+  private async flushLogs(retryCount = 0) {
+  if (this.logQueue.length === 0) return;
+
+  const logsToSend = this.logQueue.splice(0, this.batchSize);
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+    const response = await axiosInstance.post(`${baseUrl}/api/logs`, { logs: logsToSend });
+    simpleLogger.info('Logs sent successfully:', response.status);
+  } catch (error) {
+    simpleLogger.error('Failed to send logs:', error);
+    this.logQueue.unshift(...logsToSend);
+    if (retryCount < 3) {
+      setTimeout(() => this.flushLogs(retryCount + 1), 1000 * Math.pow(2, retryCount));
+    } else {
+      this.storeLogsLocally(logsToSend);
     }
   }
-
+}
   private storeLogsLocally(logs: LogEntry[]) {
     try {
       const storedLogs = JSON.parse(localStorage.getItem('failedLogs') || '[]');
@@ -185,16 +185,17 @@ class FrontendLogger {
   }
 
   async sendMetrics() {
-    const metrics = Array.from(this.metrics.values());
-    if (metrics.length === 0) return;
+  const metrics = Array.from(this.metrics.values());
+  if (metrics.length === 0) return;
 
-    try {
-      await axiosInstance.post('/api/metrics', { metrics });
-      this.metrics.clear();
-    } catch (error) {
-      simpleLogger.error('Failed to send metrics:', error);
-    }
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+    await axiosInstance.post(`${baseUrl}/api/metrics`, { metrics });
+    this.metrics.clear();
+  } catch (error) {
+    simpleLogger.error('Failed to send metrics:', error);
   }
+}
 }
 
 export const frontendLogger = new FrontendLogger();

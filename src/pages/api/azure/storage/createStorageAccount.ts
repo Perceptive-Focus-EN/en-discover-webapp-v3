@@ -17,7 +17,7 @@ async function createStorageAccountHandler(req: NextApiRequest, res: NextApiResp
     logger.info(`Storage account ${name} created successfully in ${location}`);
     res.status(200).json({ message: `Storage account ${name} created successfully in ${location}` });
   } catch (error) {
-    logger.error('Error creating storage account:', error);
+    logger.error(new Error('Error creating storage account'), { error });
     res.status(500).json({ message: 'Failed to create storage account' });
   }
 }

@@ -79,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error) {
-    logger.error('Error handling subscription:', error);
+    logger.error(new Error('Error handling subscription'), { error });
     if (error instanceof Stripe.errors.StripeError) {
       return res.status(error.statusCode || 500).json({ error: error.message });
     }

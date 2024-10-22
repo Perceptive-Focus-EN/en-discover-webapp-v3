@@ -23,7 +23,7 @@ async function listStorageAccountsHandler(req: NextApiRequest, res: NextApiRespo
     logger.info('Storage accounts listed successfully');
     res.status(200).json(accounts);
   } catch (error) {
-    logger.error('Error listing storage accounts:', error);
+    logger.error(new Error('Error listing storage accounts'), { error });
     res.status(500).json({ message: 'Failed to list storage accounts' });
   }
 }

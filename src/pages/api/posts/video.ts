@@ -49,7 +49,7 @@ async function queueVideoProcessingJob(blobName: string, userId: string): Promis
     logger.info(`Video processing job queued successfully in ${serviceBusQueueName}`);
     return true;
   } catch (error) {
-    logger.error(`Failed to queue video processing job in ${serviceBusQueueName}:`, error);
+    logger.error(new Error(`Failed to queue video processing job in ${serviceBusQueueName}:`), { error });
     return false;
   }
 }
@@ -77,7 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
-      logger.error('Request timed out');
+      logger.error(new Error('Request timed out'));
       res.status(500).json({ message: 'Request timed out' });
       resolve();
     }, 60000); // 60-second timeout
@@ -86,7 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     form.parse(req, async (err, fields, files) => {
       clearTimeout(timeout);
       if (err) {
-        logger.error('Error parsing form data:', { error: err });
+        logger.error(new Error('Error parsing form data'), { error: err });
         res.status(500).json({ message: 'Error parsing form data' });
         return resolve();
       }
@@ -154,7 +154,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         return resolve();
       } catch (error) {
-        logger.error('Error processing upload:', { error, userId: decodedToken.userId });
+        logger.error(new Error('Error processing upload'), { error, userId: decodedToken.userId });
         res.status(500).json({ message: 'Error processing upload' });
         return resolve();
       }

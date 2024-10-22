@@ -45,7 +45,7 @@ async function searchTenants(req: NextApiRequest, res: NextApiResponse, decodedT
 
     res.status(200).json(tenants);
   } catch (error) {
-    logger.error('Error searching tenants:', error);
+    logger.error(new Error('Error searching tenants'), { error });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -92,7 +92,7 @@ async function sendJoinRequest(req: NextApiRequest, res: NextApiResponse, decode
     logger.info(`User ${decodedToken.userId} sent join request to tenant ${tenantId}`);
     res.status(200).json({ message: 'Join request sent successfully' });
   } catch (error) {
-    logger.error('Error sending join request:', error);
+    logger.error(new Error('Error sending join request'), { error });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

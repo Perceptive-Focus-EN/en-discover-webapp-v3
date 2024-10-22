@@ -117,7 +117,7 @@ export default async function loginHandler(
     logger.info(`User logged in successfully: ${user.email}`);
     res.status(200).json(authResponse);
   } catch (error) {
-    logger.error('Login error:', error);
+    logger.error(new Error('Login error'), { error });
     logger.debug('Error details:', error);
     res.status(500).json({ error: 'Login failed' });
   }

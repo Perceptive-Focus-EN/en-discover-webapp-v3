@@ -164,7 +164,7 @@ export const Feed: React.FC<FeedProps> = ({ feedType, activeEmotions }) => {
 
   const loadMorePosts = useCallback(async () => {
     try {
-      await fetchPosts(feedType, activeEmotions);
+      await fetchPosts();
       if (state.posts.length === 0) {
         setHasMore(false);
       }

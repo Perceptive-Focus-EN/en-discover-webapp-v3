@@ -21,7 +21,7 @@ async function createDatabaseHandler(req: NextApiRequest, res: NextApiResponse) 
     logger.info(`Database ${databaseName} created successfully`);
     res.status(200).json({ id: databaseName });
   } catch (error) {
-    logger.error('Error creating database:', error);
+    logger.error(new Error('Error creating database'), { error });
     res.status(500).json({ message: 'Failed to create database' });
   }
 }

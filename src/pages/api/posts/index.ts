@@ -108,7 +108,7 @@ async function fetchPostsHandler(req: NextApiRequest, res: NextApiResponse) {
     logger.info(`Fetched ${posts.length} posts for page ${pageNumber}`);
       res.status(200).json(posts);
   } catch (error) {
-    logger.error('Error fetching posts:', error);
+    logger.error(new Error('Error fetching posts'), { error });
     res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 }

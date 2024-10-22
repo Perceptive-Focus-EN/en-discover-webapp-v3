@@ -64,7 +64,7 @@ async function createPostHandler(req: NextApiRequest, res: NextApiResponse) {
     logger.info(`Post created successfully: ${result.insertedId}`);
     res.status(201).json(insertedPost);
   } catch (error) {
-    logger.error('Error creating post:', error);
+    logger.error(new Error('Error creating post'), { error });
     res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 }

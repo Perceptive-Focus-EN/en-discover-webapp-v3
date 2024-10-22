@@ -42,7 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         userId = decodedToken.userId;
       } catch (error) {
-        logger.error('Error during authentication:', error);
+        logger.error(new Error('Error during authentication'), { error });
         return res.status(500).json({ error: 'Error during authentication' });
       }
     }
@@ -103,10 +103,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     } catch (error) {
       if (error instanceof DatabaseError) {
-        logger.error('Database error when saving mood entry:', error);
+        logger.error(new Error('Database error when saving mood entry'), { error });
         res.status(500).json({ error: 'Database error when saving mood entry' });
       } else {
-        logger.error('Unexpected error when saving mood entry:', error);
+        logger.error(new Error('Unexpected error when saving mood entry'), { error });
         res.status(500).json({ error: 'Unexpected error when saving mood entry' });
       }
     }

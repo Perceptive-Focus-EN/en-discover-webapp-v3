@@ -40,7 +40,7 @@ async function logoutHandler(req: NextApiRequest, res: NextApiResponse) {
     logger.info(`User logged out successfully. User ID: ${userId}, Session ID: ${sessionId}`);
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
-    logger.error('Failed to logout:', error);
+    logger.error(new Error('Failed to logout'), { error });
     res.status(500).json({ message: 'Failed to logout', error: error instanceof Error ? error.message : 'Unknown error' });
   }
 }

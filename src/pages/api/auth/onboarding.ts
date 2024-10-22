@@ -79,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json(response);
   } catch (error) {
-    logger.error('Error in onboarding process:', error);
+    logger.error(new Error('Error in onboarding process'), { error });
     res.status(500).json({ message: 'An unexpected error occurred' });
   }
 }

@@ -39,29 +39,6 @@ export const LOG_LEVELS = {
   DEBUG: 'debug',
 } as const;
 
-export const LOG_METRICS = {
-  ERROR: 'log_error',
-  WARN: 'log_warn',
-  INFO: 'log_info',
-  DEBUG: 'log_debug',
-  API_CALLS: 'api_calls',
-  REQUEST_COUNT: 'request_count',
-  RESPONSE_TIME: 'response_time',
-  DATABASE_ERROR: 'database_error',
-  AUTHENTICATION_ERROR: 'authentication_error',
-  VALIDATION_ERROR: 'validation_error',
-  PAYMENT_PROCESSING_ERROR: 'payment_processing_error',
-  EMOTION_MAPPING_GET: 'emotion_mapping_get',
-  EMOTION_MAPPING_CREATE: 'emotion_mapping_create',
-  EMOTION_MAPPING_UPDATE_ALL: 'emotion_mapping_update_all',
-  EMOTION_MAPPING_UPDATE_SINGLE: 'emotion_mapping_update_single',
-  EMOTION_MAPPING_UPDATE_FAILED: 'emotion_mapping_update_failed',
-  EMOTION_MAPPING_DELETE: 'emotion_mapping_delete',
-  EMOTION_MAPPING_DELETE_FAILED: 'emotion_mapping_delete_failed',
-  EMOTION_MAPPING_METHOD_NOT_ALLOWED: 'emotion_mapping_method_not_allowed',
-  EMOTION_MAPPING_RESPONSE_TIME: 'emotion_mapping_response_time',
-} as const;
-
 // Environment variables
 export const ENV_VARS = {
   NODE_ENV: 'NODE_ENV',

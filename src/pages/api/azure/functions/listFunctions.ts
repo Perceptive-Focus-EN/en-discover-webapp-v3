@@ -19,7 +19,7 @@ async function listFunctionsHandler(req: NextApiRequest, res: NextApiResponse) {
     logger.info('Function apps listed successfully');
     res.status(200).json(functionApps);
   } catch (error) {
-    logger.error('Error listing function apps:', error);
+    logger.error(new Error('Error listing function apps:'), { error });
     res.status(500).json({ message: 'Failed to list function apps' });
   }
 }

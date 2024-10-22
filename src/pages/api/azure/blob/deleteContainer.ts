@@ -17,7 +17,7 @@ async function deleteContainerHandler(req: NextApiRequest, res: NextApiResponse)
     logger.info(`Container ${containerName} deleted successfully`);
     res.status(200).json({ message: 'Container deleted successfully' });
   } catch (error) {
-    logger.error('Error deleting container:', error);
+    logger.error(new Error('Error deleting container'), { error });
     res.status(500).json({ message: 'Failed to delete container' });
   }
 }

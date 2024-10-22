@@ -20,7 +20,7 @@ async function listContainersHandler(req: NextApiRequest, res: NextApiResponse) 
     logger.info('Containers listed successfully');
     res.status(200).json(containers);
   } catch (error) {
-    logger.error('Error listing containers:', error);
+    logger.error(new Error('Error listing containers'), { error });
     res.status(500).json({ message: 'Failed to list containers' });
   }
 }

@@ -26,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const notifications = await fetchNotifications(userId, limit, skip);
     res.status(200).json({ notifications });
   } catch (error) {
-    logger.error('Error fetching notifications:', error);
+    logger.error(new Error('Error fetching notifications'), { error });
     res.status(500).json({ message: 'Internal server error' });
   }
 }

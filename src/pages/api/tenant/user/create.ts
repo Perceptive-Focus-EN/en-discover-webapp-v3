@@ -172,7 +172,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       });
     });
   } catch (error) {
-    logger.error('Error creating tenant user:', error);
+    logger.error(new Error('Error creating tenant user'), { error });
     res.status(
       error instanceof Error && error.message === 'Unauthorized' ? 401 :
       error instanceof Error && error.message === 'Invalid token or missing information' ? 401 :

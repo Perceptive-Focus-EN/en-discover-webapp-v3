@@ -9,6 +9,8 @@ export const LOG_LEVELS = {
   DEBUG: 'debug',
 } as const;
 
+// src/constants/logging.ts
+
 export const LOG_METRICS = {
   ERROR: 'ERROR',
   WARN: 'WARN',
@@ -32,7 +34,38 @@ export const LOG_METRICS = {
   FEATURE_FLAG_ERROR: 'FEATURE_FLAG_ERROR',
   LOGGING_ERROR: 'LOGGING_ERROR',
   METRICS_ERROR: 'METRICS_ERROR',
+
+  // Redis-specific metrics
+  REDIS_HIT: 'redis_hit',
+  REDIS_MISS: 'redis_miss',
+  REDIS_GET_ERROR: 'redis_get_error',
+  REDIS_SET_ERROR: 'redis_set_error',
+  REDIS_DELETE_ERROR: 'redis_delete_error',
+  REDIS_STORE_USER_TOKEN_ERROR: 'redis_store_user_token_error',
+  REDIS_REMOVE_USER_TOKEN_ERROR: 'redis_remove_user_token_error',
+  REDIS_GET_USER_TOKEN_ERROR: 'redis_get_user_token_error',
+  REDIS_TTL_ERROR: 'redis_ttl_error',
+  REDIS_STORE_REFRESH_TOKEN_ERROR: 'redis_store_refresh_token_error',
+  REDIS_GET_REFRESH_TOKEN_ERROR: 'redis_get_refresh_token_error',
+  REDIS_REMOVE_REFRESH_TOKEN_ERROR: 'redis_remove_refresh_token_error',
+  REDIS_STORE_SESSION_ERROR: 'redis_store_session_error',
+  REDIS_GET_SESSION_ERROR: 'redis_get_session_error',
+
+
+  PAYMENT_PROCESSING_ERROR: 'payment_processing_error',
+EMOTION_MAPPING_GET: 'emotion_mapping_get',
+EMOTION_MAPPING_CREATE: 'emotion_mapping_create',
+EMOTION_MAPPING_UPDATE_ALL: 'emotion_mapping_update_all',
+EMOTION_MAPPING_UPDATE_SINGLE: 'emotion_mapping_update_single',
+EMOTION_MAPPING_UPDATE_FAILED: 'emotion_mapping_update_failed',
+EMOTION_MAPPING_DELETE: 'emotion_mapping_delete',
+EMOTION_MAPPING_DELETE_FAILED: 'emotion_mapping_delete_failed',
+EMOTION_MAPPING_METHOD_NOT_ALLOWED: 'emotion_mapping_method_not_allowed',
+EMOTION_MAPPING_RESPONSE_TIME: 'emotion_mapping_response_time',
+
 } as const;
+
+export type LogMetrics = keyof typeof LOG_METRICS;
 
 export const API_ENDPOINTS = {
   LOG: '/api/logs',

@@ -31,7 +31,7 @@ export const authMiddleware = (handler: NextApiHandler) => {
         throw new UnauthorizedError('Invalid token');
       }
 
-      if (serverTokenUtils.isTokenExpired(token, 0)) {
+      if (serverTokenUtils.isTokenExpired(token)) {
         throw new UnauthorizedError('Token has expired');
       }
 
@@ -53,7 +53,7 @@ export const authMiddleware = (handler: NextApiHandler) => {
       // Call the original handler
       return handler(req, res);
     } catch (error) {
-      logger.error('Authentication error:', error);
+      logger.error(new Error('Authentication error'), { error });
       if (error instanceof UnauthorizedError) {
         return res.status(401).json({ error: error.message });
       }

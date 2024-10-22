@@ -107,7 +107,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   
   } catch (error) {
-    logger.error('Error accepting connection request:', error);
+    logger.error(new Error('Error accepting connection request'), { error });
     res.status(
       error instanceof Error && error.message === 'Invalid token' ? 401 :
       error instanceof Error && error.message === 'Missing userId in request body' ? 400 :

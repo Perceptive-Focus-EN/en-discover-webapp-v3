@@ -60,10 +60,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(200).json(moodHistory);
     } catch (error) {
       if (error instanceof DatabaseError) {
-        logger.error('Database error when fetching mood history:', error);
+        logger.error(new Error('Database error when fetching mood history'), { error });
         res.status(500).json({ error: 'Database error when fetching mood history' });
       } else {
-        logger.error('Unexpected error when fetching mood history:', error);
+        logger.error(new Error('Unexpected error when fetching mood history'), { error });
         res.status(500).json({ error: 'Unexpected error when fetching mood history' });
       }
     }

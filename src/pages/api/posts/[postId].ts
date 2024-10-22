@@ -60,7 +60,7 @@ async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
     logger.info(`Post fetched successfully: ${postId}`);
     res.status(200).json(post);
   } catch (error) {
-    logger.error('Error fetching post:', error);
+    logger.error(new Error('Error fetching post'), { error });
     res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
   }
 }

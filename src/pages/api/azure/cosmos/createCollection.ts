@@ -19,7 +19,7 @@ async function createCollectionHandler(req: NextApiRequest, res: NextApiResponse
       message: `Collection "${containerName}" created successfully in database "${databaseName}".`,
     });
   } catch (error) {
-    logger.error('Error creating collection:', error);
+    logger.error(new Error('Error creating collection'), { error });
     res.status(500).json({ error: (error as Error).message });
   }
 }

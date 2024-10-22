@@ -21,7 +21,7 @@ async function getResourceDetailsHandler(req: NextApiRequest, res: NextApiRespon
     logger.info(`Resource details retrieved for ${resourceId}`);
     res.status(200).json(resource);
   } catch (error) {
-    logger.error('Error getting resource details:', error);
+    logger.error(new Error('Error getting resource details'), { error });
     res.status(500).json({ message: 'Failed to get resource details' });
   }
 }

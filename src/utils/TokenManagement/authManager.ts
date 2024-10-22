@@ -59,7 +59,7 @@ export const requestMagicLink = async (email: string): Promise<void> => {
       body: JSON.stringify({ email }),
     });
   } catch (err) {
-    logger.error('Magic link request error:', err);
+    logger.error(new Error('Magic link request error'), { error: err });
     throw err;
   }
 };
@@ -76,7 +76,7 @@ export const verifyMagicLink = async (token: string): Promise<AuthResponse> => {
     }
     throw new Error('Invalid response from server');
   } catch (err) {
-    logger.error('Magic link verification error:', err);
+    logger.error(new Error('Magic link verification error'), { error: err });
     throw err;
   }
 };
@@ -103,7 +103,7 @@ export const revokeTokens = async (): Promise<AuthResponse | null> => {
     }
     return null;
   } catch (err) {
-    logger.error('Token revocation error:', err);
+    logger.error(new Error('Token revocation error'), { error: err });
     return null;
   }
 };
@@ -128,7 +128,7 @@ export const refreshTokens = async (): Promise<AuthResponse | null> => {
     }
     return null;
   } catch (err) {
-    logger.error('Token refresh error:', err);
+    logger.error(new Error('Token refresh error'), { error: err });
     return null;
   }
 };
@@ -141,7 +141,7 @@ export const logout = async () => {
     await fetchWithAuth(API_ENDPOINTS.LOGOUT_USER, { method: 'POST' });
     clearTokens();
   } catch (err) {
-    logger.error('Logout error:', err);
+    logger.error(new Error('Logout error'), { error: err });
   }
 };
 

@@ -23,7 +23,7 @@ async function createInsightsWidgetHandler(req: NextApiRequest, res: NextApiResp
     logger.info(`Application Insights component ${name} created successfully`);
     res.status(200).json(result);
   } catch (error) {
-    logger.error('Error creating Application Insights component:', error);
+    logger.error(new Error('Error creating Application Insights component'), { error });
     res.status(500).json({ message: 'Failed to create Application Insights component' });
   }
 }

@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         throw new ApiError(405, ERROR_MESSAGES.METHOD_NOT_ALLOWED);
     }
   } catch (error) {
-    logger.error('Error in reactions API:', error);
+    logger.error(new Error('Error in reactions API'), { error });
     if (error instanceof ApiError) {
       return res.status(error.statusCode).json({ error: error.message });
     }

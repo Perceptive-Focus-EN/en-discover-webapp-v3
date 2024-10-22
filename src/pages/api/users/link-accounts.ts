@@ -26,7 +26,7 @@ async function linkAccountsHandler(req: NextApiRequest, res: NextApiResponse) {
     client = cosmosClient.client;
     db = cosmosClient.db;
   } catch (error) {
-    logger.error('Database connection error:', error);
+    logger.error(new Error('Database connection error'), { error });
     return res.status(500).json({ error: 'Unable to connect to the database' });
   }
 
@@ -105,7 +105,7 @@ async function linkAccountsHandler(req: NextApiRequest, res: NextApiResponse) {
       res.status(200).json({ message: 'Accounts linked successfully', user: extendedUserInfo });
     });
   } catch (error) {
-    logger.error('Error linking accounts:', error);
+    logger.error(new Error('Error linking accounts'), { error });
     res.status(error instanceof Error && error.message === 'Account ID to link is required' ? 400 :
                error instanceof Error && error.message === 'One or both users not found' ? 404 :
                error instanceof Error && error.message === 'Failed to update user' ? 500 :

@@ -50,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const form = new IncomingForm();
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        logger.error('Error parsing form data:', { error: err });
+        logger.error(new Error('Error parsing form data'), { error: err });
         return res.status(500).json({ message: 'Error parsing form data' });
       }
 
@@ -107,12 +107,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         return res.status(200).json({ message: 'Photo uploaded successfully', photoUrl: photoUrlWithSas });
       } catch (error) {
-        logger.error('Error processing upload:', { error, userId: decodedToken.userId });
+        logger.error(new Error('Error processing upload'), { error, userId: decodedToken.userId });
         return res.status(500).json({ message: 'Error processing upload' });
       }
     });
   } catch (error) {
-    logger.error('Error in request handling:', { error });
+    logger.error(new Error('Error in request handling'), { error });
     return res.status(401).json({ message: (error as Error).message });
   }
 }

@@ -10,7 +10,7 @@
 // import feedbackRoutes from './feedback';
 // import termsRoutes from './terms';
 // import privacyRoutes from './privacy';
-// import moodboardRoutes from './moodboard';
+// import moodboardRoutes from './MoodBoard';
 // import resourcesRoutes from './resources';
 // import friendsRoutes from './friends';
 // import consultationRoutes from './consultation';
@@ -26,7 +26,7 @@
 // router.use('/feedback', feedbackRoutes);
 // router.use('/terms', termsRoutes);
 // router.use('/privacy', privacyRoutes);
-// router.use('/moodboard', moodboardRoutes);
+// router.use('/MoodBoard', moodboardRoutes);
 // router.use('/resources', resourcesRoutes);
 // router.use('/friends', friendsRoutes);
 // router.use('/consultation', consultationRoutes);

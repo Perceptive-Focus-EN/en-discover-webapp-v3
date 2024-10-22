@@ -30,7 +30,7 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
   try {
     const storedToken = await getRefreshToken(sessionId);
 
-    if (!storedToken || isTokenExpired(storedToken, 0)) {
+    if (!storedToken || isTokenExpired(storedToken)) {
       return res.status(403).json({ error: 'Refresh token expired or invalid' });
     }
 
@@ -84,7 +84,7 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
 
     res.status(200).json(authResponse);
   } catch (error) {
-    logger.error('Error refreshing token:', error);
+    logger.error(new Error('Error refreshing token'), { error });
     res.status(500).json({ error: 'Failed to refresh tokens' });
   }
 }

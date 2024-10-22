@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       emotionTrends
     });
   } catch (error) {
-    logger.error("Error analyzing emotions:", { userId, currentTenantId, error });
+    logger.error(new Error("Error analyzing emotions"), { userId, currentTenantId, error });
     res.status(500).json({ message: 'Internal Server Error' });
   }
 }

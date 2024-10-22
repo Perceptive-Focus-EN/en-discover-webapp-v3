@@ -43,7 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json({ connections });
   } catch (error) {
-    logger.error('Error fetching connections:', error);
+    logger.error(new Error('Error fetching connections'), { error });
     res.status(500).json({ error: 'Internal server error' });
   }
 }

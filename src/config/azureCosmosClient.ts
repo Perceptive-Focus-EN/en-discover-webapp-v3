@@ -52,7 +52,7 @@ export async function getCosmosClient(dbName?: string, withClient: boolean = fal
 
       return withClient ? { client: cachedClient, db: cachedDb } : { db: cachedDb };
     } catch (error) {
-      logger.error(`Failed to connect to the database (Attempt ${retries + 1}/${maxRetries})`, error);
+      logger.error(new Error(`Failed to connect to the database (Attempt ${retries + 1}/${maxRetries})`), { error });
       retries++;
       if (retries >= maxRetries) {
         throw new DatabaseError('Unable to connect to the database after multiple attempts');

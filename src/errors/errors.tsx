@@ -24,6 +24,13 @@ export class AuthenticationError extends Error {
     }
 }
 
+export class UnsupportedAIServiceError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'UnsupportedAIServiceError';
+    }
+}
+
 export class AuthorizationError extends Error {
     constructor(message: string) {
         super(message);
