@@ -9,7 +9,7 @@ export interface AIAssistantState {
   userId: string | null;
   showInput: boolean;
   generatedResponse: string;
-  selectedVoice: 'onyx' | 'nova' | 'shimmer' | 'echo' | 'fable';
+  selectedVoice: 'onyx' | 'nova' | 'alloy' | 'shimmer' | 'echo' | 'fable';
   showCombinedSelector: boolean;
   audioUrl: string;
   isSynthesizing: boolean;

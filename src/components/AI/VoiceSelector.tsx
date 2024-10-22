@@ -4,10 +4,13 @@ import { synthesizeSpeech } from '../../utils/audioGenerator';
 import { useAIAssistant } from '@/contexts/AIAssistantContext';
 
 type VoiceMappingType = {
-  Chill: string;
-  Lively: string;
-  Posh: string;
-  Whisper: string;
+  Chill: 'onyx';
+  Lively: 'alloy';
+  Posh: 'fable';
+  Whisper: 'nova';
+  Echo: 'echo';
+  Shimmer: 'shimmer';
+  // Add other possible voice names here
 };
 
 const voiceMapping: VoiceMappingType = {
@@ -15,6 +18,8 @@ const voiceMapping: VoiceMappingType = {
   Lively: 'alloy',
   Posh: 'fable',
   Whisper: 'nova',
+  Echo: 'echo',
+  Shimmer: 'shimmer'
 };
 
 const VoiceSelector: React.FC = () => {
