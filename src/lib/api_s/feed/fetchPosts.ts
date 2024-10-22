@@ -1,6 +1,7 @@
 import axiosInstance from '../../axiosSetup';
 import { frontendLogger } from '../../../utils/ErrorHandling/frontendLogger';
 import { FeedPost } from '@/components/Feed/types/Post';
+import { LOG_METRICS } from '@/constants/logging';
 
 export const fetchPostsFromAPI = async (
   page: number,
@@ -28,7 +29,7 @@ export const fetchPostsFromAPI = async (
     const response = await axiosInstance.get<FeedPost | FeedPost[]>(url, { params });
     
     const endTime = performance.now();
-    frontendLogger.logPerformance('fetch_posts_duration', endTime - startTime);
+    frontendLogger.logPerformance(LOG_METRICS.FETCH_POSTS_DURATION, endTime - startTime);
 
     const posts = response.data ? (Array.isArray(response.data) ? response.data : [response.data]) : [];
 
@@ -45,7 +46,7 @@ export const fetchPostsFromAPI = async (
     return posts;
   } catch (error) {
     const endTime = performance.now();
-    frontendLogger.logPerformance('fetch_posts_duration', endTime - startTime);
+    frontendLogger.logPerformance(LOG_METRICS.FETCH_POSTS_DURATION, endTime - startTime);
     frontendLogger.error(
       'Failed to fetch posts',
       'We encountered an issue while trying to load posts. Please try again.',

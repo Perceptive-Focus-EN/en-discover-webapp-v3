@@ -105,7 +105,7 @@ const AIAssistant: React.FC = () => {
   useClickOutside(combinedSelectorRef, closeCombinedSelector);
 
   const handleBubbleClick = (bubbleInfo: BubbleType) => {
-    dispatch({ type: 'SET_BUTTON_COLOR', payload: bubbleInfo.color });
+    dispatch({ type: 'SET_BUTTON_COLOR', payload: bubbleInfo.color as "blue" | "green" | "red" | "purple" | "yellow" });
     dispatch({ type: 'SET_BUTTON_GRADIENT', payload: bubbleInfo.gradient });
     dispatch({ type: 'SET_SELECTED_BOX_SHADOW', payload: bubbleInfo.boxShadow });
     frontendLogger.info(

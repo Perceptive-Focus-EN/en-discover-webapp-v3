@@ -1,10 +1,11 @@
 // src/contexts/SettingsContext.tsx
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from './AuthContext';
 import { frontendLogger } from '../utils/ErrorHandling/frontendLogger';
 import { SettingsState, NotificationSettings, PrivateSettings, StyleSettings, OverseerInviteSettings } from '@/types/Settings/interfaces';
 import settingsApi from '../lib/api_s/settings/client';
+import { LOG_METRICS } from '@/constants/logging';
 
 interface SettingsContextType {
   settings: SettingsState | null;
@@ -25,7 +26,10 @@ type SettingsAction =
   | { type: 'FETCH_SUCCESS'; payload: SettingsState }
   | { type: 'FETCH_FAILURE'; error: string }
   | { type: 'UPDATE_SUCCESS'; payload: Partial<SettingsState> }
-  | { type: 'UPDATE_FAILURE'; error: string };
+  | { type: 'UPDATE_FAILURE'; error: string }
+  | { type: 'SETTINGS_FETCH_DURATION'; duration: number }
+  | { type: 'SETTINGS_UPDATE_DURATION'; duration: number }
+  
 
 const settingsReducer = (state: ExtendedSettingsState, action: SettingsAction): ExtendedSettingsState => {
   switch (action.type) {
@@ -150,7 +154,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
 
         const endTime = performance.now();
-        frontendLogger.logPerformance('settings_fetch_duration', endTime - startTime);
+        frontendLogger.logPerformance(LOG_METRICS.SETTINGS_FETCH_DURATION, endTime - startTime);
         dispatch({ type: 'FETCH_SUCCESS', payload: fetchedSettings });
         localStorage.setItem('userSettings', JSON.stringify(fetchedSettings));
         frontendLogger.info('Settings fetched from API', 'Settings have been successfully fetched from the API');
@@ -197,7 +201,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       const updatedSettings = { ...state, ...newSettings };
       const endTime = performance.now();
-      frontendLogger.logPerformance('settings_update_duration', endTime - startTime);
+      frontendLogger.logPerformance(LOG_METRICS.SETTINGS_UPDATE_DURATION, endTime - startTime);
       dispatch({ type: 'UPDATE_SUCCESS', payload: updatedSettings });
       localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
       frontendLogger.info('Settings updated successfully', `Updated category: ${category}`);

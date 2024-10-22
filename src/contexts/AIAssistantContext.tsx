@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useEffect, useCallback } from 'react';
 import { useGlobalState } from './GlobalStateContext';
 import { TenantInfo } from '@/types/Tenant/interfaces';
 
@@ -9,12 +9,12 @@ export interface AIAssistantState {
   userId: string | null;
   showInput: boolean;
   generatedResponse: string;
-  selectedVoice: string;
+  selectedVoice: 'onyx' | 'nova' | 'shimmer' | 'echo' | 'fable';
   showCombinedSelector: boolean;
   audioUrl: string;
   isSynthesizing: boolean;
   isLoading: boolean;
-  buttonColor: string;
+  buttonColor: 'blue' | 'green' | 'red' | 'purple' | 'yellow';
   buttonGradient: string;
   selectedBoxShadow: string;
   selectedBubble: string | null;
@@ -27,12 +27,12 @@ export type AIAssistantAction =
   | { type: 'SET_USER_ID'; payload: string | null }
   | { type: 'SET_SHOW_INPUT'; payload: boolean }
   | { type: 'SET_GENERATED_RESPONSE'; payload: string }
-  | { type: 'SET_SELECTED_VOICE'; payload: string }
+  | { type: 'SET_SELECTED_VOICE'; payload: AIAssistantState['selectedVoice'] }
   | { type: 'SET_SHOW_COMBINED_SELECTOR'; payload: boolean }
   | { type: 'SET_AUDIO_URL'; payload: string }
   | { type: 'SET_IS_SYNTHESIZING'; payload: boolean }
   | { type: 'SET_IS_LOADING'; payload: boolean }
-  | { type: 'SET_BUTTON_COLOR'; payload: string }
+  | { type: 'SET_BUTTON_COLOR'; payload: AIAssistantState['buttonColor'] }
   | { type: 'SET_BUTTON_GRADIENT'; payload: string }
   | { type: 'SET_SELECTED_BOX_SHADOW'; payload: string }
   | { type: 'SET_SELECTED_BUBBLE'; payload: string | null };
@@ -55,11 +55,13 @@ const initialState: AIAssistantState = {
   selectedBubble: null,
 };
 
-const AIAssistantContext = createContext<{
+type AIAssistantContextType = {
   state: AIAssistantState;
   dispatch: React.Dispatch<AIAssistantAction>;
   toggleAIAssistant: () => void;
-} | undefined>(undefined);
+};
+
+const AIAssistantContext = createContext<AIAssistantContextType | undefined>(undefined);
 
 const aiAssistantReducer = (state: AIAssistantState, action: AIAssistantAction): AIAssistantState => {
   switch (action.type) {
@@ -110,12 +112,18 @@ export const AIAssistantProvider: React.FC<{ children: ReactNode }> = ({ childre
     dispatch({ type: 'SET_USER_ID', payload: userId });
   }, [userId]);
 
-  const toggleAIAssistant = () => {
+  const toggleAIAssistant = useCallback(() => {
     dispatch({ type: 'SET_ACTIVE', payload: !state.isActive });
+  }, [state.isActive]);
+
+  const contextValue: AIAssistantContextType = {
+    state,
+    dispatch,
+    toggleAIAssistant,
   };
 
   return (
-    <AIAssistantContext.Provider value={{ state, dispatch, toggleAIAssistant }}>
+    <AIAssistantContext.Provider value={contextValue}>
       {children}
     </AIAssistantContext.Provider>
   );
