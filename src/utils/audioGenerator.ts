@@ -1,8 +1,12 @@
 // ttsAPI.js
 
 import axios from 'axios';
+import dotenv from 'dotenv'
+
+dotenv.config();
+
 const openaiUrl = 'https://api.openai.com/v1/audio/speech';
-const apiKey = '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';
+const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
 
 export const synthesizeSpeech = async (text: any, voice = 'onyx') => {
     if (!apiKey) {

@@ -4,8 +4,8 @@
 // dotenv.config();
 // 
 // const OPENAI_BASE_URL = 'https://api.openai.com/v1/chat/';
-// const OPENAI_API_KEY = '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';
 // 
+// const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
 // 
 // export const fetchImage = async (text: string, enhancedPrompt?: string) => {
     // const requestBody = {
@@ -17,8 +17,9 @@
 // 
     // try {
         // const response = await axios.post(`${OPENAI_BASE_URL}images/generations`, requestBody, {
-            // headers: {
-                // 'Authorization': `Bearer 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`
+// headers: {
+                    // 'Authorization': `Bearer ${OPENAI_API_KEY}`
+
             // }
         // });
         // const generatedImageUrl = response.data?.data?.[0]?.url;
@@ -71,8 +72,9 @@
             // max_tokens: 3000,
             // temperature: 0.7
         // }, {
-            // headers: {
-                // 'Authorization': `Bearer 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`
+// headers: {
+                    // 'Authorization': `Bearer ${OPENAI_API_KEY}`
+
             // }
         // });
         // const generatedContent = response.data.choices[0].text;
