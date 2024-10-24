@@ -4,9 +4,10 @@ import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '../../../constants/collections';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
 import { ObjectId } from 'mongodb';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { logger } from '../../../MonitoringSystem/Loggers/logger';
 import { OnboardingStepName, OnboardingStepData, OnboardingStepRequest, OnboardingStepResponse } from '../../../types/Onboarding/interfaces';
 import { API_ENDPOINTS } from '../../../constants/endpointsConstants';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -79,7 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json(response);
   } catch (error) {
-    logger.error(new Error('Error in onboarding process'), { error });
+    logger.error(new Error('Error in onboarding process'), ErrorType.GENERIC, { error });
     res.status(500).json({ message: 'An unexpected error occurred' });
   }
 }

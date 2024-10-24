@@ -1,47 +1,75 @@
-// src/pages/api/users/link-accounts.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
 import { authMiddleware } from '../../../middlewares/authMiddleware';
-import { logger } from '../../../utils/ErrorHandling/logger';
 import { User, ExtendedUserInfo } from '../../../types/User/interfaces';
 import { TenantInfo } from '../../../types/Tenant/interfaces';
-import { ROLES, AllRoles } from '@/constants/AccessKey/AccountRoles';
+import { ROLES } from '@/constants/AccessKey/AccountRoles';
 import { MongoClient, Db } from 'mongodb';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
 
 async function linkAccountsHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   const decodedToken = (req as any).user;
-
-  let client: MongoClient;
+  let client: MongoClient | null = null;
   let db: Db;
+  let session: any;
+
   try {
     const cosmosClient = await getCosmosClient();
     if (!cosmosClient.client || !cosmosClient.db) {
-      throw new Error('Cosmos client or database is undefined');
+      throw monitoringManager.error.createError(
+        'system',
+        'DATABASE_CONNECTION_FAILED',
+        'Database connection failed'
+      );
     }
     client = cosmosClient.client;
     db = cosmosClient.db;
-  } catch (error) {
-    logger.error(new Error('Database connection error'), { error });
-    return res.status(500).json({ error: 'Unable to connect to the database' });
-  }
+    session = client.startSession();
 
-  const session = client.startSession();
-
-  try {
     await session.withTransaction(async () => {
       const { accountToLinkId } = req.body;
 
       if (!accountToLinkId) {
-        throw new Error('Account ID to link is required');
+        throw monitoringManager.error.createError(
+          'business',
+          'VALIDATION_FAILED',
+          'Account ID to link is required'
+        );
       }
 
       const usersCollection = db.collection(COLLECTIONS.USERS);
       const tenantsCollection = db.collection(COLLECTIONS.TENANTS);
+
+      // Record attempt metric
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'account',
+        'link_attempt',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        {
+          userId: decodedToken.userId,
+          targetAccountId: accountToLinkId
+        }
+      );
 
       const [currentUser, accountToLink] = await Promise.all([
         usersCollection.findOne({ userId: decodedToken.userId }, { session }) as Promise<User | null>,
@@ -49,14 +77,32 @@ async function linkAccountsHandler(req: NextApiRequest, res: NextApiResponse) {
       ]);
 
       if (!currentUser || !accountToLink) {
-        throw new Error('One or both users not found');
+        throw monitoringManager.error.createError(
+          'business',
+          'USER_NOT_FOUND',
+          'One or both users not found',
+          { userId: decodedToken.userId, targetAccountId: accountToLinkId }
+        );
       }
 
-      // Merge tenants and roles
+      // Record tenant merge metrics
+      const initialTenantCount = currentUser.tenants.length;
       const mergedTenants = [...new Set([...currentUser.tenants, ...accountToLink.tenants])];
       const mergedTenantAssociations = [...currentUser.tenantAssociations, ...accountToLink.tenantAssociations];
 
-      // Update current user with merged data
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'account',
+        'tenants_merged',
+        mergedTenants.length - initialTenantCount,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        {
+          userId: decodedToken.userId,
+          targetAccountId: accountToLinkId
+        }
+      );
+
       const updatedUser = await usersCollection.findOneAndUpdate(
         { userId: currentUser.userId },
         { 
@@ -70,10 +116,13 @@ async function linkAccountsHandler(req: NextApiRequest, res: NextApiResponse) {
       ) as User | null;
 
       if (!updatedUser) {
-        throw new Error('Failed to update user');
+        throw monitoringManager.error.createError(
+          'system',
+          'DATABASE_OPERATION_FAILED',
+          'Failed to update user'
+        );
       }
 
-      // Mark the linked account
       await usersCollection.updateOne(
         { userId: accountToLink.userId },
         { 
@@ -86,7 +135,10 @@ async function linkAccountsHandler(req: NextApiRequest, res: NextApiResponse) {
         { session }
       );
 
-      const tenantInfo = await tenantsCollection.findOne({ tenantId: updatedUser.currentTenantId }, { session }) as TenantInfo | null;
+      const tenantInfo = await tenantsCollection.findOne(
+        { tenantId: updatedUser.currentTenantId },
+        { session }
+      ) as TenantInfo | null;
 
       const extendedUserInfo: ExtendedUserInfo = {
         ...updatedUser,
@@ -101,18 +153,68 @@ async function linkAccountsHandler(req: NextApiRequest, res: NextApiResponse) {
         role: ROLES.Business.CHIEF_EXECUTIVE_OFFICER
       };
 
-      logger.info(`User ${currentUser.userId} linked account ${accountToLink.userId}`);
-      res.status(200).json({ message: 'Accounts linked successfully', user: extendedUserInfo });
+      // Record success metrics
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'account',
+        'link_success',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        {
+          userId: decodedToken.userId,
+          targetAccountId: accountToLinkId,
+          mergedTenantCount: mergedTenants.length,
+          tenantAssociationsCount: mergedTenantAssociations.length
+        }
+      );
+
+      return res.status(200).json({
+        message: 'Accounts linked successfully',
+        user: extendedUserInfo
+      });
     });
+
   } catch (error) {
-    logger.error(new Error('Error linking accounts'), { error });
-    res.status(error instanceof Error && error.message === 'Account ID to link is required' ? 400 :
-               error instanceof Error && error.message === 'One or both users not found' ? 404 :
-               error instanceof Error && error.message === 'Failed to update user' ? 500 :
-               500)
-      .json({ error: error instanceof Error ? error.message : 'Internal server error' });
+    if (AppError.isAppError(error)) {
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      'OPERATION_FAILED',
+      'Error linking accounts',
+      { error, userId: decodedToken.userId }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'account',
+      'link_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        operation: 'link',
+        errorType: error.name || 'unknown',
+        userId: decodedToken.userId
+      }
+    );
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
+
   } finally {
-    await session.endSession();
+    if (session) {
+      await session.endSession();
+    }
     if (client) {
       await client.close();
     }

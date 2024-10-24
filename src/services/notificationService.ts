@@ -3,8 +3,9 @@
 import { getCosmosClient } from '../config/azureCosmosClient';
 import { COLLECTIONS } from '../constants/collections';
 import { ObjectId } from 'mongodb';
-import { logger } from '../utils/ErrorHandling/logger';
-import { DatabaseError } from '../errors/errors';
+import { logger } from '../MonitoringSystem/Loggers/logger';
+import { DatabaseError } from '../MonitoringSystem/errors/specific';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export interface Notification {
   _id: ObjectId;
@@ -27,7 +28,7 @@ export async function fetchUnreadNotificationCount(userId: string): Promise<numb
 
     return count;
   } catch (error) {
-    logger.error(error as Error, { message: 'Error fetching unread notification count:' });
+    logger.error(error as Error, ErrorType.GENERIC, { message: 'Error fetching unread notification count:' });
     throw new DatabaseError('Failed to fetch unread notification count');
   }
 }
@@ -42,7 +43,7 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
       { $set: { isRead: true } }
     );
   } catch (error) {
-    logger.error(new Error('Error marking notification as read'), { error });
+    logger.error(new Error('Error marking notification as read'), ErrorType.GENERIC, { error });
     throw new DatabaseError('Failed to mark notification as read');
   }
 }
@@ -60,7 +61,7 @@ export async function createNotification(userId: string, message: string, type: 
       createdAt: new Date()
     });
   } catch (error) {
-    logger.error(new Error('Error creating notification'), { error });
+    logger.error(new Error('Error creating notification'), ErrorType.GENERIC, { error });
     throw new DatabaseError('Failed to create notification');
   }
 }
@@ -75,7 +76,7 @@ export async function markAllNotificationsAsRead(userId: string): Promise<void> 
       { $set: { isRead: true } }
     );
   } catch (error) {
-    logger.error(new Error('Error marking all notifications as read:'), { error });
+    logger.error(new Error('Error marking all notifications as read:'), ErrorType.GENERIC, { error });
     throw new DatabaseError('Failed to mark all notifications as read');
   }
 }
@@ -94,7 +95,7 @@ export async function fetchNotifications(userId: string, limit: number = 20, ski
 
     return notifications as Notification[];
   } catch (error) {
-    logger.error(new Error('Error fetching notifications:'), { error });
+    logger.error(new Error('Error fetching notifications:'), ErrorType.GENERIC, { error });
     throw new DatabaseError('Failed to fetch notifications');
   }
 }

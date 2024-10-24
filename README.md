@@ -1,17 +1,33 @@
+# TYPE SAFETY RULES FOR THIS PROJECT
 
-# To Check for Circular issues within src use both of the commands.
+## 1. Interfaces
+
+## "interface LogEntry { }"
+
+## 2. Type definitions
+
+## "type Environment = 'dev' | 'prod';"
+
+## 3. Utility functions
+
+## const isValidLog = (log: unknown): log is LogEntry => { }
+
+## 4. Type guards
+
+## const isEnvironment = (env: string): env is Environment => { }
+
+## To Check for Circular issues within src use both of the commands
 
 ## One command is to install if you have not and the other to run it after installing
 
 -npm install -g madge
 -madge --circular ./src
 
+## Extended Use Case Scenarios
 
-# Extended Use Case Scenarios
+### A. Business Layer (as previously described)
 
-## A. Business Layer (as previously described)
-
-## B. Social Media Layer
+### B. Social Media Layer
 
 ### Personal Account Creation
 
@@ -34,7 +50,7 @@
 - Use `/api/tenant/create-sub-tenant` for different aspects (e.g., music, acting, charity work).
 - Use `/api/tenant/user/create` for team members managing different aspects.
 
-## C. Family Account Layer
+### C. Family Account Layer
 
 ### Family Account Setup
 
@@ -54,7 +70,7 @@
 
 - Use `/api/tenant/create-sub-tenant` for different family groups (e.g., immediate family, extended family).
 
-## D. Institutional Layer (Universities, Schools, etc.)
+### D. Institutional Layer (Universities, Schools, etc.)
 
 ### University Setup
 
@@ -85,7 +101,7 @@
 - Use `/api/tenant/create-sub-tenant` for the alumni association.
 - Use `/api/tenant/add-user` to add graduated students to the alumni sub-tenant.
 
-## E. Healthcare System
+### E. Healthcare System
 
 ### Hospital Network Setup
 

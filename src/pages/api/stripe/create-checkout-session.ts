@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import Stripe from 'stripe';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { logger } from '../../../MonitoringSystem/Loggers/logger';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_51MmnePD1nktmyofyjhqmQIZNHmPKZIkU7NHf7P3sRioJAzDamxqyiWypB7RqLsCc2PIXpSnlRWUY4R8Awdlefvvn007QVUa0sQ';
 

@@ -1,8 +1,7 @@
 // src/config/azureCosmosClient.ts
 import { MongoClient, Db, MongoClientOptions } from 'mongodb';
 import { AZURE_COSMOSDB_CONFIG } from '../constants/azureConstants';
-import { logger } from '../utils/ErrorHandling/logger';
-import { DatabaseError } from '../errors/errors';
+import { DatabaseError } from '../MonitoringSystem/errors/specific';
 import { mockDatabase } from '../mocks/mockDatabase';
 import { useMockDatabase } from './mockConfig';
 
@@ -11,7 +10,6 @@ let cachedDb: Db | null = null;
 
 export async function getCosmosClient(dbName?: string, withClient: boolean = false): Promise<{ db: Db; client?: MongoClient }> {
   if (useMockDatabase) {
-    logger.info('Using mock database');
     return { db: mockDatabase as unknown as Db };
   }
 
@@ -27,7 +25,6 @@ export async function getCosmosClient(dbName?: string, withClient: boolean = fal
         }
 
         const connectionString = `mongodb://${USERNAME}:${PASSWORD}@${HOST}.mongo.cosmos.azure.com:10255/?ssl=true&replicaSet=globaldb&retryWrites=false&maxIdleTimeMS=120000&appName=@${HOST}@`;
-        logger.info('Connecting to database...');
 
         const options: MongoClientOptions = {
           serverSelectionTimeoutMS: 5000,
@@ -36,7 +33,6 @@ export async function getCosmosClient(dbName?: string, withClient: boolean = fal
 
         cachedClient = new MongoClient(connectionString, options);
         await cachedClient.connect();
-        logger.info('Connected to database successfully');
       }
 
       // Check if the client is still connected by pinging the server
@@ -52,7 +48,6 @@ export async function getCosmosClient(dbName?: string, withClient: boolean = fal
 
       return withClient ? { client: cachedClient, db: cachedDb } : { db: cachedDb };
     } catch (error) {
-      logger.error(new Error(`Failed to connect to the database (Attempt ${retries + 1}/${maxRetries})`), { error });
       retries++;
       if (retries >= maxRetries) {
         throw new DatabaseError('Unable to connect to the database after multiple attempts');
@@ -69,7 +64,5 @@ export async function closeCosmosClient(): Promise<void> {
     await cachedClient.close();
     cachedClient = null;
     cachedDb = null;
-    logger.info('Closed database connection');
   }
 }
-

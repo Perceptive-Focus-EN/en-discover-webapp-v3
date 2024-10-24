@@ -6,7 +6,7 @@ import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { BCRYPT_SALT_ROUNDS } from '../constants/constants';
 import { COLLECTIONS } from '../constants/collections';
-import { DatabaseError } from '../errors/errors';
+import { DatabaseError } from '../MonitoringSystem/errors/specific';
 import { SoftDeletable } from '../types/Shared/interfaces';
 import { User } from '../types/User/interfaces';
 import { Tenant } from "../types/Tenant/interfaces";

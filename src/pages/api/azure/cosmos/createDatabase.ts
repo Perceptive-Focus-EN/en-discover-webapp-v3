@@ -2,7 +2,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/utils/ErrorHandling/logger';
+import { logger } from '@/MonitoringSystem/Loggers/logger';
 import { getCosmosClient } from '@/config/azureCosmosClient';
 
 async function createDatabaseHandler(req: NextApiRequest, res: NextApiResponse) {

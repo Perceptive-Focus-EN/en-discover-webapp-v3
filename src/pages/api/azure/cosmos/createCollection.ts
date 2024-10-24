@@ -3,7 +3,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '@/config/azureCosmosClient';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/utils/ErrorHandling/logger';
+import { logger } from '@/MonitoringSystem/Loggers/logger';
 
 async function createCollectionHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {

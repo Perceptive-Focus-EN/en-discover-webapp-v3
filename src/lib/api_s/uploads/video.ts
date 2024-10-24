@@ -1,7 +1,6 @@
 // src/lib/api_s/uploads/video.ts
-
 import axiosInstance from '../../axiosSetup';
-import { AxiosResponse } from 'axios';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
 interface VideoUploadResponse {
   blobName: string;
@@ -14,32 +13,29 @@ interface VideoUrlResponse {
   videoUrl: string;
 }
 
-export const uploadVideo = async (file: File, caption?: string): Promise<VideoUploadResponse> => {
-  const formData = new FormData();
-  formData.append('video', file);
-  if (caption) {
-    formData.append('caption', caption);
-  }
+export const videoApi = {
+  upload: async (file: File, caption?: string): Promise<VideoUploadResponse> => {
+    const formData = new FormData();
+    formData.append('video', file);
+    if (caption) {
+      formData.append('caption', caption);
+    }
 
-  try {
-    const response: AxiosResponse<VideoUploadResponse> = await axiosInstance.post('/api/posts/video', formData, {
+    messageHandler.info('Uploading video...');
+    const response = await axiosInstance.post('/api/posts/video', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    return response.data;
-  } catch (error) {
-    console.error('Error uploading video:', error);
-    throw error;
-  }
-};
 
-export const getVideoUrl = async (blobName: string): Promise<string> => {
-  try {
-    const response: AxiosResponse<VideoUrlResponse> = await axiosInstance.get(`/api/posts/getVideoUrl?blobName=${encodeURIComponent(blobName)}`);
+    messageHandler.success('Video uploaded successfully');
+    return response.data;
+  },
+
+  getUrl: async (blobName: string): Promise<string> => {
+    const response = await axiosInstance.get(
+      `/api/posts/getVideoUrl?blobName=${encodeURIComponent(blobName)}`
+    );
     return response.data.videoUrl;
-  } catch (error) {
-    console.error('Error fetching video URL:', error);
-    throw error;
   }
 };

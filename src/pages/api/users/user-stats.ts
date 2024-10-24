@@ -1,60 +1,168 @@
-// src/pages/api/auth/user/user-stats.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '@/utils/ErrorHandling/logger';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    logger.warn('Unauthorized: No token provided');
-    return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    const appError = monitoringManager.error.createError(
+      'security',
+      'AUTH_UNAUTHORIZED',
+      'No token provided'
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   const token = authHeader.split(' ')[1];
   const decodedToken = verifyAccessToken(token);
   if (!decodedToken) {
-    logger.warn('Unauthorized: Invalid token');
-    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    const appError = monitoringManager.error.createError(
+      'security',
+      'AUTH_TOKEN_INVALID',
+      'Invalid token'
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
-  const tenantId = decodedToken.tenantId;  // Ensure tenantId is part of your JWT
+  const tenantId = decodedToken.tenantId;
 
   try {
-    logger.info('Fetching user stats for tenant', tenantId);
     const { db } = await getCosmosClient();
     const usersCollection = db.collection(COLLECTIONS.USERS);
 
-    // Filter users by tenantId
-    const totalUsers = await usersCollection.countDocuments({ tenantId });
-    const activeUsers = await usersCollection.countDocuments({ tenantId, isActive: true });
-    const onboardingUsers = await usersCollection.countDocuments({ tenantId, 'onboardingStatus.isOnboardingComplete': false });
+    // Record metric for stats fetch attempt
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'user_stats',
+      'fetch',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      { tenantId }
+    );
 
-    // Calculate user growth (implement based on actual logic or historical data)
-    const userGrowth = calculateUserGrowth(tenantId); // Placeholder function for growth calculation
+    // Get user counts
+    const [totalUsers, activeUsers, onboardingUsers] = await Promise.all([
+      usersCollection.countDocuments({ tenantId }),
+      usersCollection.countDocuments({ tenantId, isActive: true }),
+      usersCollection.countDocuments({ tenantId, 'onboardingStatus.isOnboardingComplete': false })
+    ]);
 
-    logger.info(`User stats retrieved for tenant ${tenantId}: ${totalUsers} total, ${activeUsers} active, ${onboardingUsers} onboarding.`);
+    const userGrowth = calculateUserGrowth(tenantId);
 
-    res.status(200).json({
+    // Record metrics for user stats
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'tenant_users',
+      'total',
+      totalUsers,
+      MetricType.GAUGE,
+      MetricUnit.COUNT,
+      { tenantId }
+    );
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'tenant_users',
+      'active',
+      activeUsers,
+      MetricType.GAUGE,
+      MetricUnit.COUNT,
+      { tenantId }
+    );
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'tenant_users',
+      'onboarding',
+      onboardingUsers,
+      MetricType.GAUGE,
+      MetricUnit.COUNT,
+      { tenantId }
+    );
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'tenant_users',
+      'growth',
+      userGrowth,
+      MetricType.GAUGE,
+      MetricUnit.PERCENTAGE,
+      { tenantId }
+    );
+
+    return res.status(200).json({
       totalUsers,
       activeUsers,
       onboardingUsers,
       userGrowth
     });
+
   } catch (error) {
-    logger.error(new Error('Error fetching user stats for tenant'), { tenantId, error });
-    res.status(500).json({ error: 'Failed to fetch user stats' });
+    if (AppError.isAppError(error)) {
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      'DATABASE_OPERATION_FAILED',
+      'Failed to fetch user stats',
+      { error, tenantId }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'user_stats',
+      'error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        operation: 'fetch',
+        errorType: error.name || 'unknown',
+        tenantId
+      }
+    );
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }
 
 function calculateUserGrowth(tenantId: string): number {
-  // Implement logic to calculate user growth based on historical data or trends.
-  // This can involve querying past user data and computing the percentage change.
-  return 2.5; // Placeholder example
+  // Implement actual growth calculation logic
+  return 2.5;
 }

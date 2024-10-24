@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useAIAssistant } from '@/contexts/AIAssistantContext';
-import { frontendLogger } from '@/utils/ErrorHandling/frontendLogger';
 import LoadingIndicator from './LoadingIndicator';
 
 interface StyledButtonProps {
   isPlaying: boolean;
+  isSuccess: boolean;
   gradient: string;
   boxShadow: string;
 }
@@ -23,6 +23,11 @@ const floatAnimation = keyframes`
 const speakAnimation = keyframes`
   0%, 100% { transform: scale(1, 1); }
   20%, 80% { transform: scale(1, 0.85); }
+`;
+
+const successAnimation = keyframes`
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
 `;
 
 const StyledButton = styled.button<StyledButtonProps>`
@@ -46,9 +51,11 @@ const StyledButton = styled.button<StyledButtonProps>`
   font-size: 16px;
   cursor: pointer;
   outline: none;
-  animation: ${({ isPlaying }) =>
+  animation: ${({ isPlaying, isSuccess }) =>
     isPlaying
       ? css`${speakAnimation} 0.5s linear infinite`
+      : isSuccess
+      ? css`${successAnimation} 1s ease-in-out infinite`
       : css`${floatAnimation} 8s ease-in-out infinite`};
   animation-play-state: running;
 
@@ -104,6 +111,7 @@ const CircleButtonWrapper = styled.div`
 const CircleButton: React.FC<CircleButtonProps> = ({ onSynthesisComplete, onLongPress }) => {
   const { state, dispatch } = useAIAssistant();
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -138,24 +146,24 @@ const CircleButton: React.FC<CircleButtonProps> = ({ onSynthesisComplete, onLong
 
       audio.onended = () => {
         setIsPlaying(false);
+        setIsSuccess(true);
         dispatch({ type: 'SET_IS_SYNTHESIZING', payload: false });
         dispatch({ type: 'SET_IS_LOADING', payload: false });
         onSynthesisComplete();
-        frontendLogger.info('Speech synthesis completed', 'AI Assistant finished speaking', { voiceUsed: state.selectedVoice });
       };
 
-      audio.onerror = (error) => {
-        frontendLogger.error('Error playing audio', 'An error occurred while playing the synthesized speech', { error });
+      audio.onerror = () => {
         setIsPlaying(false);
+        setIsSuccess(false);
       };
 
       return () => {
         audioRef.current = null;
       };
     }
-  }, [state.audioUrl, state.selectedVoice, dispatch, onSynthesisComplete]);
+  }, [state.audioUrl, dispatch, onSynthesisComplete]);
 
-    return (
+  return (
     <CircleButtonWrapper>
       <LoadingIndicator />
       <StyledButton
@@ -164,6 +172,7 @@ const CircleButton: React.FC<CircleButtonProps> = ({ onSynthesisComplete, onLong
         onTouchStart={handleMouseDown}
         onTouchEnd={handleMouseUp}
         isPlaying={isPlaying}
+        isSuccess={isSuccess}
         gradient={state.buttonGradient}
         boxShadow={state.selectedBoxShadow}
         onClick={toggleAudioPlayback}
@@ -171,4 +180,5 @@ const CircleButton: React.FC<CircleButtonProps> = ({ onSynthesisComplete, onLong
     </CircleButtonWrapper>
   );
 };
+
 export default CircleButton;

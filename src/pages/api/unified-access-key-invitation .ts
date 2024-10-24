@@ -1,12 +1,12 @@
-// pages/api/unified-access-key-invitation.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../config/azureCosmosClient';
-import { logger } from '../../utils/ErrorHandling/logger';
-import { DatabaseError, ValidationError } from '../../errors/errors';
 import { COLLECTIONS } from '../../constants/collections';
 import { v4 as uuidv4 } from 'uuid';
 import { sendDynamicEmail } from '../../services/emailService';
 import { getEmailStyles, defaultTheme, EmailTheme, COMPANY_NAME, SUPPORT_EMAIL, SUPPORT_PHONE } from '../../constants/emailConstants';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
 
 const invitationEmailTemplate = {
   subject: `Invitation to Join ${COMPANY_NAME}`,
@@ -34,7 +34,7 @@ const invitationEmailTemplate = {
           </p>
           <p>If the button doesn't work, you can copy and paste the following link into your browser:</p>
           <p>${invitationLink}</p>
-          <p>This invitation will expire in 7 days. If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+          <p>This invitation will expire in 7 days. If you have any questions or need assistance, please don't hesitate to contact our support t
           <div class="footer">
             <p>Best regards,<br>The ${COMPANY_NAME} Team</p>
             <p>Support: ${SUPPORT_EMAIL} | ${SUPPORT_PHONE}</p>
@@ -48,7 +48,17 @@ const invitationEmailTemplate = {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   const { email, ...invitationData } = req.body;
@@ -59,19 +69,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const invitationsCollection = db.collection(COLLECTIONS.TENANT_INVITATIONS);
     const tenantsCollection = db.collection(COLLECTIONS.TENANTS);
 
-    // Check if user already exists
+    // Check existing user
     const existingUser = await usersCollection.findOne({ email });
-
     if (existingUser) {
-      logger.warn(`Attempted to invite existing user: ${email}`);
-      return res.status(400).json({ error: 'User already exists' });
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'invitation',
+        'duplicate_attempt',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { email }
+      );
+
+      const appError = monitoringManager.error.createError(
+        'business',
+        'USER_EXISTS',
+        'User already exists',
+        { email }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
 
-    // Get tenant name
+    // Verify tenant
     const tenant = await tenantsCollection.findOne({ _id: invitationData.ASSOCIATED_TENANT_ID });
     if (!tenant) {
-      logger.error(new Error(`Tenant not found: ${invitationData.ASSOCIATED_TENANT_ID}`));
-      return res.status(400).json({ error: 'Invalid tenant' });
+      const appError = monitoringManager.error.createError(
+        'business',
+        'TENANT_NOT_FOUND',
+        'Invalid tenant',
+        { tenantId: invitationData.ASSOCIATED_TENANT_ID }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
 
     // Create invitation
@@ -85,7 +122,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       title: invitationData.TITLE,
       subscriptionType: invitationData.SUBSCRIPTION_TYPE,
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       status: 'PENDING'
     };
 
@@ -106,23 +143,76 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       defaultTheme
     );
 
-    logger.info(`Invitation created and email sent for email: ${email}`, { invitationId, tenantId: invitationData.ASSOCIATED_TENANT_ID });
+    // Record success metrics
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'invitation',
+      'created',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        email,
+        tenantId: invitationData.ASSOCIATED_TENANT_ID,
+        accountType: invitationData.ACCOUNT_TYPE,
+        accessLevel: invitationData.ACCESS_LEVEL
+      }
+    );
 
-    res.status(200).json({
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'email',
+      'invitation_sent',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        email,
+        tenantId: invitationData.ASSOCIATED_TENANT_ID,
+        type: 'invitation'
+      }
+    );
+
+    return res.status(200).json({
       message: 'Invitation sent successfully',
       invitationId,
-      _id: result.insertedId.toString() // Return the MongoDB-generated _id as a string
+      _id: result.insertedId.toString()
     });
+
   } catch (error) {
-    if (error instanceof DatabaseError) {
-      logger.error(new Error('Database error in unified access key invitation handler'), { error });
-      return res.status(500).json({ error: 'A database error occurred while processing the request' });
-    } else if (error instanceof ValidationError) {
-      logger.warn('Validation error in unified access key invitation handler:', error);
-      return res.status(400).json({ error: 'Invalid input data' });
-    } else {
-      logger.error(new Error('Unexpected error in unified access key invitation handler'), { error });
-      return res.status(500).json({ error: 'An unexpected error occurred while processing the request' });
+    if (AppError.isAppError(error)) {
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      'OPERATION_FAILED',
+      'Failed to process invitation request',
+      { error, email }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'invitation',
+      'error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        operation: 'create_invitation',
+        errorType: error.name || 'unknown',
+        email
+      }
+    );
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }

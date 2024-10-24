@@ -2,8 +2,9 @@
 import { fileURLToPath } from 'url';
 import path from 'path';
 import withSvgr from 'next-plugin-svgr';
-import withTM from 'next-transpile-modules'; // Import next-transpile-modules
+import withTM from 'next-transpile-modules';
 
+// Get current directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -11,16 +12,13 @@ const __dirname = path.dirname(__filename);
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  // Remove 'transpilePackages' from here if it exists
-  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // Handle SVG imports
+  webpack: (config, { isServer }) => {
     config.module.rules.push({
       test: /\.svg$/,
       use: ['@svgr/webpack'],
       include: path.resolve(__dirname, 'src/assets/images'),
     });
 
-    // Add fallback configuration for client-side
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -29,18 +27,13 @@ const nextConfig = {
         tls: false,
       };
     }
+
     return config;
   },
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'media.licdn.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'mirasmindstorage.blob.core.windows.net',
-      },
+      { protocol: 'https', hostname: 'media.licdn.com' },
+      { protocol: 'https', hostname: 'mirasmindstorage.blob.core.windows.net' },
     ],
   },
   i18n: {
@@ -134,21 +127,30 @@ const nextConfig = {
     NEXT_PUBLIC_STRIPE_ENTERPRISE_PLAN_ID: process.env.NEXT_PUBLIC_STRIPE_ENTERPRISE_PLAN_ID,
     AZURE_SUBSCRIPTION_COMMAMD_SET: process.env.AZURE_SUBSCRIPTION_COMMAMD_SET,
     AZURE_SUBSCRIPTION_COMMAMD_GET: process.env.AZURE_SUBSCRIPTION_COMMAMD_GET,
-  },
+      },
   api: {
     bodyParser: {
       sizeLimit: '1mb',
     },
   },
-};
 
-// Wrap your Next.js configuration with both 'withSvgr' and 'withTM'
+ // Update the serverInitialize to handle async initialization
+  async serverInitialize(phase, { defaultConfig }) {
+    try {
+      const { initializeServer } = await import('./src/server/init.js');
+      await initializeServer();
+    } catch (error) {
+      console.error('Failed to initialize server:', error);
+    }
+  },
+};
+// Wrap configuration with both plugins
 export default withSvgr(
   withTM({
     ...nextConfig,
     transpilePackages: [
-      '@mui/x-date-pickers', // Existing module to transpile
-      'react-speech-recognition', // Add this module to be transpiled
+      '@mui/x-date-pickers',
+      'react-speech-recognition',
     ],
   })
 );

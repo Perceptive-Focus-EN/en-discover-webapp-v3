@@ -1,24 +1,49 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
-import { logger } from '../../../utils/ErrorHandling/logger';
 import { ObjectId } from 'mongodb';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
 
 async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
+  const startTime = Date.now();
+
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   const { postId } = req.query;
 
   if (!postId || typeof postId !== 'string') {
-    return res.status(400).json({ error: 'Invalid post ID' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'VALIDATION_FAILED',
+      'Invalid post ID',
+      { postId }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   try {
     const client = await getCosmosClient();
     const db = client.db;
 
+    const queryStart = Date.now();
     const post = await db.collection(COLLECTIONS.POSTS).aggregate([
       { $match: { _id: new ObjectId(postId) } },
       {
@@ -50,113 +75,89 @@ async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
           }
         }
       },
-      { $project: { reactions: 0 } } // Remove the detailed reactions array
+      { $project: { reactions: 0 } }
     ]).next();
 
+    // Record query performance
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.PERFORMANCE,
+      'post',
+      'query_duration',
+      Date.now() - queryStart,
+      MetricType.HISTOGRAM,
+      MetricUnit.MILLISECONDS,
+      {
+        postId,
+        hasResult: !!post
+      }
+    );
+
     if (!post) {
-      return res.status(404).json({ error: 'Post not found' });
+      const appError = monitoringManager.error.createError(
+        'business',
+        'POST_NOT_FOUND',
+        'Post not found',
+        { postId }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
 
-    logger.info(`Post fetched successfully: ${postId}`);
-    res.status(200).json(post);
+    // Record success metric
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'post',
+      'fetched',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        postId,
+        reactionCount: post.reactionCounts?.length || 0,
+        duration: Date.now() - startTime
+      }
+    );
+
+    return res.status(200).json(post);
+
   } catch (error) {
-    logger.error(new Error('Error fetching post'), { error });
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+    if (AppError.isAppError(error)) {
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      'POST_FETCH_FAILED',
+      'Error fetching post',
+      { error, postId }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'post',
+      'fetch_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        errorType: error instanceof Error ? error.name : 'unknown',
+        postId
+      }
+    );
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }
 
 export default getPostHandler;
-
-
-
-
-// 
-// 
-// import { NextApiRequest, NextApiResponse } from 'next';
-// import { getCosmosClient } from '../../../config/azureCosmosClient';
-// import { COLLECTIONS } from '@/constants/collections';
-// import { logger } from '../../../utils/ErrorHandling/logger';
-// import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-// 
-// async function getUserPostsHandler(req: NextApiRequest, res: NextApiResponse) {
-//   if (req.method !== 'GET') {
-    // return res.status(405).json({ error: 'Method not allowed' });
-//   }
-// 
-//   const { tenantId } = req.query;
-//   const userId = req.query.userId as string;
-// 
-//   const token = req.headers.authorization?.split(' ')[1];
-//   if (!token) {
-    // logger.warn('No token provided for fetching posts');
-    // return res.status(401).json({ message: 'No token provided' });
-//   }
-// 
-//   const decodedToken = verifyAccessToken(token);
-//   if (!decodedToken) {
-    // logger.warn('Invalid token provided for fetching posts');
-    // return res.status(401).json({ message: 'Invalid token' });
-//   }
-// 
-//   logger.info(`Attempting to fetch posts for tenant: ${tenantId}, user: ${userId}`);
-// 
-//   if (!tenantId || typeof tenantId !== 'string' || !userId) {
-    // logger.error(`Invalid tenantId: ${tenantId} or userId: ${userId}`);
-    // return res.status(400).json({ error: 'Invalid tenant ID or user ID' });
-//   }
-// 
-//   try {
-    // const client = await getCosmosClient();
-    // const db = client.db;
-// 
-    // const query = { tenantId, userId };
-// 
-    // const posts = await db.collection(COLLECTIONS.POSTS).aggregate([
-    //   { $match: query },
-    //   {
-        // $lookup: {
-        //   from: COLLECTIONS.REACTIONS,
-        //   localField: '_id',
-        //   foreignField: 'postId',
-        //   as: 'reactions'
-        // }
-    //   },
-    //   {
-        // $addFields: {
-        //   reactionCounts: {
-            // $map: {
-            //   input: [1, 2, 3, 4, 5, 6, 7, 8],
-            //   as: 'emotionId',
-            //   in: {
-                // emotionId: '$$emotionId',
-                // count: {
-                //   $size: {
-                    // $filter: {
-                    //   input: '$reactions',
-                    //   cond: { $eq: ['$$this.emotionId', '$$emotionId'] }
-                    // }
-                //   }
-                // }
-            //   }
-            // }
-        //   }
-        // }
-    //   },
-    //   { $project: { reactions: 0 } },
-    //   { $sort: { timestamp: -1 } } // Sort by most recent first
-    // ]).toArray();
-// 
-    // if (posts.length === 0) {
-    //   logger.warn(`No posts found for tenant: ${tenantId}, user: ${userId}`);
-    //   return res.status(404).json({ error: 'No posts found' });
-    // }
-// 
-    // logger.info(`Fetched ${posts.length} posts for tenant: ${tenantId}, user: ${userId}`);
-    // res.status(200).json(posts);
-//   } catch (error) {
-    // logger.error('Error fetching posts:', error);
-    // res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
-//   }
-// }
-// 
-// export default getUserPostsHandler;

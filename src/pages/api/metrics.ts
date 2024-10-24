@@ -1,61 +1,216 @@
 // src/pages/api/metrics.ts
 
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { redisService } from '../../services/cache/redisService';
-import { metricsCollector } from '../../utils/ErrorHandling/MetricsCollector';
-import { HTTP_STATUS } from '../../constants/logging';
-import { ERROR_MESSAGES } from '../../constants/errorMessages';
-import { logger } from '../../utils/ErrorHandling/logger';
-import { DEFAULT_METRICS, METRIC_TYPES } from '../../constants/metrics';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
+import { MetricEntry } from '@/MonitoringSystem/types/metrics';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method === 'POST') {
-    const incomingMetrics = req.body;
-    const timestamp = new Date().toISOString();
-    const metricsId = `metrics:${timestamp}`;
+interface TimeWindow {
+  start: Date;
+  end: Date;
+}
 
-    try {
-      // Process incoming metrics
-      Object.entries(incomingMetrics).forEach(([metricName, metricValue]: [string, any]) => {
-        if (metricName in DEFAULT_METRICS) {
-          if (metricValue.type === METRIC_TYPES.COUNTER) {
-            metricsCollector.increment(metricName as keyof typeof DEFAULT_METRICS, metricValue.value);
-          } else if (metricValue.type === METRIC_TYPES.GAUGE) {
-            metricsCollector.gauge(metricName as keyof typeof DEFAULT_METRICS, metricValue.value, metricValue.unit);
-          } else if (metricValue.type === METRIC_TYPES.HISTOGRAM) {
-            metricsCollector.histogram(metricName as keyof typeof DEFAULT_METRICS, metricValue.value, metricValue.unit);
-          }
-        } else {
-          logger.warn(`Received undefined metric: ${metricName}`);
-        }
-      });
+function validateTimeWindow(timeWindow?: string): TimeWindow {
+  if (!timeWindow) {
+    return {
+      start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      end: new Date()
+    };
+  }
 
-      // Get all metrics from the collector
-      const allMetrics = metricsCollector.getMetrics();
+  const match = timeWindow.match(/^(\d+)([hdm])$/);
+  if (!match) {
+    throw monitoringManager.error.createError(
+      'business',
+      'VALIDATION_FAILED',
+      'Invalid time window format'
+    );
+  }
 
-      // Store metrics in Redis
-      await redisService.setValue(metricsId, JSON.stringify(Object.fromEntries(allMetrics)), 86400); // TTL: 24 hours
+  const [, value, unit] = match;
+  const now = new Date();
+  let start: Date;
 
-      // Update list of metric IDs
-      const metricsList = JSON.parse(await redisService.getValue('all_metrics') || '[]');
-      metricsList.unshift(metricsId);
-      if (metricsList.length > 100) {
-        const oldestMetricId = metricsList.pop();
-        await redisService.deleteValue(oldestMetricId);
-      }
-      await redisService.setValue('all_metrics', JSON.stringify(metricsList), 86400); // TTL: 24 hours
+  switch (unit) {
+    case 'h':
+      start = new Date(now.getTime() - parseInt(value) * 60 * 60 * 1000);
+      break;
+    case 'd':
+      start = new Date(now.getTime() - parseInt(value) * 24 * 60 * 60 * 1000);
+      break;
+    case 'm':
+      start = new Date(now.getTime() - parseInt(value) * 30 * 24 * 60 * 60 * 1000);
+      break;
+    default:
+      throw monitoringManager.error.createError(
+        'business',
+        'VALIDATION_FAILED',
+        'Invalid time unit'
+      );
+  }
 
-      logger.info('Metrics stored successfully');
-      metricsCollector.increment(DEFAULT_METRICS.API_CALLS);
-      res.status(HTTP_STATUS.OK).json({ message: 'Metrics stored successfully' });
-    } catch (err) {
-      logger.error(new Error('Failed to store metrics'), { error: err });
-      metricsCollector.increment(DEFAULT_METRICS.ERROR_COUNT);
-      res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ error: ERROR_MESSAGES.FAILED_TO_STORE_METRICS });
+  return { start, end: now };
+}
+
+async function validateMetricsBatch(body: any): Promise<MetricEntry[]> {
+  if (!body || !Array.isArray(body.metrics)) {
+    throw monitoringManager.error.createError(
+      'business',
+      'VALIDATION_FAILED',
+      'Invalid metrics batch format'
+    );
+  }
+
+  return body.metrics.map((metric: any) => {
+    if (!Object.values(MetricCategory).includes(metric.category)) {
+      throw monitoringManager.error.createError(
+        'business',
+        'VALIDATION_FAILED',
+        `Invalid metric category: ${metric.category}`
+      );
     }
-  } else {
-    metricsCollector.increment(DEFAULT_METRICS.ERROR_COUNT);
-    res.setHeader('Allow', ['POST']);
-    res.status(HTTP_STATUS.METHOD_NOT_ALLOWED).end(`Method ${req.method} Not Allowed`);
+    if (!Object.values(MetricType).includes(metric.type)) {
+      throw monitoringManager.error.createError(
+        'business',
+        'VALIDATION_FAILED',
+        `Invalid metric type: ${metric.type}`
+      );
+    }
+    if (!Object.values(MetricUnit).includes(metric.unit)) {
+      throw monitoringManager.error.createError(
+        'business',
+        'VALIDATION_FAILED',
+        `Invalid metric unit: ${metric.unit}`
+      );
+    }
+
+    return {
+      ...metric,
+      timestamp: new Date(),
+      reference: `${metric.category}_${metric.component}_${metric.action}_${Date.now().toString(36)}`
+    };
+  });
+}
+
+async function processMetricsBatch(metrics: MetricEntry[]): Promise<void> {
+  try {
+    for (const metric of metrics) {
+      await monitoringManager.metrics.recordMetric(
+        metric.category,
+        metric.component,
+        metric.action,
+        metric.value,
+        metric.type,
+        metric.unit,
+        metric.metadata
+      );
+    }
+    
+    // Only flush if all metrics were recorded successfully
+    await monitoringManager.metrics.flush();
+  } catch (error) {
+    // Wrap any errors in a system error
+    throw monitoringManager.error.createError(
+      'system',
+      'METRICS_PROCESSING_FAILED',
+      'Failed to process metrics batch',
+      { error }
+    );
+  }
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    if (req.method === 'POST') {
+      const validatedMetrics = await validateMetricsBatch(req.body);
+      
+      try {
+        await processMetricsBatch(validatedMetrics);
+
+        // Record meta-metric for successful batch processing
+        await monitoringManager.metrics.recordMetric(
+          MetricCategory.SYSTEM,
+          'metrics_api',
+          'batch_processed',
+          validatedMetrics.length,
+          MetricType.COUNTER,
+          MetricUnit.COUNT,
+          { batchSize: validatedMetrics.length }
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: 'Metrics processed and persisted successfully',
+          count: validatedMetrics.length
+        });
+      } catch (error) {
+        // Handle processing errors specifically
+        const appError = AppError.isAppError(error) ? error : monitoringManager.error.createError(
+          'system',
+          'METRICS_PROCESSING_FAILED',
+          'Failed to process metrics batch',
+          { error }
+        );
+        
+        const errorResponse = monitoringManager.error.handleError(appError);
+        return res.status(errorResponse.statusCode).json({
+          error: errorResponse.userMessage,
+          reference: errorResponse.errorReference
+        });
+      }
+    }
+
+    if (req.method === 'GET') {
+      const timeWindow = validateTimeWindow(req.query.timeWindow as string);
+      const metrics = monitoringManager.metrics.getAllMetrics();
+
+      // Record meta-metric for metrics retrieval
+      await monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'metrics_api',
+        'metrics_retrieved',
+        metrics.length,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { timeWindow }
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: metrics,
+        timeWindow
+      });
+    }
+
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    res.setHeader('Allow', ['GET', 'POST']);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
+
+  } catch (error) {
+    const appError = AppError.isAppError(error) ? error : monitoringManager.error.createError(
+      'system',
+      'METRICS_API_ERROR',
+      'Error processing metrics request',
+      { error }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }

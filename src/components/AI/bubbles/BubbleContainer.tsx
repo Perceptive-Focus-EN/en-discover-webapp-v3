@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useMoodBoard } from '@/contexts/MoodBoardContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { frontendLogger } from '@/utils/ErrorHandling/frontendLogger';
 
 const StyledBubbleContainer = styled.div`
   display: flex;
@@ -35,18 +34,16 @@ export interface BubbleContainerProps {
   onBubbleClick: (bubble: BubbleType) => void;
 }
 
-
 export const defaultBubbles: BubbleType[] = [
-        { color: '#000000', gradient: 'linear-gradient(180deg, #797979 0%, #242424 100%)', boxShadow: '0px 8px 30px 0px rgba(5, 15, 49, 0.40)' },
-        { color: '#5E84E4', gradient: 'linear-gradient(180deg, #67ACFF 0%, #364CCF 100%)', boxShadow: '0px 8px 30px 0px rgba(75, 114, 255, 0.45)' },
-        { color: '#8CCC2F', gradient: 'linear-gradient(180deg, #C0EB86 0%, #86B15C 100%)', boxShadow: '0px 8px 30px 0px rgba(22, 156, 0, 0.40)' },
-        { color: '#FF730E', gradient: 'linear-gradient(180deg, #FFA480 0%, #FF6C4A 100%)', boxShadow: '0px 8px 30px 0px rgba(255, 108, 74, 0.40)' },
-        { color: '#7758E5', gradient: 'linear-gradient(180deg, #9A7DEF 0%, #6F44EC 100%)', boxShadow: '0px 8px 30px 0px rgba(111, 68, 236, 0.40)' },
-        { color: '#EB4E3D', gradient: 'linear-gradient(180deg, #FF6577 0%, #FF3636 100%)', boxShadow: '0px 8px 30px 0px rgba(255, 54, 54, 0.40)' },
-        { color: '#EFEFEF', gradient: 'linear-gradient(180deg, #FFF 0%, #DDE0E9 100%)', boxShadow: '0px 8px 30px 0px rgba(221, 224, 233, 0.40)' },
-        { color: '#F7C422', gradient: 'linear-gradient(180deg, #FFDF7B 0%, #FFA746 100%)', boxShadow: '0px 8px 30px 0px rgba(255, 167, 70, 0.40)' }
-    ];
-
+  { color: '#000000', gradient: 'linear-gradient(180deg, #797979 0%, #242424 100%)', boxShadow: '0px 8px 30px 0px rgba(5, 15, 49, 0.40)' },
+  { color: '#5E84E4', gradient: 'linear-gradient(180deg, #67ACFF 0%, #364CCF 100%)', boxShadow: '0px 8px 30px 0px rgba(75, 114, 255, 0.45)' },
+  { color: '#8CCC2F', gradient: 'linear-gradient(180deg, #C0EB86 0%, #86B15C 100%)', boxShadow: '0px 8px 30px 0px rgba(22, 156, 0, 0.40)' },
+  { color: '#FF730E', gradient: 'linear-gradient(180deg, #FFA480 0%, #FF6C4A 100%)', boxShadow: '0px 8px 30px 0px rgba(255, 108, 74, 0.40)' },
+  { color: '#7758E5', gradient: 'linear-gradient(180deg, #9A7DEF 0%, #6F44EC 100%)', boxShadow: '0px 8px 30px 0px rgba(111, 68, 236, 0.40)' },
+  { color: '#EB4E3D', gradient: 'linear-gradient(180deg, #FF6577 0%, #FF3636 100%)', boxShadow: '0px 8px 30px 0px rgba(255, 54, 54, 0.40)' },
+  { color: '#EFEFEF', gradient: 'linear-gradient(180deg, #FFF 0%, #DDE0E9 100%)', boxShadow: '0px 8px 30px 0px rgba(221, 224, 233, 0.40)' },
+  { color: '#F7C422', gradient: 'linear-gradient(180deg, #FFDF7B 0%, #FFA746 100%)', boxShadow: '0px 8px 30px 0px rgba(255, 167, 70, 0.40)' }
+];
 
 const BubbleContainer: React.FC<BubbleContainerProps> = ({ onBubbleClick }) => {
   const [selectedBubble, setSelectedBubble] = useState<string | null>(null);
@@ -66,10 +63,9 @@ const BubbleContainer: React.FC<BubbleContainerProps> = ({ onBubbleClick }) => {
               boxShadow: 'boxShadow' in emotion ? emotion.boxShadow as string : '0px 8px 30px 0px rgba(0, 0, 0, 0.40)'
             }));
             setBubbles(userBubbles);
-            frontendLogger.info('User emotions loaded', 'Loaded custom emotion colors for the user');
           }
         } catch (err) {
-          frontendLogger.error('Failed to load user emotions', 'Error loading custom emotion colors', { error: err });
+          console.error('Error loading custom emotion colors', err);
         }
       }
     };
@@ -80,7 +76,6 @@ const BubbleContainer: React.FC<BubbleContainerProps> = ({ onBubbleClick }) => {
   const handleBubbleClick = (bubble: BubbleType) => {
     setSelectedBubble(bubble.gradient);
     onBubbleClick(bubble);
-    frontendLogger.info('Bubble selected', 'User selected a bubble color', { color: bubble.color });
   };
 
   if (isLoading) {
@@ -88,7 +83,7 @@ const BubbleContainer: React.FC<BubbleContainerProps> = ({ onBubbleClick }) => {
   }
 
   if (error) {
-    frontendLogger.error('Error in BubbleContainer', 'Failed to load bubble colors', { error });
+    console.error('Error in BubbleContainer', error);
     return <div>Error loading bubbles. Please try again.</div>;
   }
 

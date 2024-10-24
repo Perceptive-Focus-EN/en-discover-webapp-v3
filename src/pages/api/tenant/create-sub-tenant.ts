@@ -6,7 +6,7 @@ import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUti
 import { COLLECTIONS } from '@/constants/collections';
 import { generateUniqueUserId } from '@/utils/utils';
 import { Db, ClientSession, Collection } from 'mongodb';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { logger } from '../../../MonitoringSystem/Loggers/logger';
 
 interface DecodedToken {
   userId: string;

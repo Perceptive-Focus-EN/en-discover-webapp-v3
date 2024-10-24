@@ -1,16 +1,15 @@
 // src/contexts/MoodBoardContext.tsx
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { fetchMoodHistory, getStartDate } from '../lib/api_s/moodboard/moodHistoryApi';
+import { moodboardApi, getStartDate, SaveMoodEntryPayload } from '../lib/api_s/moodboard/index';
 import { MoodHistoryItem, MoodHistoryQuery, TimeRange, MoodEntry } from '../components/EN/types/moodHistory';
-import { saveMoodEntry as saveMoodEntryApi } from '../lib/api_s/moodboard/saveMoodEntryApi';
 import { emotionMappingsApi } from '../lib/api_s/reactions/emotionMappings';
 import { Emotion } from '../components/EN/types/emotions';
-import { fetchPostReactions, updatePostReaction, fetchPostWithReactions } from '../lib/api_s/reactions/postReactions';
+import { postReactionsApi} from '../lib/api_s/reactions/postReactions';
 import { EmotionId, Reaction } from '@/components/Feed/types/Reaction';
-import { PostData, PostType, PostContent} from '../components/Feed/types/Post'; // Adjust the import path as needed
-import { UserAccountType } from '../constants/AccessKey/accounts';
-import { TenantInfo } from '../types/Tenant/interfaces';
+import { PostData } from '../components/Feed/types/Post';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 
 interface MoodBoardContextType {
   moodHistory: MoodHistoryItem[];
@@ -19,13 +18,14 @@ interface MoodBoardContextType {
   error: string | null;
   fetchMoodData: (query: MoodHistoryQuery) => Promise<void>;
   getStartDate: (timeRange: TimeRange) => Date;
-  saveMoodEntry: (entry: MoodEntry) => Promise<void>;
+  saveMoodEntry: (entry: SaveMoodEntryPayload) => Promise<void>;
   getEmotionMappings: (userId: string) => Promise<Emotion[]>;
   saveEmotionMappings: (userId: string, emotions: Emotion[]) => Promise<void>;
   updateEmotionMapping: (userId: string, emotion: Emotion) => Promise<void>;
   fetchPostReactions: (postId: string) => Promise<Reaction[]>;
   updatePostReaction: (postId: string, emotionId: EmotionId) => Promise<Reaction[]>;
   fetchPostWithReactions: (postId: string) => Promise<PostData>;
+  clearError: () => void;
 }
 
 export const MoodBoardContext = createContext<MoodBoardContextType | undefined>(undefined);
@@ -44,69 +44,160 @@ export const MoodBoardProvider: React.FC<React.PropsWithChildren<{}>> = ({ child
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const clearError = useCallback(() => setError(null), []);
+
   const fetchMoodData = useCallback(async (query: MoodHistoryQuery) => {
+    const startTime = Date.now();
     setIsLoading(true);
     setError(null);
+
     try {
-      const data = await fetchMoodHistory(query);
+      const data = await moodboardApi.fetchMoodHistory(query);
       setMoodHistory(data);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'mood_board',
+        'fetch_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        { timeRange: query.timeRange }
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch mood data';
+      setError(errorMessage);
+      
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'mood_board',
+        'fetch_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { error: errorMessage }
+      );
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const saveMoodEntryData = useCallback(async (entry: Omit<MoodEntry, '_id' | 'userId' | 'timeStamp' | 'createdAt' | 'updatedAt'>) => {
+  const saveMoodEntryData = useCallback(async (entry: SaveMoodEntryPayload) => {
+    const startTime = Date.now();
     setIsLoading(true);
     setError(null);
+
     try {
-      await saveMoodEntryApi(entry);
+      await moodboardApi.saveMoodEntry(entry);
+      
       const emotion = emotions.find(e => e.id === entry.emotionId);
       if (emotion) {
         await fetchMoodData({
-          emotion, timeRange: 'day',
+          emotion,
+          timeRange: 'day',
           startDate: '',
           endDate: ''
         });
-      } else {
-        throw new Error('Emotion not found');
       }
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'mood_entry',
+        'save_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        { emotionId: entry.emotionId }
+      );
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('An unexpected error occurred');
-      }
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save mood entry';
+      setError(errorMessage);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'mood_entry',
+        'save_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { error: errorMessage }
+      );
       throw err;
     } finally {
       setIsLoading(false);
     }
-    }, [emotions, fetchMoodData]);
+  }, [emotions, fetchMoodData]);
 
   const getEmotionMappings = useCallback(async (userId: string) => {
+    const startTime = Date.now();
     setIsLoading(true);
     setError(null);
+
     try {
       const data = await emotionMappingsApi.getEmotionMappings(userId);
       setEmotions(data);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'emotion_mappings',
+        'fetch_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        { userId }
+      );
+
       return data;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-      return [];
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch emotion mappings';
+      setError(errorMessage);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'emotion_mappings',
+        'fetch_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { error: errorMessage, userId }
+      );
+      throw err;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   const saveEmotionMappings = useCallback(async (userId: string, emotions: Emotion[]) => {
+    const startTime = Date.now();
     setIsLoading(true);
     setError(null);
+
     try {
       await emotionMappingsApi.saveEmotionMappings(userId, emotions);
       setEmotions(emotions);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'emotion_mappings',
+        'save_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        { userId, emotionCount: emotions.length }
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save emotion mappings';
+      setError(errorMessage);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'emotion_mappings',
+        'save_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { error: errorMessage, userId }
+      );
       throw err;
     } finally {
       setIsLoading(false);
@@ -114,13 +205,36 @@ export const MoodBoardProvider: React.FC<React.PropsWithChildren<{}>> = ({ child
   }, []);
 
   const updateEmotionMapping = useCallback(async (userId: string, emotion: Emotion) => {
+    const startTime = Date.now();
     setIsLoading(true);
     setError(null);
+
     try {
       await emotionMappingsApi.updateEmotionMapping(userId, emotion.id, emotion);
       setEmotions(prevEmotions => prevEmotions.map(e => e.id === emotion.id ? emotion : e));
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'emotion_mapping',
+        'update_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        { userId, emotionId: emotion.id }
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update emotion mapping';
+      setError(errorMessage);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'emotion_mapping',
+        'update_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { error: errorMessage, userId, emotionId: emotion.id }
+      );
       throw err;
     } finally {
       setIsLoading(false);
@@ -128,32 +242,104 @@ export const MoodBoardProvider: React.FC<React.PropsWithChildren<{}>> = ({ child
   }, []);
 
   const fetchPostReactionsData = useCallback(async (postId: string) => {
+    const startTime = Date.now();
     try {
-      return await fetchPostReactions(postId);
+      const reactions = await  postReactionsApi.fetchPostReactions(postId);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'post_reactions',
+        'fetch_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        { postId }
+      );
+
+      return reactions;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-      return [];
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch post reactions';
+      setError(errorMessage);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'post_reactions',
+        'fetch_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { error: errorMessage, postId }
+      );
+      throw err;
     }
   }, []);
 
   const updatePostReactionData = useCallback(async (postId: string, emotionId: EmotionId) => {
+    const startTime = Date.now();
     try {
-      return await updatePostReaction(postId, emotionId);
+      const reactions = await  postReactionsApi.updatePostReaction(postId, emotionId);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'post_reaction',
+        'update_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        { postId, emotionId }
+      );
+
+      return reactions;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update post reaction';
+      setError(errorMessage);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'post_reaction',
+        'update_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { error: errorMessage, postId, emotionId }
+      );
       throw err;
     }
   }, []);
 
   const fetchPostWithReactionsData = useCallback(async (postId: string) => {
+    const startTime = Date.now();
     try {
-      return await fetchPostWithReactions(postId);
+      const post = await  postReactionsApi.fetchPostWithReactions(postId);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'post_with_reactions',
+        'fetch_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        { postId }
+      );
+
+      return post;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch post with reactions';
+      setError(errorMessage);
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'post_with_reactions',
+        'fetch_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { error: errorMessage, postId }
+      );
       throw err;
     }
   }, []);
-  
+
   const value = {
     moodHistory,
     emotions,
@@ -168,6 +354,7 @@ export const MoodBoardProvider: React.FC<React.PropsWithChildren<{}>> = ({ child
     fetchPostReactions: fetchPostReactionsData,
     updatePostReaction: updatePostReactionData,
     fetchPostWithReactions: fetchPostWithReactionsData,
+    clearError
   };
 
   return <MoodBoardContext.Provider value={value}>{children}</MoodBoardContext.Provider>;

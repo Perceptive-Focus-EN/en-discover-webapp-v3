@@ -7,7 +7,6 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import LoopIcon from '@mui/icons-material/Loop';
 import { useFeed } from '../context/FeedContext';
-import { frontendLogger } from '../../../utils/ErrorHandling/frontendLogger';
 
 export interface VideoCardProps extends BaseCardProps {
   blobName?: string;
@@ -53,11 +52,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           setVideoUrl(url);
           setLoading(false);
         } catch (error) {
-          frontendLogger.error(
-            `Failed to fetch video URL for blob: ${blobName}`,
-            'Unable to load video. Please try again later.',
-            { blobName, error }
-          );
           setError('Unable to load video');
           setLoading(false);
         }
@@ -77,22 +71,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         } else {
           const playPromise = videoRef.current.play();
           if (playPromise !== undefined) {
-            playPromise.catch(error => {
-              frontendLogger.error(
-                `Failed to play video: ${error.message}`,
-                'Unable to play video. Please try again.',
-                { error }
-              );
+            playPromise.catch(() => {
+              setError('Unable to play video. Please try again.');
             });
           }
         }
         setIsPlaying(!isPlaying);
-      } catch (error) {
-        frontendLogger.error(
-          `Error toggling video playback: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          'Unable to control video playback. Please try again.',
-          { error }
-        );
+      } catch {
+        setError('Unable to control video playback. Please try again.');
       }
     }
   }, [isPlaying]);
@@ -102,12 +88,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       try {
         videoRef.current.muted = !isMuted;
         setIsMuted(!isMuted);
-      } catch (error) {
-        frontendLogger.error(
-          `Error toggling video mute: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          'Unable to change audio settings. Please try again.',
-          { error }
-        );
+      } catch {
+        setError('Unable to change audio settings. Please try again.');
       }
     }
   }, [isMuted]);
@@ -117,23 +99,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       try {
         videoRef.current.loop = !isLooping;
         setIsLooping(!isLooping);
-      } catch (error) {
-        frontendLogger.error(
-          `Error toggling video loop: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          'Unable to change loop settings. Please try again.',
-          { error }
-        );
+      } catch {
+        setError('Unable to change loop settings. Please try again.');
       }
     }
   }, [isLooping]);
 
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
     const videoElement = e.target as HTMLVideoElement;
-    frontendLogger.error(
-      `Video playback error: ${videoElement.error?.message || 'Unknown error'}`,
-      'An error occurred while playing the video. Please try again later.',
-      { videoError: videoElement.error }
-    );
     setError('Video playback error');
   };
 
@@ -189,43 +162,42 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               muted={muted}
               loop={loop}
               onError={handleVideoError}
-                />
-
-  <Box sx={{
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    px: 1,
-    py: 0.5,
-    bgcolor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 1,
-    color: 'white',
-    fontSize: 12,
-  }}>
-    {duration}
-  </Box>
-  <Box sx={{
-    position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  }}>
-    <IconButton onClick={togglePlay} sx={{ color: 'white' }}>
-      {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-    </IconButton>
-    <Box>
-      <IconButton onClick={toggleMute} sx={{ color: 'white' }}>
-        {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
-      </IconButton>
-      <IconButton onClick={toggleLoop} sx={{ color: isLooping ? 'primary.main' : 'white' }}>
-        <LoopIcon />
-      </IconButton>
-    </Box>
-  </Box>
-</>  
+            />
+            <Box sx={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              px: 1,
+              py: 0.5,
+              bgcolor: 'rgba(0, 0, 0, 0.5)',
+              borderRadius: 1,
+              color: 'white',
+              fontSize: 12,
+            }}>
+              {duration}
+            </Box>
+            <Box sx={{
+              position: 'absolute',
+              bottom: 16,
+              left: 16,
+              right: 16,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <IconButton onClick={togglePlay} sx={{ color: 'white' }}>
+                {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+              </IconButton>
+              <Box>
+                <IconButton onClick={toggleMute} sx={{ color: 'white' }}>
+                  {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+                </IconButton>
+                <IconButton onClick={toggleLoop} sx={{ color: isLooping ? 'primary.main' : 'white' }}>
+                  <LoopIcon />
+                </IconButton>
+              </Box>
+            </Box>
+          </>
         ) : (
           <Box sx={{
             position: 'absolute',

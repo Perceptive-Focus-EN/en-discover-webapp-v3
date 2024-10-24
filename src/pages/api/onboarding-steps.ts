@@ -1,7 +1,7 @@
 // pages/api/onboarding-steps.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { logger } from '@/utils/ErrorHandling/logger';
+import { logger } from '@/MonitoringSystem/Loggers/logger';
 import { getCosmosClient } from '@/config/azureCosmosClient';
 import { ONBOARDING_STEPS, ONBOARDING_STATUS } from '@/constants/onboarding';
 import { COLLECTIONS } from '@/constants/collections';
@@ -12,6 +12,7 @@ import { OnboardingStepRequest, OnboardingStepResponse, OnboardingStatusDetails,
 import { ROLES } from '@/constants/AccessKey/AccountRoles';
 import { ACCESS_LEVELS, AccessLevel } from '@/constants/AccessKey/access_levels';
 import { authMiddleware } from '@/middlewares/authMiddleware';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 const UPDATED_ONBOARDING_STEPS: OnboardingStepName[] = [
   'Verification',
@@ -111,7 +112,7 @@ async function onboardingStepsHandler(req: NextApiRequest, res: NextApiResponse<
     });
 
   } catch (error) {
-    logger.error(new Error('Error updating onboarding step'), { error });
+    logger.error(new Error('Error updating onboarding step'), ErrorType.GENERIC, { error });
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ message: `Error updating onboarding step: ${errorMessage}`, user: null });
   }

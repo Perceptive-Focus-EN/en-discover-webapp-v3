@@ -5,7 +5,8 @@ import { ServiceBusClient } from '@azure/service-bus';
 import { v4 as uuidv4 } from 'uuid';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { logger } from '../../../MonitoringSystem/Loggers/logger';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export const config = {
   api: {
@@ -68,7 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const form = new IncomingForm();
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        logger.error(new Error('Error parsing form data'), { error: err });
+        logger.error(new Error('Error parsing form data'), ErrorType.GENERIC, { error: err });
         return res.status(500).json({ message: 'Error parsing form data' });
       }
 
@@ -92,12 +93,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         res.status(200).json({ message: 'Avatar uploaded successfully', blobUrl });
       } catch (error) {
-        logger.error(new Error('Error processing upload'), { error, userId: decodedToken.userId });
+        logger.error(new Error('Error processing upload'), ErrorType.GENERIC, { error, userId: decodedToken.userId });
         res.status(500).json({ message: 'Error processing upload' });
       }
     });
   } catch (error) {
-    logger.error(new Error('Error in request handling'), { error });
+    logger.error(new Error('Error in request handling'), ErrorType.GENERIC, { error });
     res.status(401).json({ message: (error as Error).message });
   }
 }

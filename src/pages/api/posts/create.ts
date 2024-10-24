@@ -1,19 +1,42 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
-import { logger } from '../../../utils/ErrorHandling/logger';
 import { User } from '../../../types/User/interfaces';
 import { ObjectId } from 'mongodb';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
 
 async function createPostHandler(req: NextApiRequest, res: NextApiResponse) {
+  const startTime = Date.now();
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   const { user, type, content, ...otherData } = req.body;
 
   if (!user || !user.userId) {
-    return res.status(400).json({ error: 'Missing user information' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'VALIDATION_FAILED',
+      'Missing user information'
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   try {
@@ -21,20 +44,49 @@ async function createPostHandler(req: NextApiRequest, res: NextApiResponse) {
     const db = client.db;
 
     if (!type || !content) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      const appError = monitoringManager.error.createError(
+        'business',
+        'VALIDATION_FAILED',
+        'Missing required fields',
+        { missingFields: !type ? 'type' : 'content' }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
 
     const postsCollection = db.collection(COLLECTIONS.POSTS);
     const usersCollection = db.collection(COLLECTIONS.USERS);
 
-    // Fetch user data
     const userData = await usersCollection.findOne({ userId: user.userId }) as User | null;
     if (!userData) {
-      return res.status(404).json({ error: 'User not found' });
+      const appError = monitoringManager.error.createError(
+        'business',
+        'USER_NOT_FOUND',
+        'User not found',
+        { userId: user.userId }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
 
     if (!userData.currentTenantId) {
-      return res.status(400).json({ error: 'User does not have a current tenant' });
+      const appError = monitoringManager.error.createError(
+        'business',
+        'TENANT_NOT_FOUND',
+        'User does not have a current tenant',
+        { userId: user.userId }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
 
     const newPost = {
@@ -45,27 +97,77 @@ async function createPostHandler(req: NextApiRequest, res: NextApiResponse) {
       type,
       content,
       timestamp: new Date().toISOString(),
-      // Remove the reactions field as we'll handle reactions separately
       ...otherData
     };
 
     const result = await postsCollection.insertOne(newPost);
 
     if (!result.insertedId) {
-      throw new Error('Failed to insert post');
+      throw monitoringManager.error.createError(
+        'system',
+        'DATABASE_OPERATION_FAILED',
+        'Failed to insert post'
+      );
     }
 
     const insertedPost = {
       ...newPost,
       _id: result.insertedId,
-      id: result.insertedId.toString(), // Adding 'id' field for Cosmos DB partitioning
+      id: result.insertedId.toString(),
     };
 
-    logger.info(`Post created successfully: ${result.insertedId}`);
-    res.status(201).json(insertedPost);
+    // Record success metrics
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'post',
+      'created',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        userId: user.userId,
+        tenantId: userData.currentTenantId,
+        postType: type,
+        duration: Date.now() - startTime
+      }
+    );
+
+    return res.status(201).json(insertedPost);
+
   } catch (error) {
-    logger.error(new Error('Error creating post'), { error });
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+    if (AppError.isAppError(error)) {
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      'POST_CREATION_FAILED',
+      'Error creating post',
+      { error, userId: user?.userId }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'post',
+      'creation_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        errorType: error instanceof Error ? error.name : 'unknown',
+        userId: user?.userId
+      }
+    );
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }
 

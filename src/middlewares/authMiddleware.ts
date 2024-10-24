@@ -4,7 +4,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import * as serverTokenUtils from '../utils/TokenManagement/serverTokenUtils';
 import { redisService } from '../services/cache/redisService';
 import { logger } from '../utils/ErrorHandling/logger';
-import { UnauthorizedError } from '../errors/errors';
+import { UnauthorizedError } from '../MonitoringSystem/errors/specific';
 
 type NextApiHandler = (req: NextApiRequest, res: NextApiResponse) => Promise<void>;
 

@@ -6,7 +6,8 @@ import { COLLECTIONS } from '../../../constants/collections';
 import { generateEmailVerificationToken, setEmailVerificationToken } from '../../../utils/emailUtils';
 import { sendVerificationEmail } from '../../../services/emailService';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { logger } from '../../../MonitoringSystem/Loggers/logger';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   logger.info('Resend verification handler invoked');
@@ -68,7 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     logger.info(`Verification email resent successfully for user: ${userId}`);
     res.status(200).json({ message: 'Verification email resent successfully' });
   } catch (error) {
-    logger.error(new Error('Error resending verification email'), { error });
+    logger.error(new Error('Error resending verification email'), ErrorType.GENERIC, { error });
     res.status(500).json({ message: 'Internal server error' });
   }
 }

@@ -2,7 +2,8 @@
 
 import { AIService } from './AIService';
 import axios from 'axios';
-import { logger } from '../../utils/ErrorHandling/logger';
+import { logger } from '../../MonitoringSystem/Loggers/logger';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export class ClaudeAIService implements AIService {
   private apiKey: string;
@@ -31,7 +32,7 @@ export class ClaudeAIService implements AIService {
 
       return response.data.completion.trim();
     } catch (error) {
-      logger.error(new Error('Error generating text with Claude'), { error });
+      logger.error(new Error('Error generating text with Claude'), ErrorType.GENERIC, { error });
       throw new Error('Failed to generate text with Claude');
     }
   }

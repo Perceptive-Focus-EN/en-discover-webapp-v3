@@ -2,7 +2,8 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { logger } from '../../../MonitoringSystem/Loggers/logger';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -38,7 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json(entries);
   } catch (error) {
-    logger.error(new Error("Error fetching recent mood entries"), { tenantId, error });
+    logger.error(new Error("Error fetching recent mood entries"), ErrorType.GENERIC, { tenantId, error });
     res.status(500).json({ message: 'Internal Server Error' });
   }
 }

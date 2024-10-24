@@ -1,10 +1,10 @@
-// src/pages/api/tenant/user/accept-connection-request.ts
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient, closeCosmosClient } from '../../../../config/azureCosmosClient';
 import { verifyAccessToken, isTokenBlacklisted } from '../../../../utils/TokenManagement/serverTokenUtils';
 import { COLLECTIONS } from '../../../../constants/collections';
-import { logger } from '../../../../utils/ErrorHandling/logger';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
 import { Db } from 'mongodb';
 
 interface DecodedToken {
@@ -14,52 +14,95 @@ interface DecodedToken {
 
 function ensureDbInitialized(db: Db | undefined): asserts db is Db {
   if (!db) {
-    throw new Error('Database is not initialized');
+    throw monitoringManager.error.createError(
+      'system',
+      'DATABASE_CONNECTION_FAILED',
+      'Database is not initialized'
+    );
   }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    const appError = monitoringManager.error.createError(
+      'security',
+      'AUTH_UNAUTHORIZED',
+      'No token provided'
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   let cosmosClient;
 
   try {
+    // Check token blacklist
+    const isBlacklisted = await isTokenBlacklisted(token);
+    if (isBlacklisted) {
+      const appError = monitoringManager.error.createError(
+        'security',
+        'AUTH_TOKEN_INVALID',
+        'Token is blacklisted'
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    // Initialize database
     cosmosClient = await getCosmosClient(undefined, true);
     const { db, client } = cosmosClient;
-
     ensureDbInitialized(db);
 
     if (!client) {
-      throw new Error('Cosmos client is not initialized');
-    }
-
-    // Check if the token is blacklisted
-    const isBlacklisted = await isTokenBlacklisted(token);
-    if (isBlacklisted) {
-      logger.warn('Token is blacklisted');
-      return res.status(401).json({ error: 'Invalid token' });
+      throw monitoringManager.error.createError(
+        'system',
+        'DATABASE_CONNECTION_FAILED',
+        'Cosmos client is not initialized'
+      );
     }
 
     const session = client.startSession();
 
     try {
       await session.withTransaction(async () => {
-        // Verify the token
+        // Verify token
         const decodedToken = verifyAccessToken(token) as DecodedToken | null;
         if (!decodedToken || !decodedToken.userId) {
-          throw new Error('Invalid token');
+          throw monitoringManager.error.createError(
+            'security',
+            'AUTH_TOKEN_INVALID',
+            'Invalid token'
+          );
         }
 
         const { userId } = req.body;
         if (!userId) {
-          throw new Error('Missing userId in request body');
+          throw monitoringManager.error.createError(
+            'business',
+            'VALIDATION_FAILED',
+            'Missing userId in request body'
+          );
         }
 
         const usersCollection = db.collection(COLLECTIONS.USERS);
@@ -70,15 +113,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ]);
 
         if (!currentUser || !requestingUser) {
-          throw new Error('One or both users not found');
+          throw monitoringManager.error.createError(
+            'business',
+            'USER_NOT_FOUND',
+            'One or both users not found',
+            { currentUserId: decodedToken.userId, requestingUserId: userId }
+          );
         }
 
-        // Fetch the current connection requests for both users
-        // Manually remove the elements from the arrays
-        const updatedReceived = (currentUser?.connectionRequests?.received || []).filter((id: string) => id !== userId);
-        const updatedSent = (requestingUser?.connectionRequests?.sent || []).filter((id: string) => id !== decodedToken.userId);
+        // Update connections
+        const updatedReceived = (currentUser?.connectionRequests?.received || [])
+          .filter((id: string) => id !== userId);
+        const updatedSent = (requestingUser?.connectionRequests?.sent || [])
+          .filter((id: string) => id !== decodedToken.userId);
               
-        // Update the documents with the modified arrays
         await Promise.all([
           usersCollection.updateOne(
             { userId: decodedToken.userId },
@@ -97,9 +145,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             { session }
           )
         ]);
-        
 
-        // Update the users' connection status
+        // Record success metric
+        monitoringManager.metrics.recordMetric(
+          MetricCategory.BUSINESS,
+          'connection',
+          'accept',
+          1,
+          MetricType.COUNTER,
+          MetricUnit.COUNT,
+          {
+            userId: decodedToken.userId,
+            targetUserId: userId
+          }
+        );
+
         res.status(200).json({ message: 'Connection request accepted' });
       });
     } finally {
@@ -107,14 +167,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   
   } catch (error) {
-    logger.error(new Error('Error accepting connection request'), { error });
-    res.status(
-      error instanceof Error && error.message === 'Invalid token' ? 401 :
-      error instanceof Error && error.message === 'Missing userId in request body' ? 400 :
-      error instanceof Error && error.message === 'One or both users not found' ? 404 :
-      error instanceof Error && error.message === 'Database is not initialized' ? 500 :
-      500
-    ).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+    // Then use AppError.isAppError
+    if (AppError.isAppError(error)) {
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    // Handle unexpected errors
+    const appError = monitoringManager.error.createError(
+      'system',
+      'GENERAL',
+      'Internal server error',
+      { error }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    // Record error metric
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'connection',
+      'error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        operation: 'acceptConnection',
+        errorType: error.name || 'unknown'
+      }
+    );
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   } finally {
     if (cosmosClient?.client) {
       await closeCosmosClient();

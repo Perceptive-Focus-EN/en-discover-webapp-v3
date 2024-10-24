@@ -1,25 +1,14 @@
 // src/components/Auth/Logout.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Typography, Box, CircularProgress } from '@mui/material';
-import { frontendLogger } from '../../utils/ErrorHandling/frontendLogger';
 
 const Logout: React.FC = () => {
-  const { logout, error: contextError, loading } = useAuth();
-  const [localError, setLocalError] = useState<string | null>(null);
+  const { logout, loading } = useAuth();
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      // Note: We don't need to log here as it's already being done in the AuthContext
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during logout';
-      setLocalError(errorMessage);
-      frontendLogger.error('Logout failed', errorMessage, { error: err });
-    }
+    await logout();
   };
-
-  const error = contextError || localError;
 
   return (
     <Box sx={{ textAlign: 'center', mt: 4 }}>
@@ -35,11 +24,6 @@ const Logout: React.FC = () => {
       >
         {loading ? <CircularProgress size={24} color="inherit" /> : 'Log Out'}
       </Button>
-      {error && (
-        <Typography color="error" sx={{ mt: 2 }}>
-          {error}
-        </Typography>
-      )}
     </Box>
   );
 };

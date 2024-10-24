@@ -1,118 +1,225 @@
-// src/pages/api/moodboard/saveMoodEntry.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '../../../constants/collections';
-import { logger } from '../../../utils/ErrorHandling/logger';
-import { DatabaseError } from '../../../errors/errors';
 import { verifyAccessToken, isTokenBlacklisted } from '../../../utils/TokenManagement/serverTokenUtils';
 import { MoodEntry } from '../../../components/EN/types/moodHistory';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
 
-const SKIP_AUTH_IN_DEV = false; // Set this to false to enable authentication in development
+const SKIP_AUTH_IN_DEV = false;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  logger.info('Received request to save mood entry');
+  const startTime = Date.now();
 
-  if (req.method === 'POST') {
-    const isDevelopment = process.env.NODE_ENV === 'development';
-
-    let userId = 'CandyUserId';
-    if (!isDevelopment || !SKIP_AUTH_IN_DEV) {
-      const authHeader = req.headers.authorization;
-      const token = authHeader && authHeader.split(' ')[1];
-      if (!token) {
-        logger.warn('No token provided in request');
-        return res.status(401).json({ error: 'No token provided' });
-      }
-      try {
-        logger.info('Verifying access token');
-        const decodedToken = verifyAccessToken(token);
-        if (!decodedToken) {
-          logger.warn('Invalid token provided');
-          return res.status(401).json({ error: 'Invalid token' });
-        }
-        if (!decodedToken.userId) {
-          logger.warn('Token does not contain a valid user ID');
-          return res.status(401).json({ error: 'Token does not contain a valid user ID' });
-        }
-        logger.info('Checking if token is blacklisted');
-        const isBlacklisted = await isTokenBlacklisted(token);
-        if (isBlacklisted) {
-          logger.warn('Token has been revoked');
-          return res.status(401).json({ error: 'Token has been revoked' });
-        }
-        userId = decodedToken.userId;
-      } catch (error) {
-        logger.error(new Error('Error during authentication'), { error });
-        return res.status(500).json({ error: 'Error during authentication' });
-      }
-    }
-
-    try {
-      logger.info('Extracting mood entry data from request body');
-      const { emotionId, color, volume, sources, date, tenantId } = req.body as Omit<MoodEntry, '_id' | 'userId' | 'timeStamp' | 'createdAt' | 'updatedAt'>;
-      if (!emotionId || !color || !volume || !sources || !date || !tenantId) {
-        logger.warn('Missing required fields in request body', { emotionId, color, volume, sources, date, tenantId });
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
-
-      logger.info('Getting Cosmos DB client');
-      const { db } = await getCosmosClient();
-      const collection = db.collection(COLLECTIONS.MOODENTRY);
-
-      // Format date to YYYY-MM-DD for grouping
-      const formattedDate = new Date(date).toISOString().split('T')[0];
-
-      const newMoodEntry = {
-        emotionId,
-        color,
-        volume,
-        sources,
-        timeStamp: new Date().toISOString(),
-      };
-
-      logger.info('Upserting mood entry into aggregated document');
-      const result = await collection.updateOne(
-        {
-          userId,
-          tenantId,
-          date: formattedDate
-        },
-        {
-          $setOnInsert: {
-            createdAt: new Date().toISOString(),
-          },
-          $set: {
-            updatedAt: new Date().toISOString(),
-          },
-          $push: {
-            entries: newMoodEntry
-          } as any // Type assertion to avoid TypeScript error
-        },
-        { upsert: true }
-      );
-
-      logger.info('Mood entry saved successfully', { result });
-      res.status(201).json({ 
-        message: 'Mood entry saved successfully', 
-        result: {
-          matchedCount: result.matchedCount,
-          modifiedCount: result.modifiedCount,
-          upsertedCount: result.upsertedCount,
-          upsertedId: result.upsertedId
-        }
-      });
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        logger.error(new Error('Database error when saving mood entry'), { error });
-        res.status(500).json({ error: 'Database error when saving mood entry' });
-      } else {
-        logger.error(new Error('Unexpected error when saving mood entry'), { error });
-        res.status(500).json({ error: 'Unexpected error when saving mood entry' });
-      }
-    }
-  } else {
-    logger.warn(`Received unsupported HTTP method: ${req.method}`);
+  if (req.method !== 'POST') {
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
     res.setHeader('Allow', ['POST']);
-    res.status(405).send(`Method ${req.method} Not Allowed`);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
+  }
+
+  let userId = 'CandyUserId';
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
+  if (!isDevelopment || !SKIP_AUTH_IN_DEV) {
+    try {
+      const authHeader = req.headers.authorization;
+      const token = authHeader?.split(' ')[1];
+
+      if (!token) {
+        const appError = monitoringManager.error.createError(
+          'security',
+          'AUTH_UNAUTHORIZED',
+          'No token provided'
+        );
+        const errorResponse = monitoringManager.error.handleError(appError);
+        return res.status(errorResponse.statusCode).json({
+          error: errorResponse.userMessage,
+          reference: errorResponse.errorReference
+        });
+      }
+
+      const decodedToken = verifyAccessToken(token);
+      if (!decodedToken || !decodedToken.userId) {
+        const appError = monitoringManager.error.createError(
+          'security',
+          'AUTH_TOKEN_INVALID',
+          'Invalid token or missing user ID'
+        );
+        const errorResponse = monitoringManager.error.handleError(appError);
+        return res.status(errorResponse.statusCode).json({
+          error: errorResponse.userMessage,
+          reference: errorResponse.errorReference
+        });
+      }
+
+      const isBlacklisted = await isTokenBlacklisted(token);
+      if (isBlacklisted) {
+        const appError = monitoringManager.error.createError(
+          'security',
+          'AUTH_TOKEN_REVOKED',
+          'Token has been revoked'
+        );
+        const errorResponse = monitoringManager.error.handleError(appError);
+        return res.status(errorResponse.statusCode).json({
+          error: errorResponse.userMessage,
+          reference: errorResponse.errorReference
+        });
+      }
+
+      userId = decodedToken.userId;
+    } catch (error) {
+      const appError = monitoringManager.error.createError(
+        'security',
+        'AUTH_FAILED',
+        'Authentication failed',
+        { error }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+  }
+
+  try {
+    const { emotionId, color, volume, sources, date, tenantId } = req.body as Omit<MoodEntry, '_id' | 'userId' | 'timeStamp' | 'createdAt' | 'updatedAt'>;
+
+    if (!emotionId || !color || !volume || !sources || !date || !tenantId) {
+      const appError = monitoringManager.error.createError(
+        'business',
+        'VALIDATION_FAILED',
+        'Missing required fields',
+        { emotionId, color, volume, sources, date, tenantId }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const { db } = await getCosmosClient();
+    const collection = db.collection(COLLECTIONS.MOODENTRY);
+    const formattedDate = new Date(date).toISOString().split('T')[0];
+
+    const newMoodEntry = {
+      emotionId,
+      color,
+      volume,
+      sources,
+      timeStamp: new Date().toISOString(),
+    };
+
+    const operationStart = Date.now();
+    const result = await collection.updateOne(
+      {
+        userId,
+        tenantId,
+        date: formattedDate
+      },
+      {
+        $setOnInsert: {
+          createdAt: new Date().toISOString(),
+        },
+        $set: {
+          updatedAt: new Date().toISOString(),
+        },
+        $push: {
+          entries: newMoodEntry
+        } as any
+      },
+      { upsert: true }
+    );
+
+    // Record performance metric
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.PERFORMANCE,
+      'mood_entry',
+      'save_duration',
+      Date.now() - operationStart,
+      MetricType.HISTOGRAM,
+      MetricUnit.MILLISECONDS,
+      {
+        userId,
+        tenantId,
+        emotionId
+      }
+    );
+
+    // Record success metric
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'mood_entry',
+      'saved',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        userId,
+        tenantId,
+        emotionId,
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+        upsertedCount: result.upsertedCount,
+        duration: Date.now() - startTime
+      }
+    );
+
+    return res.status(201).json({
+      message: 'Mood entry saved successfully',
+      result: {
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+        upsertedCount: result.upsertedCount,
+        upsertedId: result.upsertedId
+      }
+    });
+
+  } catch (error) {
+    if (AppError.isAppError(error)) {
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      'MOOD_ENTRY_SAVE_FAILED',
+      'Failed to save mood entry',
+      { error, userId }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'mood_entry',
+      'save_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        errorType: error instanceof Error ? error.name : 'unknown',
+        userId,
+        duration: Date.now() - startTime
+      }
+    );
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }

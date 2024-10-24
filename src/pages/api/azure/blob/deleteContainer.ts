@@ -3,7 +3,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { BlobServiceClient } from '@azure/storage-blob';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/utils/ErrorHandling/logger';
+import { logger } from '@/MonitoringSystem/Loggers/logger';
 
 async function deleteContainerHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'DELETE') {

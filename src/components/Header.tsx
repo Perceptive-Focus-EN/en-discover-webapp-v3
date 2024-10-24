@@ -19,7 +19,7 @@ import AvatarComponent from './Uploads/AvatarComponent';
 import TenantSwitcher from './TenantSwitcher';
 import ThemeToggleIcon from './ui/ThemeToggleIcon';
 import { ExtendedUserInfo, User } from '../types/User/interfaces';
-import { frontendLogger } from '../utils/ErrorHandling/frontendLogger';
+import { frontendLogger } from '../MonitoringSystem/managers/FrontendMessageHandler';
 
 interface HeaderProps {
     onAccountChange: (tenantId: string) => void;

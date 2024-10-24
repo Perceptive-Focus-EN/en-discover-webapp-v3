@@ -5,7 +5,7 @@ import { Tenant } from '../../../types/Tenant/interfaces';
 import { User } from '../../../types/User/interfaces';
 import { COLLECTIONS } from '../../../constants/collections';
 import { ClientSession, Collection } from 'mongodb';
-import { frontendLogger } from '../../../utils/ErrorHandling/frontendLogger';
+import { frontendLogger } from '../../../MonitoringSystem/managers/FrontendMessageHandler';
 import { ROLES } from '@/constants/AccessKey/AccountRoles/index';
 import { AccessLevel } from '@/constants/AccessKey/access_levels';
 import { PERMISSIONS } from '@/constants/AccessKey/permissions';
@@ -19,13 +19,8 @@ import { sendVerificationEmail } from '../../../services/emailService';
 import { generateEmailVerificationToken, setEmailVerificationToken } from '../../../utils/emailUtils';
 import { BaseEmailData } from '../../../types/email';
 import { Industry } from '@/types/Shared/enums';
+import { SignupError } from '@/MonitoringSystem/errors/specific';
 
-class SignupError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'SignupError';
-  }
-}
 
 function createDefaultPersonalAccountSettings(userId: string, email: string, firstName: string, lastName: string): { user: User, tenant: Tenant } {
   const personalTenantId = generateUniqueUserId();
@@ -179,7 +174,7 @@ export default async function signupHandler(
       try {
         await sendVerificationEmail(emailData);
       } catch (emailError) {
-        frontendLogger.error('Failed to send verification email', 'An error occurred while sending the verification email', { emailError });
+        frontendLogger.info('An error occurred while sending verification email', { emailError });
       }
 
       const response: SignupResponse = {
@@ -202,7 +197,7 @@ export default async function signupHandler(
       res.status(201).json(response);
     });
   } catch (error) {
-    frontendLogger.error('Signup error', 'An error occurred during the signup process', { error });
+    frontendLogger.error(new Error('Signup error'), 'An error occurred during signup', { error });
     if (error instanceof SignupError) {
       res.status(400).json({ error: error.message });
     } else {

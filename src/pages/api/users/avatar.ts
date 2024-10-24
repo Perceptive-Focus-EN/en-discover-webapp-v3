@@ -7,7 +7,9 @@ import { ExtendedUserInfo } from '../../../types/User/interfaces';
 import fs from 'fs/promises';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
 import { COLLECTIONS } from '../../../constants/collections';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
 
 export const config = {
   api: {
@@ -20,76 +22,177 @@ export default async function uploadAvatarHandler(
   res: NextApiResponse
 ) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
-    return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    const appError = monitoringManager.error.createError(
+      'security',
+      'AUTH_UNAUTHORIZED',
+      'No token provided'
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   try {
     const decodedToken = verifyAccessToken(token);
     if (!decodedToken || typeof decodedToken !== 'object' || !decodedToken.userId) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+      const appError = monitoringManager.error.createError(
+        'security',
+        'AUTH_TOKEN_INVALID',
+        'Invalid token'
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
 
-    const form = new IncomingForm();
-    form.parse(req, async (err, fields, files) => {
-      if (err) {
-        logger.error(new Error('Error parsing form data'), { error: err });
-        return res.status(500).json({ error: 'Error parsing form data' });
-      }
-
-      const file = files.avatar as any;
-      if (!file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-      }
-
-      const client = await getCosmosClient();
-      if (!client) {
-        throw new Error('Failed to connect to the database');
-      }
-
-      const db = client.db;
-      const usersCollection = db.collection(COLLECTIONS.USERS) as Collection<ExtendedUserInfo>;
-      const user = await usersCollection.findOne({ userId: decodedToken.userId });
-
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      const blobName = `${user.tenantId}/${decodedToken.userId}-${Date.now()}-${file.originalFilename}`;
-      
-      // Read file content
-      const fileContent = await fs.readFile(file.filepath);
-
-      // Upload to Azure Blob Storage
-      if (azureBlobStorageInstance) {
-        await azureBlobStorageInstance.uploadBlob(blobName, fileContent);
-      } else {
-        throw new Error('Azure Blob Storage instance is not initialized');
-      }
-
-      // Generate SAS token for the uploaded blob
-      const sasToken = generateSasToken(
-        azureStorageConfig.accountName,
-        azureStorageConfig.accountKey,
-        azureStorageConfig.containerName
-      );
-
-      const avatarUrl = `https://${azureStorageConfig.accountName}.blob.core.windows.net/${azureStorageConfig.containerName}/${blobName}?${sasToken}`;
-
-      // Update user's avatar URL in the database
-      await usersCollection.updateOne(
-        { userId: decodedToken.userId },
-        { $set: { avatarUrl: avatarUrl } }
-      );
-
-      res.status(200).json({ avatarUrl });
+    // Wrap form parsing in a promise
+    const formData = await new Promise((resolve, reject) => {
+      const form = new IncomingForm();
+      form.parse(req, (err, fields, files) => {
+        if (err) reject(err);
+        else resolve({ fields, files });
+      });
     });
+
+    const file = (formData as any).files.avatar;
+    if (!file) {
+      const appError = monitoringManager.error.createError(
+        'business',
+        'VALIDATION_FAILED',
+        'No file uploaded'
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const client = await getCosmosClient();
+    if (!client) {
+      throw monitoringManager.error.createError(
+        'system',
+        'DATABASE_CONNECTION_FAILED',
+        'Failed to connect to the database'
+      );
+    }
+
+    const db = client.db;
+    const usersCollection = db.collection(COLLECTIONS.USERS) as Collection<ExtendedUserInfo>;
+    const user = await usersCollection.findOne({ userId: decodedToken.userId });
+
+    if (!user) {
+      const appError = monitoringManager.error.createError(
+        'business',
+        'USER_NOT_FOUND',
+        'User not found',
+        { userId: decodedToken.userId }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const blobName = `${user.tenantId}/${decodedToken.userId}-${Date.now()}-${file.originalFilename}`;
+    const fileContent = await fs.readFile(file.filepath);
+
+    if (!azureBlobStorageInstance) {
+      throw monitoringManager.error.createError(
+        'system',
+        'SERVICE_UNAVAILABLE',
+        'Azure Blob Storage instance is not initialized'
+      );
+    }
+
+    // Upload to Azure Blob Storage
+    await azureBlobStorageInstance.uploadBlob(blobName, fileContent);
+
+    // Generate SAS token
+    const sasToken = generateSasToken(
+      azureStorageConfig.accountName,
+      azureStorageConfig.accountKey,
+      azureStorageConfig.containerName
+    );
+
+    const avatarUrl = `https://${azureStorageConfig.accountName}.blob.core.windows.net/${azureStorageConfig.containerName}/${blobName}?${sasToken}`;
+
+    // Update user's avatar URL
+    await usersCollection.updateOne(
+      { userId: decodedToken.userId },
+      { $set: { avatarUrl: avatarUrl } }
+    );
+
+    // Record success metric
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'avatar',
+      'upload',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        userId: decodedToken.userId,
+        fileSize: fileContent.length,
+        success: true
+      }
+    );
+
+    return res.status(200).json({ avatarUrl });
+
   } catch (error) {
-    logger.error(new Error('Error uploading avatar'), { error });
-    res.status(500).json({ error: 'Internal server error' });
+    if (AppError.isAppError(error)) {
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      'FILE_UPLOAD_FAILED',
+      'Error uploading avatar',
+      { error }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'avatar',
+      'error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        operation: 'upload',
+        errorType: error.name || 'unknown'
+      }
+    );
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }

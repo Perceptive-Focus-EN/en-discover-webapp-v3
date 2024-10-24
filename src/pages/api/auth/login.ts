@@ -6,54 +6,106 @@ import { Collection, WithId } from 'mongodb';
 import { User, ExtendedUserInfo } from '../../../types/User/interfaces';
 import { Tenant } from '../../../types/Tenant/interfaces';
 import { AuthResponse, LoginRequest } from '../../../types/Login/interfaces';
-import { logger } from '../../../utils/ErrorHandling/logger';
 import { COLLECTIONS } from '../../../constants/collections';
-import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
-import {ROLES, AllRoles} from '@/constants/AccessKey/AccountRoles/index';
+import { ROLES } from '@/constants/AccessKey/AccountRoles/index';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { 
+  MetricCategory, 
+  MetricType, 
+  MetricUnit 
+} from '@/MonitoringSystem/constants/metrics';
 
 export default async function loginHandler(
   req: NextApiRequest,
   res: NextApiResponse<AuthResponse | { error: string }>
 ) {
-  logger.info('Login handler invoked');
-  logger.debug('Request body:', req.body);
-
-  if (req.method !== 'POST') {
-    logger.warn(`Invalid request method: ${req.method}`);
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  const { email, password } = req.body as LoginRequest;
-  if (!email || !password) {
-    logger.warn('Email or password missing in request body');
-    return res.status(400).json({ error: 'Email and password are required' });
-  }
-
+  const monitor = monitoringManager;
+  
   try {
-    logger.info('Connecting to Cosmos DB');
-    const { db } = await getCosmosClient();
-    logger.info('Connected to Cosmos DB successfully');
+    // Start monitoring login attempt
+    monitor.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'auth',
+      'login_attempt',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      { path: req.url }
+    );
 
+    monitor.logger.info('Login handler invoked', { 
+      path: req.url,
+      method: req.method 
+    });
+
+    // Validate request method
+    if (req.method !== 'POST') {
+      throw monitor.error.createError(
+        'business',
+        'METHOD_NOT_ALLOWED',
+        'Invalid request method',
+        { method: req.method }
+      );
+    }
+
+    // Validate request body
+    const { email, password } = req.body as LoginRequest;
+    if (!email || !password) {
+      throw monitor.error.createError(
+        'business',
+        'VALIDATION_FAILED',
+        'Email and password are required'
+      );
+    }
+
+    // Database connection
+    const { db } = await getCosmosClient();
     const usersCollection = db.collection(COLLECTIONS.USERS) as Collection<WithId<User>>;
     const tenantsCollection = db.collection(COLLECTIONS.TENANTS) as Collection<WithId<Tenant>>;
 
-    logger.info(`Searching for user with email: ${email}`);
+    // Find user
     const user = await usersCollection.findOne({ email });
     if (!user) {
-      logger.warn(`User not found for email: ${email}`);
-      return res.status(400).json({ error: 'User not found' });
-    }
-    logger.info('User found');
+      monitor.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'auth',
+        'user_not_found',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { email }
+      );
 
-    logger.info('Comparing passwords');
+      throw monitor.error.createError(
+        'security',
+        'AUTH_INVALID_CREDENTIALS',
+        'User not found',
+        { email }
+      );
+    }
+
+    // Validate password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      logger.warn('Invalid password');
-      return res.status(400).json({ error: 'Invalid password' });
-    }
-    logger.info('Password is valid');
+      monitor.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'auth',
+        'invalid_password',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { email }
+      );
 
-    logger.info('Generating access and refresh tokens');
+      throw monitor.error.createError(
+        'security',
+        'AUTH_INVALID_CREDENTIALS',
+        'Invalid password',
+        { email }
+      );
+    }
+
+    // Generate tokens
     const accessToken = generateAccessToken({
       userId: user.userId,
       email: user.email,
@@ -61,13 +113,11 @@ export default async function loginHandler(
       title: user.title,
     });
     const refreshToken = generateRefreshToken();
-    logger.info('Tokens generated successfully');
 
-    logger.info(`Fetching tenant info for tenant ID: ${user.currentTenantId}`);
+    // Get tenant info
     const tenantInfo = await tenantsCollection.findOne({ tenantId: user.currentTenantId });
-    logger.info('Tenant info fetched');
-
-    logger.info('Constructing extended user info');
+    
+    // Construct user info
     const extendedUserInfo: ExtendedUserInfo = {
       ...user,
       tenant: tenantInfo ? {
@@ -95,30 +145,61 @@ export default async function loginHandler(
       reminderSentAt: '',
       role: ROLES.Personal.SELF,
     };
-    logger.info('Extended user info constructed');
 
-    logger.info('Updating last login timestamp');
+    // Update last login
     await usersCollection.updateOne(
       { userId: user.userId },
       { $set: { lastLogin: new Date().toISOString() } }
     );
-    logger.info('Last login timestamp updated');
 
+    // Prepare response
     const authResponse: AuthResponse = {
       success: true,
       message: 'User logged in successfully',
       user: extendedUserInfo,
-      accessToken: accessToken,
-      refreshToken: refreshToken,
+      accessToken,
+      refreshToken,
       sessionId: '',
       onboardingComplete: user.onboardingStatus.isOnboardingComplete
     };
 
-    logger.info(`User logged in successfully: ${user.email}`);
+    // Record successful login
+    monitor.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'auth',
+      'login_success',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      { 
+        userId: user.userId,
+        email: user.email 
+      }
+    );
+
+    monitor.logger.info('Login successful', { 
+      userId: user.userId,
+      email: user.email 
+    });
+
     res.status(200).json(authResponse);
+
   } catch (error) {
-    logger.error(new Error('Login error'), { error });
-    logger.debug('Error details:', error);
-    res.status(500).json({ error: 'Login failed' });
+    const errorResponse = monitor.error.handleError(error);
+
+    // Record login failure
+    monitor.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'auth',
+      'login_failure',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      { error: errorResponse.errorType }
+    );
+
+    res.status(errorResponse.statusCode).json({ 
+      error: errorResponse.userMessage 
+    });
   }
 }

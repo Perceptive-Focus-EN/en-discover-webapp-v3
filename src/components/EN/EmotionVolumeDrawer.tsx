@@ -17,7 +17,6 @@ import { Emotion } from './types/emotions';
 import { useMoodBoard } from '../../contexts/MoodBoardContext';
 import { SOURCE_CATEGORIES, SourceCategoryId } from './constants/sources';
 import { VOLUME_LEVELS, VolumeLevelId } from './constants/volume';
-import { frontendLogger } from '@/utils/ErrorHandling/frontendLogger';
 
 interface EmotionVolumeDrawerProps {
     open: boolean;
@@ -41,12 +40,12 @@ const EmotionVolumeDrawer: React.FC<EmotionVolumeDrawerProps> = ({
   emotion,
   onComplete,
   bubblePosition,
- backgroundColor,
+  backgroundColor,
   isLoading = false,
- error = null,
+  error = null,
 }) => {
     const theme = useTheme();
-    const { saveMoodEntry} = useMoodBoard();
+    const { saveMoodEntry } = useMoodBoard();
 
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -82,41 +81,25 @@ const EmotionVolumeDrawer: React.FC<EmotionVolumeDrawerProps> = ({
         }));
     }, []);
 
-      const handleComplete = useCallback(async () => {
-    if (state.selectedSource.length === 0 || !emotion) {
-      frontendLogger.warn(
-        'Attempted to complete emotion selection without source or emotion',
-        'Please select at least one source and an emotion.',
-        { selectedSources: state.selectedSource, emotion }
-      );
-      alert("Please select at least one source and an emotion.");
-      return;
-    }
+    const handleComplete = useCallback(async () => {
+        if (state.selectedSource.length === 0 || !emotion) {
+            alert("Please select at least one source and an emotion.");
+            return;
+        }
 
-    try {
-      const volumeLevel = VOLUME_LEVELS.find(level => level.id === state.volume);
-      if (!volumeLevel) {
-        throw new Error('Invalid volume level');
-      }
+        try {
+            const volumeLevel = VOLUME_LEVELS.find(level => level.id === state.volume);
+            if (!volumeLevel) {
+                throw new Error('Invalid volume level');
+            }
 
-      frontendLogger.info(
-        'Completing emotion selection',
-        'Submitting your mood entry...',
-        { emotion, volume: state.volume, sources: state.selectedSource }
-      );
-
-      // We're now passing the volume id (VolumeLevelId) directly to onComplete
-      onComplete(state.volume, state.selectedSource);
-      onClose();
-    } catch (error) {
-      frontendLogger.error(
-        error as Error,
-        'Failed to save your mood entry. Please try again.',
-        { emotion, volume: state.volume, sources: state.selectedSource }
-      );
-      console.error('Failed to save mood entry:', error);
-    }
-  }, [state, emotion, onComplete, onClose]);
+            // We're now passing the volume id (VolumeLevelId) directly to onComplete
+            onComplete(state.volume, state.selectedSource);
+            onClose();
+        } catch (error) {
+            console.error('Failed to save mood entry:', error);
+        }
+    }, [state, emotion, onComplete, onClose]);
 
     const drawerVariants = {
         initial: { 

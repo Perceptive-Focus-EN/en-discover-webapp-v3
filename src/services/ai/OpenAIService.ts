@@ -2,7 +2,8 @@
 
 import { AIService } from './AIService';
 import axios from 'axios';
-import { logger } from '../../utils/ErrorHandling/logger';
+import { logger } from '../../MonitoringSystem/Loggers/logger';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export class OpenAIService implements AIService {
   private apiKey: string;
@@ -30,7 +31,7 @@ export class OpenAIService implements AIService {
 
       return response.data.choices[0].text.trim();
     } catch (error) {
-      logger.error(new Error('Error generating text with OpenAI'), { error });
+      logger.error(new Error('Error generating text with OpenAI'), ErrorType.GENERIC, { error });
       throw new Error('Failed to generate text with OpenAI');
     }
   }

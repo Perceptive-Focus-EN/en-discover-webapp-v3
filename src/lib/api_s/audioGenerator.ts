@@ -1,27 +1,50 @@
 // src/lib/api_s/audioGenerator.ts
-import axios from 'axios';
+import axiosInstance from '../axiosSetup';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
 interface SynthesizeSpeechParams {
   text: string;
   voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
 }
 
-export const synthesizeSpeech = async ({ text, voice = 'onyx' }: SynthesizeSpeechParams): Promise<string> => {
-  try {
-    const response = await axios.post('/api/tts', { text, voice }, { responseType: 'blob' });
+export const audioApi = {
+  synthesizeSpeech: async ({ text, voice = 'onyx' }: SynthesizeSpeechParams): Promise<string> => {
+    // Show processing message
+    messageHandler.info('Generating audio...');
+    
+    const response = await axiosInstance.post('/api/tts', 
+      { text, voice }, 
+      { responseType: 'blob' }
+    );
 
-    if (response.status === 200) {
-      const audioBlob = new Blob([response.data], { type: 'audio/mp3' });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      return audioUrl;
-    } else {
-      throw new Error(`Unexpected response status: ${response.status}`);
-    }
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      throw new Error(`An error occurred: ${error.message}`);
-    } else {
-      throw new Error('An unexpected error occurred. Please try again.');
-    }
+    const audioBlob = new Blob([response.data], { type: 'audio/mp3' });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    
+    messageHandler.success('Audio generated successfully');
+    return audioUrl;
+  },
+
+  // Add method to clean up URLs when needed
+  revokeAudioUrl: (url: string): void => {
+    URL.revokeObjectURL(url);
   }
 };
+
+// Usage example:
+/*
+try {
+  const audioUrl = await audioApi.synthesizeSpeech({ 
+    text: 'Hello world', 
+    voice: 'onyx' 
+  });
+  
+  // Use the audio URL
+  audioPlayer.src = audioUrl;
+  
+  // Clean up when done
+  audioApi.revokeAudioUrl(audioUrl);
+} catch (error) {
+  // Error already handled by axiosInstance
+  // Just handle UI updates if needed
+}
+*/

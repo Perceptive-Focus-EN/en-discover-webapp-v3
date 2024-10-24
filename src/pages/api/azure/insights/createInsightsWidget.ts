@@ -4,7 +4,7 @@ import { ApplicationInsightsManagementClient } from '@azure/arm-appinsights';
 import { DefaultAzureCredential } from '@azure/identity';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/utils/ErrorHandling/logger';
+import { logger } from '@/MonitoringSystem/Loggers/logger';
 
 async function createInsightsWidgetHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {

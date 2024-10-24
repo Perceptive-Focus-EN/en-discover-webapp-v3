@@ -1,11 +1,22 @@
 // src/lib/axiosSetup.ts
+
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import * as authManager from '../utils/TokenManagement/authManager';
-import simpleLogger from '../utils/ErrorHandling/simpleLogger';
+import { messageHandler } from '../MonitoringSystem/managers/FrontendMessageHandler';
 
 interface CustomInternalAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
   _retryCount?: number;
+}
+
+interface ApiErrorResponse {
+  error?: {
+    message: string;
+    type: string;
+    reference?: string;
+    statusCode?: number;
+  };
+  message?: string;
 }
 
 const baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
@@ -19,77 +30,128 @@ const axiosInstance: AxiosInstance = axios.create({
   },
 });
 
+// Request Interceptor
 axiosInstance.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     let token = authManager.getAccessToken();
+    
     if (token) {
       if (authManager.isTokenExpired(token)) {
-        // Token is already expired, attempt to refresh immediately
         try {
           const newTokens = await authManager.refreshTokens();
           if (newTokens) {
             token = newTokens.accessToken;
-            simpleLogger.info('Token refreshed successfully after expiration');
+            messageHandler.info('Session refreshed');
           } else {
-            // If refresh failed, clear the token to trigger re-authentication
             authManager.clearTokens();
             token = null;
           }
         } catch (error) {
-          simpleLogger.error('Error refreshing expired token:', error);
+          messageHandler.error('Session expired. Please login again.');
           authManager.clearTokens();
           token = null;
         }
       } else if (authManager.isTokenAboutToExpire(token)) {
-        // Token is about to expire, attempt to refresh proactively
         try {
           const newTokens = await authManager.refreshTokens();
           if (newTokens) {
             token = newTokens.accessToken;
-            simpleLogger.info('Token refreshed successfully proactively');
+            messageHandler.info('Session extended');
           }
         } catch (error) {
-          simpleLogger.error('Error refreshing token proactively:', error);
-          // Continue with the current token if proactive refresh fails
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Proactive token refresh failed:', error);
+          }
         }
       }
+
       if (token) {
         config.headers.set('Authorization', `Bearer ${token}`);
       }
     }
+
     return config;
   },
   (error: AxiosError) => {
-    simpleLogger.error('Request interceptor error:', error);
+    messageHandler.error('Request failed to send. Please check your connection.');
     return Promise.reject(error);
   }
 );
 
+// Response Interceptor
 axiosInstance.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError) => {
+  async (error: AxiosError<ApiErrorResponse>) => {
     const originalRequest = error.config as CustomInternalAxiosRequestConfig;
+    
+    // Handle token refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
         const newTokens = await authManager.refreshTokens();
         if (newTokens) {
-          authManager.setTokens(newTokens.accessToken, newTokens.refreshToken, newTokens.sessionId);
+          authManager.setTokens(
+            newTokens.accessToken, 
+            newTokens.refreshToken, 
+            newTokens.sessionId
+          );
           originalRequest.headers.set('Authorization', `Bearer ${newTokens.accessToken}`);
-          simpleLogger.info('Token refreshed successfully after 401 response');
           return axiosInstance(originalRequest);
         } else {
-          throw new Error('Failed to refresh tokens');
+          throw new Error('Token refresh failed');
         }
       } catch (refreshError) {
-        simpleLogger.error('Error refreshing token:', refreshError);
+        messageHandler.error('Your session has expired. Please login again.');
         await authManager.logout();
-        // Redirect to login page or show auth error
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }
-    simpleLogger.error('Response interceptor error:', error);
+
+    // Handle retry logic
+      if (!originalRequest._retryCount) {
+        originalRequest._retryCount = 0;
+      }
+
+      // Using nullish coalescing
+      if (originalRequest._retryCount < MAX_RETRY_ATTEMPTS && 
+          (error.response?.status ?? 0) >= 500) {  // Defaults to 0 if undefined
+        originalRequest._retryCount++;
+        return axiosInstance(originalRequest);
+      }
+
+    // Handle API error responses with type safety
+    if (error.response?.data) {
+      const errorData = error.response.data;
+      
+      if (errorData.error && typeof errorData.error === 'object') {
+        messageHandler.handleApiError({
+          message: errorData.error.message || 'An error occurred',
+          type: errorData.error.type || 'API_ERROR',
+          reference: errorData.error.reference,
+          statusCode: error.response.status
+        });
+      } else if (errorData.message) {
+        messageHandler.error(errorData.message);
+      } else {
+        messageHandler.error('An error occurred while processing your request');
+      }
+    } else if (error.request) {
+      messageHandler.error('Unable to reach the server. Please check your connection.');
+    } else {
+      messageHandler.error('An unexpected error occurred');
+    }
+
+    // Development logging with type safety
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Axios Error:', {
+        config: error.config,
+        response: error.response?.data,
+        status: error.response?.status,
+        message: error.message
+      });
+    }
+
     return Promise.reject(error);
   }
 );

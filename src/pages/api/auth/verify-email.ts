@@ -4,7 +4,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '../../../constants/collections';
 import { verifyEmailToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { logger } from '../../../MonitoringSystem/Loggers/logger';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -74,12 +75,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       logger.info(`Email verified successfully for user: ${decodedToken.userId}`);
       res.status(200).json({ message: 'Email verified successfully. You can now proceed with your account.' });
     } catch (updateError) {
-      logger.error(new Error(`Error updating user: ${decodedToken.userId}`), { error: updateError });
+      logger.error(new Error(`Error updating user: ${decodedToken.userId}`), ErrorType.GENERIC, { error: updateError });
       return res.status(500).json({ message: 'Failed to update user. Please try again.' });
     }
 
   } catch (error) {
-    logger.error(new Error('Error in email verification process'), { error });
+    logger.error(new Error('Error in email verification process'), ErrorType.GENERIC, { error });
     res.status(500).json({ message: 'An unexpected error occurred. Please try again later.' });
   }
 }

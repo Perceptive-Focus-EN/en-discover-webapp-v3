@@ -1,6 +1,6 @@
 // src/types/sharedTypes.ts
 
-import { DatabaseError } from '@/errors/errors';
+import { DatabaseError } from '@/MonitoringSystem/errors/specific';
 import { ROLES } from '../../constants/AccessKey/AccountRoles';
 import { AccessLevel } from '@/constants/AccessKey/access_levels';
 import { Permissions } from '@/constants/AccessKey/permissions';

@@ -1,76 +1,101 @@
 // src/lib/api_s/emotionAnalyticsApi.ts
-
 import axiosInstance from '../axiosSetup';
-import { EmotionAnalytics, MoodEntry, EmotionFrequency, EmotionIntensity, EmotionTrigger, EmotionTrend } from '../../components/EN/types/emotionAnalytics';
+import { 
+  EmotionAnalytics, 
+  MoodEntry, 
+  EmotionFrequency, 
+  EmotionIntensity, 
+  EmotionTrigger, 
+  EmotionTrend 
+} from '../../components/EN/types/emotionAnalytics';
 
-export const fetchEmotionAnalytics = async (tenantId: string): Promise<EmotionAnalytics> => {
-  try {
-    const response = await axiosInstance.get<EmotionAnalytics>('/api/emotion-analytics', {
-      params: { tenantId }
+/**
+ * The `emotionAnalyticsApi` object provides methods to interact with the emotion analytics API.
+ * All endpoints are GET requests, indicating read-only operations.
+ */
+export const emotionAnalyticsApi = {
+  /**
+   * Fetches emotion analytics data for a given tenant.
+   * @param tenantId - The ID of the tenant.
+   * @returns A promise that resolves to the emotion analytics data.
+   */
+  fetchEmotionAnalytics: async (tenantId: string): Promise<EmotionAnalytics> => {
+    const response = await axiosInstance.get<EmotionAnalytics>(`/emotion-analytics/${tenantId}`);
+    return response.data;
+  },
+
+  /**
+   * Fetches recent mood entries within a specified date range for a given tenant.
+   * @param tenantId - The ID of the tenant.
+   * @param startDate - The start date of the range (inclusive).
+   * @param endDate - The end date of the range (inclusive).
+   * @param limit - The maximum number of entries to fetch.
+   * @returns A promise that resolves to an array of mood entries.
+   */
+  fetchRecentEntries: async (
+    tenantId: string, 
+    startDate: string, 
+    endDate: string, 
+    limit: number
+  ): Promise<MoodEntry[]> => {
+    const response = await axiosInstance.get<MoodEntry[]>(`/emotion-analytics/${tenantId}/entries`, {
+      params: {
+        startDate,
+        endDate,
+        limit
+      }
     });
     return response.data;
-  } catch (error) {
-    console.error('Error fetching emotion analytics:', error);
-    throw new Error('Failed to fetch emotion analytics');
-  }
-};
+  },
 
-
-export const fetchRecentEntries = async (tenantId: string, startDate: string, endDate: string, limit: number) => {
-  try {
-    const response = await fetch(`/api/emotion-analytics/recent-entries?tenantId=${tenantId}&startDate=${startDate}&endDate=${endDate}&limit=${limit}`);
-    if (!response.ok) throw new Error('Failed to fetch recent entries');
-    return response.json();
-  } catch (error) {
-    console.error('Error fetching recent mood entries:', error);
-    throw new Error('Failed to fetch recent mood entries');
-  }
-};
-
-export const fetchEmotionFrequency = async (tenantId: string, startDate: string, endDate: string): Promise<EmotionFrequency[]> => {
-  try {
-    const response = await axiosInstance.get<EmotionFrequency[]>('/api/emotion-analytics/frequency', {
-      params: { tenantId, startDate, endDate }
+  /**
+   * Fetches the frequency of different emotions within a specified date range for a given tenant.
+   * @param tenantId - The ID of the tenant.
+   * @param startDate - The start date of the range (inclusive).
+   * @param endDate - The end date of the range (inclusive).
+   * @returns A promise that resolves to an array of emotion frequencies.
+   */
+  fetchEmotionFrequency: async (
+    tenantId: string, 
+    startDate: string, 
+    endDate: string
+  ): Promise<EmotionFrequency[]> => {
+    const response = await axiosInstance.get<EmotionFrequency[]>(`/emotion-analytics/${tenantId}/frequency`, {
+      params: {
+        startDate,
+        endDate
+      }
     });
     return response.data;
-  } catch (error) {
-    console.error('Error fetching emotion frequency:', error);
-    throw new Error('Failed to fetch emotion frequency');
-  }
-};
+  },
 
-export const fetchAverageEmotionIntensity = async (tenantId: string): Promise<EmotionIntensity[]> => {
-  try {
-    const response = await axiosInstance.get<EmotionIntensity[]>('/api/emotion-analytics/average-intensity', {
-      params: { tenantId }
-    });
+  /**
+   * Fetches the average intensity of emotions for a given tenant.
+   * @param tenantId - The ID of the tenant.
+   * @returns A promise that resolves to an array of emotion intensities.
+   */
+  fetchAverageEmotionIntensity: async (tenantId: string): Promise<EmotionIntensity[]> => {
+    const response = await axiosInstance.get<EmotionIntensity[]>(`/emotion-analytics/${tenantId}/intensity`);
     return response.data;
-  } catch (error) {
-    console.error('Error fetching average emotion intensity:', error);
-    throw new Error('Failed to fetch average emotion intensity');
-  }
-};
+  },
 
-export const fetchEmotionTriggers = async (tenantId: string): Promise<EmotionTrigger[]> => {
-  try {
-    const response = await axiosInstance.get<EmotionTrigger[]>('/api/emotion-analytics/triggers', {
-      params: { tenantId }
-    });
+  /**
+   * Fetches the triggers of emotions for a given tenant.
+   * @param tenantId - The ID of the tenant.
+   * @returns A promise that resolves to an array of emotion triggers.
+   */
+  fetchEmotionTriggers: async (tenantId: string): Promise<EmotionTrigger[]> => {
+    const response = await axiosInstance.get<EmotionTrigger[]>(`/emotion-analytics/${tenantId}/triggers`);
     return response.data;
-  } catch (error) {
-    console.error('Error fetching emotion triggers:', error);
-    throw new Error('Failed to fetch emotion triggers');
-  }
-};
+  },
 
-export const fetchEmotionTrends = async (tenantId: string): Promise<EmotionTrend[]> => {
-  try {
-    const response = await axiosInstance.get<EmotionTrend[]>('/api/emotion-analytics/trends', {
-      params: { tenantId }
-    });
+  /**
+   * Fetches the trends of emotions for a given tenant.
+   * @param tenantId - The ID of the tenant.
+   * @returns A promise that resolves to an array of emotion trends.
+   */
+  fetchEmotionTrends: async (tenantId: string): Promise<EmotionTrend[]> => {
+    const response = await axiosInstance.get<EmotionTrend[]>(`/emotion-analytics/${tenantId}/trends`);
     return response.data;
-  } catch (error) {
-    console.error('Error fetching emotion trends:', error);
-    throw new Error('Failed to fetch emotion trends');
   }
 };

@@ -1,3 +1,4 @@
+// src/lib/api_s/stripe/invoices.ts
 import axiosInstance from '../../axiosSetup';
 
 interface StripeInvoice {
@@ -17,22 +18,12 @@ interface StripeUpcomingInvoice extends StripeInvoice {
 
 export const invoicesApi = {
   async getAll(): Promise<StripeInvoice[]> {
-    try {
-      const response = await axiosInstance.get('/api/stripe/invoices');
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching invoices:', error);
-      throw new Error('Failed to fetch invoices');
-    }
+    const response = await axiosInstance.get('/api/stripe/invoices');
+    return response.data;
   },
 
   async getUpcoming(): Promise<StripeUpcomingInvoice> {
-    try {
-      const response = await axiosInstance.get('/api/stripe/upcoming-invoice');
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching upcoming invoice:', error);
-      throw new Error('Failed to fetch upcoming invoice');
-    }
+    const response = await axiosInstance.get('/api/stripe/upcoming-invoice');
+    return response.data;
   }
 };

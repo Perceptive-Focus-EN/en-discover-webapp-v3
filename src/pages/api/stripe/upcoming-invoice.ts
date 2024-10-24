@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import Stripe from 'stripe';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { logger } from '../../../MonitoringSystem/Loggers/logger';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '../../../constants/collections';
 

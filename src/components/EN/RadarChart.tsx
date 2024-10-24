@@ -1,8 +1,12 @@
 import React from 'react';
 import { Emotion } from './types/emotions';
+import { TimeRange } from './types/moodHistory';
 
 interface RadarChartProps {
     emotions: Emotion[];
+    timeRange: TimeRange;
+    
+
 }
 
 const RadarChart: React.FC<RadarChartProps> = ({ emotions }) => {

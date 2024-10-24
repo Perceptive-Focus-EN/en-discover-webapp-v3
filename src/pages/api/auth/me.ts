@@ -4,11 +4,12 @@ import { Collection, WithId } from 'mongodb';
 import { User, ExtendedUserInfo } from '../../../types/User/interfaces';
 import { Tenant, TenantInfo } from '../../../types/Tenant/interfaces';
 import { generateAccessToken, generateRefreshToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../utils/ErrorHandling/logger';
+import { logger } from '../../../MonitoringSystem/Loggers/logger';
 import { authMiddleware } from '../../../middlewares/authMiddleware';
 import { getCosmosClient } from '@/config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
 import { ROLES } from '@/constants/AccessKey/AccountRoles';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 interface DecodedToken {
   userId: string;
@@ -125,7 +126,7 @@ async function meHandler(
     logger.info(`Me handler successful for user: ${user.email}`);
     res.status(200).json(loginResponse);
   } catch (error) {
-    logger.error(new Error('Error in me handler'), { error });
+    logger.error(new Error('Error in me handler'), ErrorType.GENERIC, { error });
     if (error instanceof Error) {
       res.status(500).json({ error: `Internal server error: ${error.message}` });
     } else {

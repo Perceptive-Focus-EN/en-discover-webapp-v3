@@ -1,6 +1,6 @@
 // src/lib/api_s/settings/client.ts
-
 import axiosInstance from '../../axiosSetup';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { 
   NotificationSettings, 
   PrivateSettings, 
@@ -16,37 +16,85 @@ const BASE_URL = '/api/settings';
 
 export const settingsApi = {
   notifications: {
-    get: () => axiosInstance.get<NotificationSettings>(`${BASE_URL}/notifications`),
-    update: (data: NotificationSettings) => axiosInstance.put(`${BASE_URL}/notifications`, data),
+    get: async () => {
+      const response = await axiosInstance.get<NotificationSettings>(`${BASE_URL}/notifications`);
+      return response.data;
+    },
+    update: async (data: NotificationSettings) => {
+      const response = await axiosInstance.put(`${BASE_URL}/notifications`, data);
+      messageHandler.success('Notification settings updated');
+      return response.data;
+    },
   },
   privateSettings: {
-    get: () => axiosInstance.get<PrivateSettings>(`${BASE_URL}/private`),
-    update: (data: PrivateSettings) => axiosInstance.put(`${BASE_URL}/private`, data),
+    get: async () => {
+      const response = await axiosInstance.get<PrivateSettings>(`${BASE_URL}/private`);
+      return response.data;
+    },
+    update: async (data: PrivateSettings) => {
+      const response = await axiosInstance.put(`${BASE_URL}/private`, data);
+      messageHandler.success('Privacy settings updated');
+      return response.data;
+    },
   },
   styleSettings: {
-    get: () => axiosInstance.get<StyleSettings>(`${BASE_URL}/style`),
-    update: (data: StyleSettings) => axiosInstance.put(`${BASE_URL}/style`, data),
+    get: async () => {
+      const response = await axiosInstance.get<StyleSettings>(`${BASE_URL}/style`);
+      return response.data;
+    },
+    update: async (data: StyleSettings) => {
+      const response = await axiosInstance.put(`${BASE_URL}/style`, data);
+      messageHandler.success('Style settings updated');
+      return response.data;
+    },
   },
   overseerInvites: {
-    get: () => axiosInstance.get<OverseerInviteSettings>(`${BASE_URL}/overseer-invites`),
-    send: (data: OverseerInviteSettings) => axiosInstance.post(`${BASE_URL}/overseer-invites`, data),
+    get: async () => {
+      const response = await axiosInstance.get<OverseerInviteSettings>(`${BASE_URL}/overseer-invites`);
+      return response.data;
+    },
+    send: async (data: OverseerInviteSettings) => {
+      const response = await axiosInstance.post(`${BASE_URL}/overseer-invites`, data);
+      messageHandler.success('Overseer invite sent successfully');
+      return response.data;
+    },
   },
   faq: {
-    get: () => axiosInstance.get<FaqSettings>(`${BASE_URL}/faq`),
+    get: async () => {
+      const response = await axiosInstance.get<FaqSettings>(`${BASE_URL}/faq`);
+      return response.data;
+    },
   },
   appRating: {
-    get: () => axiosInstance.get<AppRatingSettings>(`${BASE_URL}/rate-app`),
-    submit: (data: { rating: number; feedback: string }) => axiosInstance.post(`${BASE_URL}/rate-app`, data),
+    get: async () => {
+      const response = await axiosInstance.get<AppRatingSettings>(`${BASE_URL}/rate-app`);
+      return response.data;
+    },
+    submit: async (data: { rating: number; feedback: string }) => {
+      const response = await axiosInstance.post(`${BASE_URL}/rate-app`, data);
+      messageHandler.success('Thank you for your feedback!');
+      return response.data;
+    },
   },
   terms: {
-    get: () => axiosInstance.get<TermsSettings>(`${BASE_URL}/terms`),
+    get: async () => {
+      const response = await axiosInstance.get<TermsSettings>(`${BASE_URL}/terms`);
+      return response.data;
+    },
   },
   privacyPolicy: {
-    get: () => axiosInstance.get<PrivacyPolicySettings>(`${BASE_URL}/privacy`),
+    get: async () => {
+      const response = await axiosInstance.get<PrivacyPolicySettings>(`${BASE_URL}/privacy`);
+      return response.data;
+    },
   },
-  // General settings operations
-  getAll: () => axiosInstance.get<any>(`${BASE_URL}`),
-  updateAll: (data: any) => axiosInstance.put(`${BASE_URL}`, data),
+  getAll: async () => {
+    const response = await axiosInstance.get<any>(`${BASE_URL}`);
+    return response.data;
+  },
+  updateAll: async (data: any) => {
+    const response = await axiosInstance.put(`${BASE_URL}`, data);
+    messageHandler.success('Settings updated successfully');
+    return response.data;
+  },
 };
-
-export default settingsApi;

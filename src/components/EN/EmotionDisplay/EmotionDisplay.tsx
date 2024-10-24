@@ -8,7 +8,7 @@ import EmotionVolumeDrawer from '../EmotionVolumeDrawer';
 import { VOLUME_LEVELS, VolumeLevelId } from '../constants/volume';
 import { MoodEntry } from '../types/moodHistory';
 import { SourceCategoryId } from '../constants/sources';
-import { frontendLogger } from '@/utils/ErrorHandling/frontendLogger';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
 interface EmotionDisplayProps {
     onEmotionSelect: (moodEntry: Omit<MoodEntry, '_id' | 'userId' | 'timeStamp' | 'createdAt' | 'updatedAt'>) => Promise<void>;
@@ -27,19 +27,15 @@ const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotio
     const bubbleRefs = useRef<(HTMLDivElement | null)[]>([]);
     
     const getBackgroundColor = useCallback((color: string | string[] | undefined) => {
-        if (color) {
-            if (Array.isArray(color)) {
-                return createGradient(color as ValidHexColor[]);
-            } else {
-                return color;
-            }
-        }
-        return 'transparent';
+        if (!color) return 'transparent';
+        return Array.isArray(color) 
+            ? createGradient(color as ValidHexColor[])
+            : color;
     }, []);
 
     const getTextColor = useCallback((color: string | string[] | undefined): string => {
         if (!color) return 'inherit';
-        let colorToUse: string = Array.isArray(color) ? color[0] : color;
+        const colorToUse: string = Array.isArray(color) ? color[0] : color;
         const rgb = hexToRgb(colorToUse);
         const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
         return brightness > 128 ? '#000000' : '#FFFFFF';
@@ -68,50 +64,23 @@ const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotio
     }, []);
 
     const handleEmotionComplete = useCallback(async (volume: VolumeLevelId, sources: SourceCategoryId[]) => {
-        if (selectedEmotion) {
-            const volumeLevel = VOLUME_LEVELS.find(level => level.id === volume);
-            if (!volumeLevel) {
-                frontendLogger.error(
-                    new Error('Invalid volume level'),
-                    'An error occurred while saving your mood. Please try again.',
-                    { volume, sources }
-                );
-                throw new Error('Invalid volume level');
-            }
+        if (!selectedEmotion) return;
 
-            const moodEntry: Omit<MoodEntry, '_id' | 'userId' | 'timeStamp' | 'createdAt' | 'updatedAt'> = {
-                tenantId: '', // This should be set by the parent component or context
-                emotionId: selectedEmotion.id,
-                color: Array.isArray(selectedEmotion.color) ? selectedEmotion.color[0] : selectedEmotion.color,
-                sources: sources.map(source => parseInt(source.toString(), 10) as SourceCategoryId),
-                date: new Date().toISOString(),
-                volume: volume,
-            };
+        const volumeLevel = VOLUME_LEVELS.find(level => level.id === volume);
+        if (!volumeLevel) return;
 
-            frontendLogger.info(
-                'Submitting mood entry',
-                'Saving your mood...',
-                { moodEntry }
-            );
+        const moodEntry: Omit<MoodEntry, '_id' | 'userId' | 'timeStamp' | 'createdAt' | 'updatedAt'> = {
+            tenantId: '',
+            emotionId: selectedEmotion.id,
+            color: Array.isArray(selectedEmotion.color) ? selectedEmotion.color[0] : selectedEmotion.color,
+            sources: sources.map(source => parseInt(source.toString(), 10) as SourceCategoryId),
+            date: new Date().toISOString(),
+            volume: volume,
+        };
 
-            try {
-                await onEmotionSelect(moodEntry);
-                frontendLogger.info(
-                    'Mood entry submitted successfully',
-                    'Your mood has been saved!',
-                    { moodEntry }
-                );
-            } catch (error) {
-                frontendLogger.error(
-                    error as Error,
-                    'Failed to save your mood. Please try again.',
-                    { moodEntry }
-                );
-                // You might want to show an error message to the user here
-            }
-
-            handleDrawerClose();
-        }
+        await onEmotionSelect(moodEntry);
+        messageHandler.success('Mood recorded successfully');
+        handleDrawerClose();
     }, [selectedEmotion, onEmotionSelect, handleDrawerClose]);
 
     return (

@@ -8,29 +8,24 @@ import { checkoutApi } from '../lib/api_s/stripe/checkout';
 type SubscriptionState = {
   subscription: Subscription | null;
   loading: boolean;
-  error: string | null;
 };
 
 type SubscriptionAction =
   | { type: 'FETCH_START' }
   | { type: 'FETCH_SUCCESS'; payload: Subscription }
-  | { type: 'FETCH_ERROR'; payload: string }
   | { type: 'CLEAR_SUBSCRIPTION' };
 
 const initialState: SubscriptionState = {
   subscription: null,
   loading: false,
-  error: null,
 };
 
 function subscriptionReducer(state: SubscriptionState, action: SubscriptionAction): SubscriptionState {
   switch (action.type) {
     case 'FETCH_START':
-      return { ...state, loading: true, error: null };
+      return { ...state, loading: true };
     case 'FETCH_SUCCESS':
-      return { ...state, loading: false, subscription: action.payload, error: null };
-    case 'FETCH_ERROR':
-      return { ...state, loading: false, error: action.payload };
+      return { ...state, loading: false, subscription: action.payload };
     case 'CLEAR_SUBSCRIPTION':
       return { ...state, subscription: null };
     default:
@@ -43,7 +38,11 @@ export interface SubscriptionContextType extends SubscriptionState {
   updateSubscription: (newSubscriptionPlanType: SubscriptionPlanType) => Promise<void>;
   cancelSubscription: () => Promise<void>;
   refreshSubscription: () => Promise<void>;
-  createCheckoutSession: (data: { subscriptionPlanType: SubscriptionPlanType; successUrl: string; cancelUrl: string }) => Promise<{ sessionId: string; url: string }>;
+  createCheckoutSession: (data: { 
+    subscriptionPlanType: SubscriptionPlanType; 
+    successUrl: string; 
+    cancelUrl: string 
+  }) => Promise<{ sessionId: string; url: string }>;
   getInvoices: () => Promise<any>;
   getUpcomingInvoice: () => Promise<any>;
 }
@@ -58,57 +57,38 @@ export const useSubscription = () => {
   return context;
 };
 
-interface SubscriptionProviderProps {
-  children: React.ReactNode;
-}
-
-export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ children }) => {
+export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(subscriptionReducer, initialState);
 
   const fetchSubscription = useCallback(async () => {
     dispatch({ type: 'FETCH_START' });
-    try {
-      const data = await subscriptionsApi.get();
-      dispatch({ type: 'FETCH_SUCCESS', payload: data });
-    } catch (err) {
-      dispatch({ type: 'FETCH_ERROR', payload: 'Failed to fetch subscription data' });
-    }
+    const data = await subscriptionsApi.get();
+    dispatch({ type: 'FETCH_SUCCESS', payload: data });
   }, []);
 
   const createSubscription = useCallback(async (subscriptionPlanType: SubscriptionPlanType) => {
     dispatch({ type: 'FETCH_START' });
-    try {
-      const data = await subscriptionsApi.update(subscriptionPlanType);
-      dispatch({ type: 'FETCH_SUCCESS', payload: data });
-    } catch (err) {
-      dispatch({ type: 'FETCH_ERROR', payload: 'Failed to create subscription' });
-      throw err;
-    }
+    const data = await subscriptionsApi.update(subscriptionPlanType);
+    dispatch({ type: 'FETCH_SUCCESS', payload: data });
   }, []);
 
   const updateSubscription = useCallback(async (newSubscriptionPlanType: SubscriptionPlanType) => {
     dispatch({ type: 'FETCH_START' });
-    try {
-      const data = await subscriptionsApi.update(newSubscriptionPlanType);
-      dispatch({ type: 'FETCH_SUCCESS', payload: data });
-    } catch (err) {
-      dispatch({ type: 'FETCH_ERROR', payload: 'Failed to update subscription' });
-      throw err;
-    }
+    const data = await subscriptionsApi.update(newSubscriptionPlanType);
+    dispatch({ type: 'FETCH_SUCCESS', payload: data });
   }, []);
 
   const cancelSubscription = useCallback(async () => {
     dispatch({ type: 'FETCH_START' });
-    try {
-      await subscriptionsApi.cancel();
-      dispatch({ type: 'CLEAR_SUBSCRIPTION' });
-    } catch (err) {
-      dispatch({ type: 'FETCH_ERROR', payload: 'Failed to cancel subscription' });
-      throw err;
-    }
+    await subscriptionsApi.cancel();
+    dispatch({ type: 'CLEAR_SUBSCRIPTION' });
   }, []);
 
-  const createCheckoutSession = useCallback(async (data: { subscriptionPlanType: SubscriptionPlanType; successUrl: string; cancelUrl: string }) => {
+  const createCheckoutSession = useCallback(async (data: { 
+    subscriptionPlanType: SubscriptionPlanType; 
+    successUrl: string; 
+    cancelUrl: string 
+  }) => {
     return checkoutApi.createSession(data);
   }, []);
 

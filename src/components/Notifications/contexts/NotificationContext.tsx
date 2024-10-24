@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchUnreadNotificationCount } from '../../../lib/api_s/notifications/unread-notification';
-import { fetchNotifications } from '../../../lib/api_s/notifications/fetch-notifications';
+import { fetchNotifications } from '../../../lib/api_s/notifications';
 import { markNotificationAsRead, markAllNotificationsAsRead } from '../../../lib/api_s/notifications/mark-as-read';
 import { Notification } from '../../../components/Notifications/types/notification';
 

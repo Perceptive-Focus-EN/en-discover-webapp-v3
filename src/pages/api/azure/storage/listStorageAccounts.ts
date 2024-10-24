@@ -4,7 +4,7 @@ import { StorageManagementClient } from '@azure/arm-storage';
 import { DefaultAzureCredential } from '@azure/identity';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/utils/ErrorHandling/logger';
+import { logger } from '@/MonitoringSystem/Loggers/logger';
 import { AZURE_SUBSCRIPTION_ID } from '@/constants/azureConstants';
 
 async function listStorageAccountsHandler(req: NextApiRequest, res: NextApiResponse) {

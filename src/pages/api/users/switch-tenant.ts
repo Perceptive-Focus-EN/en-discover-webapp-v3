@@ -1,16 +1,27 @@
-// src/pages/api/users/switch-tenant.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
 import { authMiddleware } from '../../../middlewares/authMiddleware';
-import { logger } from '../../../utils/ErrorHandling/logger';
 import { User, ExtendedUserInfo } from '../../../types/User/interfaces';
 import { TenantInfo } from '../../../types/Tenant/interfaces';
 import { ROLES } from '@/constants/AccessKey/AccountRoles/index';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { AppError } from '@/MonitoringSystem/managers/AppError';
 
 async function switchTenantHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    const appError = monitoringManager.error.createError(
+      'business',
+      'METHOD_NOT_ALLOWED',
+      'Method not allowed',
+      { method: req.method }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 
   const decodedToken = (req as any).user;
@@ -19,7 +30,16 @@ async function switchTenantHandler(req: NextApiRequest, res: NextApiResponse) {
     const { tenantId } = req.body;
 
     if (!tenantId) {
-      return res.status(400).json({ error: 'Tenant ID is required' });
+      const appError = monitoringManager.error.createError(
+        'business',
+        'VALIDATION_FAILED',
+        'Tenant ID is required'
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
 
     const { db } = await getCosmosClient();
@@ -33,8 +53,17 @@ async function switchTenantHandler(req: NextApiRequest, res: NextApiResponse) {
     ) as User | null;
 
     if (!updatedUser) {
-      logger.warn(`User ${decodedToken.userId} attempted to switch to non-associated tenant ${tenantId}`);
-      return res.status(404).json({ error: 'User not found or not associated with this tenant' });
+      const appError = monitoringManager.error.createError(
+        'business',
+        'TENANT_ACCESS_DENIED',
+        'User not found or not associated with this tenant',
+        { userId: decodedToken.userId, tenantId }
+      );
+      const errorResponse = monitoringManager.error.handleError(appError);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
 
     const tenantInfo = await tenantsCollection.findOne({ tenantId }) as TenantInfo | null;
@@ -52,17 +81,64 @@ async function switchTenantHandler(req: NextApiRequest, res: NextApiResponse) {
       createdAt: updatedUser.createdAt,
       updatedAt: updatedUser.updatedAt,
       role: ROLES.Business.CHIEF_EXECUTIVE_OFFICER
-
     };
 
-    logger.info(`User ${decodedToken.userId} switched to tenant ${tenantId}`);
-    res.status(200).json({ 
+    // Record success metric
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'tenant',
+      'switch',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        userId: decodedToken.userId,
+        fromTenantId: updatedUser.currentTenantId,
+        toTenantId: tenantId,
+        success: true
+      }
+    );
+
+    return res.status(200).json({ 
       message: 'Tenant switched successfully', 
       user: extendedUserInfo 
     });
+
   } catch (error) {
-    logger.error(new Error('Error switching tenant'), { error });
-    res.status(500).json({ error: 'Internal server error' });
+    if (AppError.isAppError(error)) {
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
+    }
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      'DATABASE_OPERATION_FAILED',
+      'Error switching tenant',
+      { error, userId: decodedToken.userId }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'tenant',
+      'error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        operation: 'switch',
+        errorType: error.name || 'unknown',
+        userId: decodedToken.userId
+      }
+    );
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }
 

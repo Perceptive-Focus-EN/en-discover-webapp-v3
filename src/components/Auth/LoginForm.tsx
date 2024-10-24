@@ -12,13 +12,10 @@ import {
   Box,
   styled,
   Paper,
-  Fade,
-  Snackbar,
-  Alert
+  Fade
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { LoginRequest } from '../../types/Login/interfaces';
-import { frontendLogger } from '../../utils/ErrorHandling/frontendLogger';
 import VideoLogoWithBackgroundRemoval from './VideoLogoWithBackgroundRemoval';
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
@@ -71,12 +68,10 @@ interface LoginFormProps {
   onSubmit: (formData: LoginRequest) => void;
   onMagicLinkRequest: (email: string) => void;
   loading: boolean;
-  error: string | null;
-  onErrorClose: () => void;
   onSuccess?: () => void;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, onMagicLinkRequest, loading, error, onErrorClose, onSuccess }) => {
+const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, onMagicLinkRequest, loading, onSuccess }) => {
   const [formData, setFormData] = useState<LoginRequest>({
     email: '',
     password: ''
@@ -89,10 +84,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, onMagicLinkRequest, loa
 
   useEffect(() => {
     setIsClient(true);
-    frontendLogger.info('Login form loaded', 'Please enter your credentials to sign in');
-    return () => {
-      frontendLogger.info('Login form unloaded', 'Thank you for using our login form');
-    };
   }, []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,8 +101,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, onMagicLinkRequest, loa
 
   const handleMagicLinkRequest = () => {
     if (!formData.email) {
-      frontendLogger.warn('Email missing', 'Please enter your email address');
-      onErrorClose();
       return;
     }
     onMagicLinkRequest(formData.email);
@@ -222,13 +211,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, onMagicLinkRequest, loa
             </Grid>
           </Grid>
         </form>
-        {error && (
-          <Snackbar open={!!error} autoHideDuration={6000} onClose={onErrorClose}>
-            <Alert onClose={onErrorClose} severity="error">
-              {error}
-            </Alert>
-          </Snackbar>
-        )}
       </StyledPaper>
     </Fade>
   );

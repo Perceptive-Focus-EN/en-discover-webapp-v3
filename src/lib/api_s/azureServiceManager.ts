@@ -1,6 +1,8 @@
+// src/lib/api_s/azureServiceManager.ts
 import axiosInstance from '../axiosSetup';
 import { API_ENDPOINTS } from '../../constants/azureConstants';
 import { FrontendOperationParams, FrontendOperationResult } from '../../types/Azure/FrontendResourceOperations';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
 class AzureServiceManager {
   private static instance: AzureServiceManager;
@@ -14,8 +16,25 @@ class AzureServiceManager {
     return AzureServiceManager.instance;
   }
 
+  private getSuccessMessage(operation: string): string {
+    const actionMap: Record<string, string> = {
+      'Create': 'created',
+      'Delete': 'deleted',
+      'Update': 'updated',
+      'List': 'retrieved',
+      'Get': 'retrieved',
+      'Upload': 'uploaded',
+      'Download': 'downloaded'
+    };
+
+    const action = Object.keys(actionMap).find(key => operation.startsWith(key));
+    if (!action) return 'Operation completed successfully';
+
+    const resource = operation.replace(action, '').trim();
+    return `${resource} ${actionMap[action]} successfully`;
+  }
+
   async executeOperation(params: FrontendOperationParams): Promise<FrontendOperationResult> {
-  try {
     let endpoint: string;
     let method: 'get' | 'post' | 'put' | 'delete' = 'post';
     let data: any = params;
@@ -109,13 +128,15 @@ class AzureServiceManager {
       params: method === 'get' ? data : undefined,
     });
 
-    return { success: true, data: response.data };
-  } catch (error: any) {
+    // Show success message for non-GET operations
+    if (method !== 'get') {
+      messageHandler.success(this.getSuccessMessage(params.operation));
+    }
+
     return {
-      success: false,
-      error: `Error executing operation ${params.operation}: ${error.response?.data?.message || error.message}`
+      success: true,
+      data: response.data
     };
-  }
   }
 }
 

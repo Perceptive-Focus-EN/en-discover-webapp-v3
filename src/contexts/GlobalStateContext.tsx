@@ -11,7 +11,6 @@ interface GlobalState {
   fetchUserTenants: () => Promise<void>;
   selectTenant: (tenantId: string) => void;
   userId: string | null;
-
 }
 
 const GlobalStateContext = createContext<GlobalState | undefined>(undefined);
@@ -36,18 +35,13 @@ export const GlobalStateProvider: React.FC<React.PropsWithChildren<{}>> = ({ chi
       const now = Date.now();
       if (!lastFetchTime || now - lastFetchTime > 60000) {
         setIsLoading(true);
-        try {
-          const tenants = await getUserTenants();
-          setUserTenants(tenants);
-          setLastFetchTime(now);
-          if (!currentTenant && tenants.length > 0) {
-            setCurrentTenant(tenants[0]);
-          }
-        } catch (error) {
-          console.error('Failed to fetch user tenants:', error);
-        } finally {
-          setIsLoading(false);
+        const tenants = await getUserTenants();
+        setUserTenants(tenants);
+        setLastFetchTime(now);
+        if (!currentTenant && tenants.length > 0) {
+          setCurrentTenant(tenants[0]);
         }
+        setIsLoading(false);
       }
     }
   }, [user, getUserTenants, lastFetchTime, currentTenant]);
@@ -70,14 +64,9 @@ export const GlobalStateProvider: React.FC<React.PropsWithChildren<{}>> = ({ chi
     const tenant = userTenants.find(t => t.tenantId === tenantId);
     if (tenant) {
       setIsLoading(true);
-      try {
-        await switchTenant(tenantId);
-        setCurrentTenant(tenant);
-      } catch (error) {
-        console.error('Failed to switch tenant:', error);
-      } finally {
-        setIsLoading(false);
-      }
+      await switchTenant(tenantId);
+      setCurrentTenant(tenant);
+      setIsLoading(false);
     }
   }, [userTenants, switchTenant]);
 
@@ -94,7 +83,7 @@ export const GlobalStateProvider: React.FC<React.PropsWithChildren<{}>> = ({ chi
     isLoading,
     setCurrentTenant,
     fetchUserTenants,
-      selectTenant,
+    selectTenant,
     userId: user?.userId || null,
   };
 

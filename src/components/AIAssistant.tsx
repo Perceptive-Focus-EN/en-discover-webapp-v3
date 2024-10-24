@@ -7,7 +7,6 @@ import BubbleContainer, { BubbleType } from './AI/bubbles/BubbleContainer';
 import VoiceSelector from './AI/VoiceSelector';
 import useClickOutside from '../hooks/useClickOutside';
 import { useAIAssistant } from '@/contexts/AIAssistantContext';
-import { frontendLogger } from '@/utils/ErrorHandling/frontendLogger';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import generateResponseGenerator from '../lib/api_s/responseGenerator';
 import { synthesizeSpeech } from '../lib/api_s/audioGenerator';
@@ -73,7 +72,7 @@ const AIAssistant: React.FC = () => {
   const { state, dispatch } = useAIAssistant();
   const combinedSelectorRef = useRef<HTMLDivElement>(null);
   const [context, setContext] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false); // Add this line
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     transcript,
@@ -83,11 +82,7 @@ const AIAssistant: React.FC = () => {
   } = useSpeechRecognition();
 
   useEffect(() => {
-    frontendLogger.info(
-      'AI Assistant initialized',
-      'AI Assistant is ready to help you',
-      { initialVoice: state.selectedVoice }
-    );
+    console.info('AI Assistant initialized', { initialVoice: state.selectedVoice });
   }, [state.selectedVoice]);
 
   useEffect(() => {
@@ -99,7 +94,7 @@ const AIAssistant: React.FC = () => {
 
   const closeCombinedSelector = () => {
     dispatch({ type: 'SET_SHOW_COMBINED_SELECTOR', payload: false });
-    frontendLogger.debug('Combined selector closed', 'Options panel closed');
+    console.debug('Combined selector closed', { description: 'Options panel closed' });
   };
   
   useClickOutside(combinedSelectorRef, closeCombinedSelector);
@@ -108,16 +103,12 @@ const AIAssistant: React.FC = () => {
     dispatch({ type: 'SET_BUTTON_COLOR', payload: bubbleInfo.color as "blue" | "green" | "red" | "purple" | "yellow" });
     dispatch({ type: 'SET_BUTTON_GRADIENT', payload: bubbleInfo.gradient });
     dispatch({ type: 'SET_SELECTED_BOX_SHADOW', payload: bubbleInfo.boxShadow });
-    frontendLogger.info(
-      'Bubble style selected',
-      'Assistant appearance updated',
-      { bubbleInfo }
-    );
+    console.info('Bubble style selected', { bubbleInfo });
   };
 
   const handlePromptSubmit = async (input: string) => {
     try {
-      setIsLoading(true); // Add this line
+      setIsLoading(true);
       dispatch({ type: 'SET_IS_LOADING', payload: true });
       const response = await generateResponseGenerator({ userInput: input, context });
       dispatch({ type: 'SET_GENERATED_RESPONSE', payload: response });
@@ -129,35 +120,23 @@ const AIAssistant: React.FC = () => {
       const audioUrl = await synthesizeSpeech({ text: response, voice: selectedVoice });
       dispatch({ type: 'SET_AUDIO_URL', payload: audioUrl });
 
-      frontendLogger.info(
-        'Response generated and synthesized',
-        'AI Assistant generated a response and synthesized speech',
-        { responseLength: response.length, audioUrl }
-      );
+      console.info('Response generated and synthesized', { responseLength: response.length, audioUrl });
     } catch (error) {
-      frontendLogger.error(
-        'Error in generating or synthesizing response',
-        'An error occurred while generating or synthesizing the AI response',
-        { error }
-      );
+      console.error('Error in generating or synthesizing response', { error });
     } finally {
-      setIsLoading(false); // Add this line
+      setIsLoading(false);
       dispatch({ type: 'SET_IS_LOADING', payload: false });
     }
   };
   
   const handleSynthesisComplete = () => {
     dispatch({ type: 'SET_IS_SYNTHESIZING', payload: false });
-    frontendLogger.info(
-      'Speech synthesis completed',
-      'AI Assistant finished speaking',
-      { voiceUsed: state.selectedVoice }
-    );
+    console.info('Speech synthesis completed', { voiceUsed: state.selectedVoice });
   };
 
   const handleLongPress = () => {
     dispatch({ type: 'SET_SHOW_COMBINED_SELECTOR', payload: true });
-    frontendLogger.debug('Long press detected', 'Options panel opened');
+    console.debug('Long press detected', { description: 'Options panel opened' });
   };
 
   const handleChitChatToggle = () => {
@@ -168,11 +147,7 @@ const AIAssistant: React.FC = () => {
     } else {
       SpeechRecognition.stopListening();
     }
-    frontendLogger.info(
-      `Chit Chat ${newShowInput ? 'enabled' : 'disabled'}`,
-      `AI Assistant chat ${newShowInput ? 'started' : 'ended'}`,
-      { showInput: newShowInput, speechRecognitionEnabled: newShowInput }
-    );
+    console.info(`Chit Chat ${newShowInput ? 'enabled' : 'disabled'}`, { showInput: newShowInput, speechRecognitionEnabled: newShowInput });
   };
 
   return (

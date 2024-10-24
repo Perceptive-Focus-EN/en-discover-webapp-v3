@@ -1,7 +1,7 @@
 // src/components/ErrorBoundary.tsx
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Box, Typography, Button } from '@mui/material';
-import { frontendLogger } from '../utils/ErrorHandling/frontendLogger';
+import { frontendLogger } from '../MonitoringSystem/managers/FrontendMessageHandler';
 
 interface Props {
   children: ReactNode;

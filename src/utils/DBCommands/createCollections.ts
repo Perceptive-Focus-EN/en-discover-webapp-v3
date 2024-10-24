@@ -1,8 +1,8 @@
 // src/utils/DBCommands/createCollections.ts
 
 import { getCosmosClient } from '../../config/azureCosmosClient';
-import { logger } from '../ErrorHandling/logger';
-import { DatabaseError } from '../../errors/errors';
+import { logger } from '../../MonitoringSystem/Loggers/logger';
+import { DatabaseError } from '../../MonitoringSystem/errors/specific';
 
 async function createCollectionIfNotExists(dbName: string, collectionName: string) {
   try {
@@ -18,7 +18,7 @@ async function createCollectionIfNotExists(dbName: string, collectionName: strin
       logger.info(`Collection "${collectionName}" already exists in database "${dbName}".`);
     }
   } catch (error) {
-    logger.error('Error creating collection:', error);
+    logger.error(new Error('Error creating collection'), error);
     throw new DatabaseError(`Failed to create or check collection "${collectionName}" in database "${dbName}"`);
   }
 }

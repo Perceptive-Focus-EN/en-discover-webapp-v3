@@ -16,7 +16,7 @@ export const COLLECTIONS = {
     LOGS: 'log',
     MOODBOARD: 'moodboard',
     MOODENTRY: 'moodEntry',
-    
+    TOKEN_BLACKLIST: 'tokenBlacklist',
     REACTIONS: 'reactions',
     
     MOOD_HISTORY: 'moodHistory',

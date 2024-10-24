@@ -1,7 +1,8 @@
 // src/utils/SnackbarManager.tsx
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Snackbar, Alert, IconButton } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import { messageHandler } from '../MonitoringSystem/managers/FrontendMessageHandler';
 
 interface SnackbarContextType {
   showMessage: (message: string, severity: 'error' | 'warning' | 'info' | 'success') => void;
@@ -13,6 +14,15 @@ export const SnackbarProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [severity, setSeverity] = useState<'error' | 'warning' | 'info' | 'success'>('info');
+
+  useEffect(() => {
+    // Initialize messageHandler with our showMessage function
+    messageHandler.init((message, severity) => {
+      setMessage(message);
+      setSeverity(severity);
+      setOpen(true);
+    });
+  }, []);
 
   const showMessage = (msg: string, sev: 'error' | 'warning' | 'info' | 'success') => {
     setMessage(msg);

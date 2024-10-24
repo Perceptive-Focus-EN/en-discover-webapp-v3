@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, ReactNode, useEffect, use
 import { useGlobalState } from './GlobalStateContext';
 import { TenantInfo } from '@/types/Tenant/interfaces';
 
+// Types remain the same
 export interface AIAssistantState {
   isActive: boolean;
   currentPage: string;
@@ -35,7 +36,8 @@ export type AIAssistantAction =
   | { type: 'SET_BUTTON_COLOR'; payload: AIAssistantState['buttonColor'] }
   | { type: 'SET_BUTTON_GRADIENT'; payload: string }
   | { type: 'SET_SELECTED_BOX_SHADOW'; payload: string }
-  | { type: 'SET_SELECTED_BUBBLE'; payload: string | null };
+  | { type: 'SET_SELECTED_BUBBLE'; payload: string | null }
+  | { type: 'RESET_STATE' };  // Added for cleanup
 
 const initialState: AIAssistantState = {
   isActive: false,
@@ -54,6 +56,7 @@ const initialState: AIAssistantState = {
   selectedBoxShadow: '',
   selectedBubble: null,
 };
+
 
 type AIAssistantContextType = {
   state: AIAssistantState;
@@ -95,6 +98,8 @@ const aiAssistantReducer = (state: AIAssistantState, action: AIAssistantAction):
       return { ...state, selectedBoxShadow: action.payload };
     case 'SET_SELECTED_BUBBLE':
       return { ...state, selectedBubble: action.payload };
+    case 'RESET_STATE':
+  return initialState;
     default:
       return state;
   }
@@ -104,26 +109,33 @@ export const AIAssistantProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [state, dispatch] = useReducer(aiAssistantReducer, initialState);
   const { currentTenant, userId } = useGlobalState();
 
+  // Update tenant when it changes in global state
   useEffect(() => {
-    dispatch({ type: 'SET_TENANT', payload: currentTenant });
+    if (currentTenant !== state.currentTenant) {
+      dispatch({ type: 'SET_TENANT', payload: currentTenant });
+    }
   }, [currentTenant]);
 
+  // Update userId when it changes in global state
   useEffect(() => {
-    dispatch({ type: 'SET_USER_ID', payload: userId });
+    if (userId !== state.userId) {
+      dispatch({ type: 'SET_USER_ID', payload: userId });
+    }
   }, [userId]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      dispatch({ type: 'RESET_STATE' });
+    };
+  }, []);
 
   const toggleAIAssistant = useCallback(() => {
     dispatch({ type: 'SET_ACTIVE', payload: !state.isActive });
   }, [state.isActive]);
 
-  const contextValue: AIAssistantContextType = {
-    state,
-    dispatch,
-    toggleAIAssistant,
-  };
-
   return (
-    <AIAssistantContext.Provider value={contextValue}>
+    <AIAssistantContext.Provider value={{ state, dispatch, toggleAIAssistant }}>
       {children}
     </AIAssistantContext.Provider>
   );

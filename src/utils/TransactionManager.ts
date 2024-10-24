@@ -1,7 +1,8 @@
-import { logger } from './ErrorHandling/logger';
+import { logger } from '../MonitoringSystem/Loggers/logger';
 import { getCosmosClient, closeCosmosClient } from '../config/azureCosmosClient';
 import { Db, ClientSession, Collection } from 'mongodb';
-import { DatabaseError } from '../errors/errors';
+import { DatabaseError } from '../MonitoringSystem/errors/specific';
+import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export class TransactionManager {
   private db: Db | null = null;
@@ -40,7 +41,7 @@ export class TransactionManager {
       logger.info('Transaction committed successfully');
       return result!;
     } catch (error) {
-      logger.error(new Error('Transaction aborted due to error'), { 
+      logger.error(new Error('Transaction aborted due to error'), ErrorType.TRANSACTION_ABORTED, { 
         message: (error as Error).message, 
         stack: (error as Error).stack 
       });
@@ -59,7 +60,7 @@ export class TransactionManager {
         return await this.executeTransaction(operations);
       } catch (error) {
         if (attempt === maxRetries) {
-          logger.error(new Error('Transaction failed after maximum retries'), {
+          logger.error(new Error('Transaction failed after maximum retries'), ErrorType.TRANSACTION_ABORTED, {
             message: (error as Error).message, 
             stack: (error as Error).stack 
           });

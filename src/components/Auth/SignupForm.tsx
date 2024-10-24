@@ -1,7 +1,7 @@
 // src/components/Auth/SignupForm.tsx
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Box, TextField, Button, Typography, MenuItem } from '@mui/material';
+import { Box, TextField, Button, MenuItem } from '@mui/material';
 import { SignupRequest } from '../../types/Signup/interfaces';
 import { ACCOUNT_TYPES, UserAccountType } from '../../constants/AccessKey/accounts';
 
@@ -18,7 +18,7 @@ const SignupForm: React.FC = () => {
     onboardingStage: '1'
   });
   const [confirmPassword, setConfirmPassword] = useState('');
-  const { signup, error, setError } = useAuth();
+  const { signup } = useAuth();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -27,20 +27,12 @@ const SignupForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null); // Clear any previous errors
 
     if (formData.password !== confirmPassword) {
-      setError("Passwords don't match");
       return;
     }
 
-    try {
-      await signup(formData);
-      // Navigation is handled in the AuthContext
-    } catch (err) {
-      // Error is already set in the AuthContext
-      console.error('Signup failed:', err);
-    }
+    await signup(formData);
   };
 
   return (
@@ -140,11 +132,6 @@ const SignupForm: React.FC = () => {
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
       />
-      {error && (
-        <Typography color="error" variant="body2" sx={{ mt: 1 }}>
-          {error}
-        </Typography>
-      )}
       <Button
         type="submit"
         fullWidth

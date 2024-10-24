@@ -192,4 +192,7 @@ export const API_ENDPOINTS = {
   UPDATE_RESOURCE: '/api/resources/update',
   DELETE_RESOURCE: '/api/resources/delete',
 
+  LOGS: '/api/logs',
+  METRICS: '/api/metrics',
+
 } as const;

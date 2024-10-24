@@ -21,7 +21,6 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { ColorPalette, palettes } from '@/components/EN/types/colorPalette';
 import { Emotion } from '@/components/EN/types/emotions';
-import { frontendLogger } from '@/utils/ErrorHandling/frontendLogger';
 import { emotionMappingsApi } from '@/lib/api_s/reactions/emotionMappings';
 import BubbleBarChart from '@/components/EN/BubbleBarChart';
 import MoodBubbleChart from '@/components/EN/charts/MoodBubbleChart';
@@ -53,7 +52,8 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
   selectedEmotion,
   selectedVolume,
   selectedSource
-}) => {  const theme = useTheme();
+}) => {  
+  const theme = useTheme();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [openMoodSelector, setOpenMoodSelector] = useState<boolean>(false);
@@ -80,7 +80,6 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
         const emotions = await emotionMappingsApi.getEmotionMappings(user.userId);
         setUserEmotions(emotions);
       } catch (error) {
-        frontendLogger.error('Failed to fetch user emotions', 'An error occurred while fetching user emotions', { error });
         setError('Failed to load your emotions. Please try again.');
       } finally {
         setLoadingEmotions(false);
@@ -91,7 +90,6 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
-        frontendLogger.info('Redirecting to login page', 'User is being redirected to the login page');
         router.replace('/login');
       } else {
         fetchUserEmotions();
@@ -165,11 +163,6 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
       <Box sx={{ position: 'relative', height: '100%', width: '100%' }}>
         <ChartComponent
           emotions={filteredEmotions}
-          timeRange={timeRange}
-          selectedEmotion={selectedEmotion}
-          onEmotionSelect={handleEmotionSelect}
-          onTimeRangeChange={(newTimeRange: TimeRange) => setTimeRange(newTimeRange)}
-          history={[]} // Placeholder for history prop
         />
       </Box>
     );
