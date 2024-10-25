@@ -1,4 +1,6 @@
 export enum SystemError {
+
+
     // Database Errors
     DATABASE_CONNECTION = 'system/database/connection',
     DATABASE_QUERY = 'system/database/query',

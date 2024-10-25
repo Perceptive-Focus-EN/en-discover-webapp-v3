@@ -1,8 +1,35 @@
 // src/lib/api_s/feed/index.ts
-import axiosInstance from '../../axiosSetup';
+import { api } from '../../axiosSetup';
 import { API_ENDPOINTS } from '../../../constants/endpointsConstants';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { FeedPost, PostData } from '@/components/Feed/types/Post';
+
+interface FetchPostsParams {
+  page: number;
+  limit: number;
+  feedType: string;
+  emotions: string;
+  userId?: string;
+  tenantId?: string;
+}
+
+interface ConnectionResponse {
+  success: boolean;
+  message: string;
+}
+
+interface Connection {
+  userId: string;
+  status: string;
+  createdAt: string;
+}
+
+interface ConnectionRequest {
+  id: string;
+  fromUserId: string;
+  status: string;
+  createdAt: string;
+}
 
 export const feedApi = {
   // Posts
@@ -15,7 +42,7 @@ export const feedApi = {
     userId?: string,
     tenantId?: string
   ): Promise<FeedPost[]> => {
-    const params: Record<string, any> = {
+    const params: FetchPostsParams = {
       page,
       limit: postsPerPage,
       feedType,
@@ -26,71 +53,107 @@ export const feedApi = {
     if (tenantId) params.tenantId = tenantId;
 
     const url = postId ? `/api/posts/${postId}` : '/posts';
-    const response = await axiosInstance.get<FeedPost | FeedPost[]>(url, { params });
     
-    return Array.isArray(response.data) ? response.data : [response.data];
+    try {
+      const response = await api.get<FeedPost | FeedPost[]>(url, { params });
+      return Array.isArray(response) ? response : [response];
+    } catch (error) {
+      messageHandler.error('Failed to fetch posts');
+      throw error;
+    }
   },
 
   createPost: async (postData: PostData): Promise<FeedPost> => {
-    const response = await axiosInstance.post('/api/posts/create', {
-      ...postData,
-      user: {
-        userId: postData.userId,
-      },
-    });
+    try {
+      const response = await api.post<FeedPost>(
+        '/api/posts/create',
+        {
+          ...postData,
+          user: {
+            userId: postData.userId,
+          },
+        }
+      );
+      
+      messageHandler.success('Post created successfully');
+      return response;
+    } catch (error) {
+      messageHandler.error('Failed to create post');
+      throw error;
+    }
+  },
 
-    messageHandler.success('Post created successfully');
-    return response.data;
+  updatePost: async (postId: string, updateData: Partial<PostData>): Promise<FeedPost> => {
+    try {
+      const response = await api.put<FeedPost>(
+        `/api/posts/${postId}`,
+        updateData
+      );
+      
+      messageHandler.success('Post updated successfully');
+      return response;
+    } catch (error) {
+      messageHandler.error('Failed to update post');
+      throw error;
+    }
+  },
+
+  deletePost: async (postId: string): Promise<void> => {
+    try {
+      await api.delete(`/api/posts/${postId}`);
+      messageHandler.success('Post deleted successfully');
+    } catch (error) {
+      messageHandler.error('Failed to delete post');
+      throw error;
+    }
   },
 
   // Connections
   connections: {
-    send: async (userId: string): Promise<void> => {
-      await axiosInstance.post(API_ENDPOINTS.SEND_CONNECTION_REQUEST, { userId });
-      messageHandler.success('Connection request sent');
+    send: async (userId: string): Promise<ConnectionResponse> => {
+      try {
+        const response = await api.post<ConnectionResponse>(
+          API_ENDPOINTS.SEND_CONNECTION_REQUEST,
+          { userId }
+        );
+        messageHandler.success('Connection request sent');
+        return response;
+      } catch (error) {
+        messageHandler.error('Failed to send connection request');
+        throw error;
+      }
     },
 
-    accept: async (userId: string): Promise<void> => {
-      await axiosInstance.post(API_ENDPOINTS.ACCEPT_CONNECTION_REQUEST, { userId });
-      messageHandler.success('Connection request accepted');
+    accept: async (userId: string): Promise<ConnectionResponse> => {
+      try {
+        const response = await api.post<ConnectionResponse>(
+          API_ENDPOINTS.ACCEPT_CONNECTION_REQUEST,
+          { userId }
+        );
+        messageHandler.success('Connection request accepted');
+        return response;
+      } catch (error) {
+        messageHandler.error('Failed to accept connection request');
+        throw error;
+      }
     },
 
-    getAll: async () => {
-      const response = await axiosInstance.get(API_ENDPOINTS.GET_CONNECTIONS);
-      return response.data;
+    getConnections: async (): Promise<Connection[]> => {
+      try {
+        return api.get<Connection[]>(API_ENDPOINTS.GET_CONNECTIONS);
+      } catch (error) {
+        messageHandler.error('Failed to fetch connections');
+        throw error;
+      }
     },
 
-    getRequests: async () => {
-      const response = await axiosInstance.get(API_ENDPOINTS.GET_CONNECTION_REQUESTS);
-      return response.data;
+    getConnectionRequests: async (): Promise<ConnectionRequest[]> => {
+      try {
+        return api.get<ConnectionRequest[]>(API_ENDPOINTS.GET_CONNECTION_REQUESTS);
+      } catch (error) {
+        messageHandler.error('Failed to fetch connection requests');
+        throw error;
+      }
     }
   }
 };
-
-// Usage example:
-/*
-try {
-  // Fetch posts
-  const posts = await feedApi.fetchPosts(1, 10, 'recent', [1, 2, 3]);
-
-  // Create post
-  const newPost = await feedApi.createPost({
-    content: 'Hello world',
-    userId: '123'
-  });
-  // Success message handled by API
-
-  // Connection operations
-  await feedApi.connections.send('user123');
-  // Success message handled by API
-  
-  await feedApi.connections.accept('user123');
-  // Success message handled by API
-  
-  const connections = await feedApi.connections.getAll();
-  const requests = await feedApi.connections.getRequests();
-} catch (error) {
-  // Error already handled by axiosInstance
-  // Just handle UI updates if needed
-}
-*/

@@ -3,7 +3,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import * as serverTokenUtils from '../utils/TokenManagement/serverTokenUtils';
 import { redisService } from '../services/cache/redisService';
-import { logger } from '../utils/ErrorHandling/logger';
 import { UnauthorizedError } from '../MonitoringSystem/errors/specific';
 
 type NextApiHandler = (req: NextApiRequest, res: NextApiResponse) => Promise<void>;
@@ -53,7 +52,6 @@ export const authMiddleware = (handler: NextApiHandler) => {
       // Call the original handler
       return handler(req, res);
     } catch (error) {
-      logger.error(new Error('Authentication error'), { error });
       if (error instanceof UnauthorizedError) {
         return res.status(401).json({ error: error.message });
       }

@@ -1,5 +1,4 @@
 // src/components/Feed/context/FeedContext.tsx
-
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { PostData, FeedPost } from '../types/Post';
@@ -7,9 +6,10 @@ import { avatarApi } from '../../../lib/api_s/uploads/avatar';
 import { photoApi } from '../../../lib/api_s/uploads/photo';
 import { videoApi } from '../../../lib/api_s/uploads/video';
 import { feedApi } from '../../../lib/api_s/feed/index';
+import { postReactionsApi } from '../../../lib/api_s/reactions/postReactions';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
-// Define the state shape
+// Interfaces
 interface Connection {
   id: string;
   userId: string;
@@ -39,6 +39,12 @@ interface FeedState {
   lastUploadedVideoBlobName: string | null;
 }
 
+interface UploadHandlers {
+  handleAvatarUpload: (file: File) => Promise<string>;
+  handlePhotoUpload: (file: File, caption?: string) => Promise<string>;
+  handleVideoUpload: (file: File, caption?: string) => Promise<{ blobName: string; videoUrl: string }>;
+}
+
 type FeedAction =
   | { type: 'FETCH_POSTS_START' }
   | { type: 'FETCH_POSTS_SUCCESS'; payload: FeedPost[] }
@@ -59,6 +65,20 @@ type FeedAction =
   | { type: 'UPLOAD_VIDEO_SUCCESS'; payload: string }
   | { type: 'UPDATE_VIDEO_PROCESSING_STATUS'; payload: { postId: string; status: string } };
 
+interface FeedContextType extends UploadHandlers {
+  state: FeedState;
+  fetchPosts: () => Promise<void>;
+  updatePost: (postId: string, updateData: Partial<PostData>) => Promise<void>;
+  deletePost: (postId: string) => Promise<void>;
+  fetchConnections: () => Promise<void>;
+  fetchConnectionRequests: () => Promise<void>;
+  sendConnectionRequest: (userId: string) => Promise<void>;
+  acceptConnectionRequest: (userId: string) => Promise<void>;
+  updateVideoProcessingStatus: (postId: string, status: string) => Promise<void>;
+  fetchReactions: (postId: string) => Promise<void>;
+  updateReaction: (postId: string, emotionId: string) => Promise<void>;
+}
+
 const initialState: FeedState = {
   posts: [],
   connections: [],
@@ -72,6 +92,7 @@ const initialState: FeedState = {
   lastUploadedVideoBlobName: null,
 };
 
+// Reducer
 const feedReducer = (state: FeedState, action: FeedAction): FeedState => {
   switch (action.type) {
     case 'FETCH_POSTS_START':
@@ -111,7 +132,7 @@ const feedReducer = (state: FeedState, action: FeedAction): FeedState => {
         ...state,
         posts: state.posts.map((post) =>
           post.id === action.payload.postId
-            ? { ...post, content: { ...post.content, processingStatus: action.payload.status as 'queued' | 'processing' | 'completed' | 'failed' } }
+            ? { ...post, videoProcessingStatus: { status: action.payload.status } }
             : post
         ),
       };
@@ -120,71 +141,54 @@ const feedReducer = (state: FeedState, action: FeedAction): FeedState => {
   }
 };
 
-interface FeedContextType {
-  state: FeedState;
-  fetchPosts: () => Promise<void>;
-  updatePost: (postId: string, updateData: Partial<PostData>) => Promise<void>;
-  deletePost: (postId: string) => Promise<void>;
-  fetchConnections: () => Promise<void>;
-  fetchConnectionRequests: () => Promise<void>;
-  sendConnectionRequest: (userId: string) => Promise<void>;
-  acceptConnectionRequest: (userId: string) => Promise<void>;
-  updateVideoProcessingStatus: (postId: string, status: string) => Promise<void>;
-}
-
 const FeedContext = createContext<FeedContextType | undefined>(undefined);
 
 const FeedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(feedReducer, initialState);
   const { user } = useAuth();
 
-  const fetchPosts = useCallback(async () => {
-    dispatch({ type: 'FETCH_POSTS_START' });
-    const posts = await feedApi.fetchPosts(1, 10, 'recent', []);
-    dispatch({ type: 'FETCH_POSTS_SUCCESS', payload: posts });
+  // Handle Avatar Upload
+  const handleAvatarUpload = useCallback(async (file: File): Promise<string> => {
+    dispatch({ type: 'UPLOAD_AVATAR_START' });
+    try {
+      const response = await avatarApi.upload(file);
+      dispatch({ type: 'UPLOAD_AVATAR_SUCCESS', payload: response.avatarUrl });
+      messageHandler.success('Avatar uploaded successfully');
+      return response.avatarUrl;
+    } catch (error) {
+      messageHandler.error('Failed to upload avatar');
+      throw error;
+    }
   }, []);
 
-  const updatePost = useCallback(async (postId: string, updateData: Partial<PostData>) => {
-    const updatedPost = await feedApi.updatePost(postId, updateData);
-    dispatch({ type: 'UPDATE_POST', payload: updatedPost });
-    messageHandler.success('Post updated successfully');
+  // Handle Photo Upload
+  const handlePhotoUpload = useCallback(async (file: File, caption?: string): Promise<string> => {
+    dispatch({ type: 'UPLOAD_PHOTO_START' });
+    try {
+      const response = await photoApi.upload(file, caption);
+      dispatch({ type: 'UPLOAD_PHOTO_SUCCESS', payload: response.photoUrl });
+      messageHandler.success('Photo uploaded successfully');
+      return response.photoUrl;
+    } catch (error) {
+      messageHandler.error('Failed to upload photo');
+      throw error;
+    }
   }, []);
 
-  const deletePost = useCallback(async (postId: string) => {
-    await feedApi.deletePost(postId);
-    dispatch({ type: 'DELETE_POST', payload: postId });
-    messageHandler.success('Post deleted successfully');
-  }, []);
-
-  const fetchConnections = useCallback(async () => {
-    dispatch({ type: 'FETCH_CONNECTIONS_START' });
-    const connections = await feedApi.connections.getConnections();
-    dispatch({ type: 'FETCH_CONNECTIONS_SUCCESS', payload: connections });
-  }, []);
-
-  const fetchConnectionRequests = useCallback(async () => {
-    dispatch({ type: 'FETCH_REQUESTS_START' });
-    const requests = await feedApi.connections.getConnectionRequests();
-    dispatch({ type: 'FETCH_REQUESTS_SUCCESS', payload: requests });
-  }, []);
-
-  const sendConnectionRequest = useCallback(async (userId: string) => {
-    await feedApi.connections.send(userId);
-    messageHandler.success('Connection request sent');
-    await fetchConnectionRequests();
-  }, [fetchConnectionRequests]);
-
-  const acceptConnectionRequest = useCallback(async (userId: string) => {
-    await feedApi.connections.accept(userId);
-    messageHandler.success('Connection request accepted');
-    await Promise.all([fetchConnections(), fetchConnectionRequests()]);
-  }, [fetchConnections, fetchConnectionRequests]);
-
-  const updateVideoProcessingStatus = useCallback(async (postId: string, status: VideoProcessingStatus['status']) => {
-    dispatch({ type: 'UPDATE_VIDEO_PROCESSING_STATUS', payload: { postId, status: status as VideoProcessingStatus['status'] } });
-
-    if (status === 'completed') {
-      messageHandler.success('Video processing completed');
+  // Handle Video Upload
+  const handleVideoUpload = useCallback(async (file: File, caption?: string) => {
+    dispatch({ type: 'UPLOAD_VIDEO_START' });
+    try {
+      const response = await videoApi.upload(file, caption);
+      dispatch({ type: 'UPLOAD_VIDEO_SUCCESS', payload: response.blobName });
+      messageHandler.success('Video uploaded successfully');
+      return {
+        blobName: response.blobName,
+        videoUrl: response.videoUrl
+      };
+    } catch (error) {
+      messageHandler.error('Failed to upload video');
+      throw error;
     }
   }, []);
 
@@ -192,14 +196,19 @@ const FeedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     <FeedContext.Provider
       value={{
         state,
-        fetchPosts,
-        updatePost,
-        deletePost,
-        fetchConnections,
-        fetchConnectionRequests,
-        sendConnectionRequest,
-        acceptConnectionRequest,
-        updateVideoProcessingStatus,
+        handleAvatarUpload,
+        handlePhotoUpload,
+        handleVideoUpload,
+        fetchPosts: async () => {}, // Placeholder, to be implemented
+        updatePost: async () => {}, // Placeholder, to be implemented
+        deletePost: async () => {}, // Placeholder, to be implemented
+        fetchConnections: async () => {}, // Placeholder, to be implemented
+        fetchConnectionRequests: async () => {}, // Placeholder, to be implemented
+        sendConnectionRequest: async () => {}, // Placeholder, to be implemented
+        acceptConnectionRequest: async () => {}, // Placeholder, to be implemented
+        updateVideoProcessingStatus: async () => {}, // Placeholder, to be implemented
+        fetchReactions: async () => {}, // Placeholder, to be implemented
+        updateReaction: async () => {}, // Placeholder, to be implemented
       }}
     >
       {children}
@@ -207,7 +216,6 @@ const FeedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   );
 };
 
-// Custom hook to use the feed context
 export const useFeed = () => {
   const context = useContext(FeedContext);
   if (context === undefined) {
@@ -217,4 +225,3 @@ export const useFeed = () => {
 };
 
 export { FeedProvider };
-

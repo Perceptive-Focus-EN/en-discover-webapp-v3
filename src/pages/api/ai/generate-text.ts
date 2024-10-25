@@ -3,8 +3,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { AIServiceFactory } from '../../../services/ai/AIServiceFactory';
 import { authMiddleware } from '../../../middlewares/authMiddleware';
 import { KeyVaultService } from '../../../services/keyVaultService';
-import { logger } from '../../../MonitoringSystem/Loggers/logger';
-import { ErrorType } from '@/MonitoringSystem/constants/errors';
+import { BusinessError} from '@/MonitoringSystem/constants/errors';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   const { userId } = (req as any).user;
@@ -22,7 +21,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     res.status(200).json({ generatedText });
   } catch (error) {
     // Error handling using your logger
-    logger.error(new Error('Error generating text'), ErrorType.GENERATE_TEXT_FAILURE, { userId });
+    logger.error(new Error('Error generating text'), BusinessError.GENERATE_TEXT_FAILURE, { userId });
     res.status(500).json({ error: 'Failed to generate text' });
   }
 };

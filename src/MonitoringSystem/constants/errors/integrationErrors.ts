@@ -4,10 +4,10 @@ export enum IntegrationError {
   API_REQUEST_FAILED = 'integration/api/request_failed',
   API_RESPONSE_ERROR = 'integration/api/response_error',
   API_RATE_LIMIT = 'integration/api/rate_limit',
-    API_RESPONSE_INVALID = 'integration/api/response_invalid',
-    API_CALLS_EXCEEDED = 'integration/api/calls_exceeded',
-    API_LATENCY_EXCEEDED = 'integration/api/latency_exceeded',
-  
+  API_RESPONSE_INVALID = 'integration/api/response_invalid',
+  API_CALLS_EXCEEDED = 'integration/api/calls_exceeded',
+  API_LATENCY_EXCEEDED = 'integration/api/latency_exceeded',
+
   // Webhook Integration
   WEBHOOK_DELIVERY_FAILED = 'integration/webhook/delivery_failed',
   WEBHOOK_INVALID_SIGNATURE = 'integration/webhook/invalid_signature',

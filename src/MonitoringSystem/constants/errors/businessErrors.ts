@@ -15,6 +15,7 @@ export enum BusinessError {
   // User Management
   USER_NOT_FOUND = 'business/user/not_found',
   USER_CREATE_FAILED = 'business/user/create_failed',
+  USER_UPDATE_FAILED = 'business/user/update_failed',
   
   // Tenant Management
   TENANT_NOT_FOUND = 'business/tenant/not_found',
@@ -58,5 +59,7 @@ export enum BusinessError {
   POST_CREATION_FAILURE = 'business/post/creation_failure',
     
   VALIDATION_FAILED = 'business/validation/failed',
+  UPLOAD_FAILED = "UPLOAD_FAILED",
+  GENERATE_TEXT_FAILURE = "GENERATE_TEXT_FAILURE",
 
 }

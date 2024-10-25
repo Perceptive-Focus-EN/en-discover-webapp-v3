@@ -2,6 +2,7 @@ import { HttpStatus } from "../constants/httpStatus";
 import { ErrorType } from "../constants/errors";
 import { LogLevel, LogCategory } from "../constants/logging";
 import { createLogEntry, LogEntry, SystemContext } from "./logging";
+import { isValidErrorType } from "../constants/errors";
 
 
 export type ErrorCategory = 
@@ -57,25 +58,36 @@ export enum ErrorCategoryEnum {
 export interface ErrorDetails {
   type: ErrorType;
   message: string;
-  statusCode?: HttpStatus;
+  statusCode: HttpStatus;
   metadata?: Record<string, unknown>;
-  errorReference?: string; 
+  errorReference: string;
+  tenantId: string;  // Make tenantId required
+  currentTenantId?: string; // Optional for cross-tenant operations
+  personalTenantId?: string; // Optional for user-specific errors
 }
 
+// src/MonitoringSystem/types/errors.ts
 export interface ErrorResponse {
   userMessage: string;
   errorType: ErrorType;
   statusCode: HttpStatus;
   errorReference: string;
   metadata?: Record<string, unknown>;
+  tenantId: string;
+  currentTenantId?: string;
+  personalTenantId?: string;
 }
 
 export interface ErrorMessages {
   [key: string]: string;
 }
 
+// Your validation function should be:
 export const isErrorType = (type: unknown): type is ErrorType => {
-  return typeof type === 'string' && Object.values(ErrorType).includes(type as ErrorType);
+  if (typeof type !== 'string') return false;
+  
+  const [category] = type.split('/');
+  return ['system', 'security', 'business', 'integration'].includes(category);
 };
 
 export const createErrorLogEntry = (

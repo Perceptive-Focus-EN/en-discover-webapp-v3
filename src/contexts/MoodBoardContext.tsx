@@ -128,44 +128,54 @@ export const MoodBoardProvider: React.FC<React.PropsWithChildren<{}>> = ({ child
     }
   }, [emotions, fetchMoodData]);
 
-  const getEmotionMappings = useCallback(async (userId: string) => {
-    const startTime = Date.now();
-    setIsLoading(true);
-    setError(null);
+  // src/contexts/MoodBoardContext.tsx
+const getEmotionMappings = useCallback(async (userId?: string) => {
+  const startTime = Date.now();
+  setIsLoading(true);
+  setError(null);
 
-    try {
-      const data = await emotionMappingsApi.getEmotionMappings(userId);
-      setEmotions(data);
-
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.PERFORMANCE,
-        'emotion_mappings',
-        'fetch_duration',
-        Date.now() - startTime,
-        MetricType.HISTOGRAM,
-        MetricUnit.MILLISECONDS,
-        { userId }
+  try {
+    if (!userId) {
+      throw monitoringManager.error.createError(
+        'business',
+        'AUTH_REQUIRED',
+        'Authentication required to fetch emotion mappings'
       );
-
-      return data;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch emotion mappings';
-      setError(errorMessage);
-
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.SYSTEM,
-        'emotion_mappings',
-        'fetch_error',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        { error: errorMessage, userId }
-      );
-      throw err;
-    } finally {
-      setIsLoading(false);
     }
-  }, []);
+
+    const data = await emotionMappingsApi.getEmotionMappings(userId);
+    setEmotions(data);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.PERFORMANCE,
+      'emotion_mappings',
+      'fetch_duration',
+      Date.now() - startTime,
+      MetricType.HISTOGRAM,
+      MetricUnit.MILLISECONDS,
+      { userId }
+    );
+
+    return data;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Failed to fetch emotion mappings';
+    setError(errorMessage);
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'emotion_mappings',
+      'fetch_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      { error: errorMessage, userId: userId || 'undefined' }
+    );
+    throw err;
+  } finally {
+    setIsLoading(false);
+  }
+}, []);
+
 
   const saveEmotionMappings = useCallback(async (userId: string, emotions: Emotion[]) => {
     const startTime = Date.now();
@@ -244,7 +254,7 @@ export const MoodBoardProvider: React.FC<React.PropsWithChildren<{}>> = ({ child
   const fetchPostReactionsData = useCallback(async (postId: string) => {
     const startTime = Date.now();
     try {
-      const reactions = await  postReactionsApi.fetchPostReactions(postId);
+      const reactions = await  postReactionsApi.fetchPostWithReactions(postId);
 
       monitoringManager.metrics.recordMetric(
         MetricCategory.PERFORMANCE,
@@ -277,7 +287,7 @@ export const MoodBoardProvider: React.FC<React.PropsWithChildren<{}>> = ({ child
   const updatePostReactionData = useCallback(async (postId: string, emotionId: EmotionId) => {
     const startTime = Date.now();
     try {
-      const reactions = await  postReactionsApi.updatePostReaction(postId, emotionId);
+      const reactions = await postReactionsApi.update(postId, emotionId);
 
       monitoringManager.metrics.recordMetric(
         MetricCategory.PERFORMANCE,

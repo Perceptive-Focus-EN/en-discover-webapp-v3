@@ -1,23 +1,26 @@
-// src/utils/clientTokenUtils.ts
-
-// 
-// clientTokenUtils.ts: 
-// This file should handle only client - side token operations,
-  // specifically interacting with localStorage.
-  // It shouldn't make API calls or handle server-side logic.
-// 
-
+// src/utils/TokenManagement/clientTokenUtils.ts
 import { jwtDecode } from "jwt-decode";
 
-interface DecodedToken {
+const isBrowser = typeof window !== 'undefined';
+
+// Base token interface
+export interface DecodedToken {
   exp: number;
-  [key: string]: any;
+  iat: number;
+  userId: string;
+  email?: string;
+  role?: string;
+  tenantId?: string;
+  sessionId?: string;
+  // ... any other JWT standard fields
 }
 
-const MAX_TOKEN_SIZE = 2048; // Adjust this value based on your token size
+const MAX_TOKEN_SIZE = 2048;
 const TOKEN_PREFIX = 'token_';
 
 const setItem = (key: string, value: string): void => {
+  if (!isBrowser) return;
+
   if (value.length > MAX_TOKEN_SIZE) {
     console.warn(`${key} exceeds maximum size. Using sessionStorage.`);
     sessionStorage.setItem(key, value);
@@ -32,6 +35,7 @@ const setItem = (key: string, value: string): void => {
 };
 
 const getItem = (key: string): string | null => {
+  if (!isBrowser) return null;
   return localStorage.getItem(key) || sessionStorage.getItem(key);
 };
 
@@ -41,6 +45,8 @@ export const setRefreshToken = (token: string): void => setItem('refreshToken', 
 export const getRefreshToken = (): string | null => getItem('refreshToken');
 export const setSessionId = (sessionId: string): void => setItem('sessionId', sessionId);
 export const getSessionId = (): string | null => getItem('sessionId');
+export const storeUser = (userJson: string): void => setItem('user', userJson);
+export const getStoredUser = (): string | null => getItem('user');
 
 export const isTokenExpired = (token: string): boolean => {
   if (!token) return true;
@@ -54,6 +60,7 @@ export const isTokenExpired = (token: string): boolean => {
 };
 
 export const clearTokens = (): void => {
+  if (!isBrowser) return;
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
   sessionStorage.removeItem('accessToken');
@@ -61,34 +68,27 @@ export const clearTokens = (): void => {
 };
 
 export const clearSession = (): void => {
+  if (!isBrowser) return;
   clearTokens();
   localStorage.removeItem('sessionId');
   sessionStorage.removeItem('sessionId');
 };
 
-export const getTokenPayload = <T extends object>(token: string): T | null => {
+export const clearStoredUser = (): void => {
+  if (!isBrowser) return;
+  localStorage.removeItem('user');
+  sessionStorage.removeItem('user');
+};
+
+
+// Keep your existing code, but update getTokenPayload:
+export const getTokenPayload = <T extends DecodedToken>(token: string): T | null => {
   try {
     return jwtDecode<T>(token);
   } catch (error) {
     console.error('Error decoding token:', error);
     return null;
   }
-};
-
-export const storeUser = (userJson: string): void => setItem('user', userJson);
-export const getStoredUser = (): string | null => getItem('user');
-export const clearStoredUser = (): void => {
-  localStorage.removeItem('user');
-  sessionStorage.removeItem('user');
-};
-
-export const initializeFromLocalStorage = (): void => {
-  const accessToken = getItem('accessToken') || '';
-  const refreshToken = getItem('refreshToken') || '';
-  const sessionId = getItem('sessionId') || '';
-  setAccessToken(accessToken);
-  setRefreshToken(refreshToken);
-  setSessionId(sessionId);
 };
 
 export const createTokenBindingId = async (clientPublicKey: string): Promise<string> => {
@@ -101,6 +101,7 @@ export const createTokenBindingId = async (clientPublicKey: string): Promise<str
 };
 
 export const cleanupOldTokens = (): void => {
+  if (!isBrowser) return;
   const currentTime = Date.now() / 1000;
   const tokenKeys = Object.keys(localStorage).filter(key => key.startsWith(TOKEN_PREFIX));
   
@@ -120,8 +121,7 @@ export const cleanupOldTokens = (): void => {
   });
 };
 
-// Call this function periodically or on app startup
 export const initializeTokenManagement = (): void => {
-  initializeFromLocalStorage();
+  if (!isBrowser) return;
   cleanupOldTokens();
 };

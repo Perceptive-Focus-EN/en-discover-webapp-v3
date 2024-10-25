@@ -29,6 +29,25 @@ export const SecurityMessages = {
     info: 'Permission check performed'
   },
 
+  [SecurityError.AUTH_TOKEN_FAILED]: {
+    error: 'Token refresh failed',
+    warn: 'Token refresh encountered issues',
+    info: 'Token refresh attempted'
+  },
+
+  [SecurityError.AUTH_LOGOUT_FAILED]: {
+    error: 'Logout failed',
+    warn: 'Logout encountered issues',
+    info: 'Logout attempted'
+  },
+
+  [SecurityError.AUTH_FAILED]: {
+    error: 'Authentication failed',
+    warn: 'Authentication encountered issues',
+    info: 'Authentication attempted'
+  },
+
+
   // Session Messages
   [SecurityError.SESSION_INVALID]: {
     error: 'Invalid session',
@@ -78,5 +97,25 @@ export const SecurityMessages = {
     error: 'Invalid format',
     warn: 'Format validation failed',
     info: 'Format validation performed'
-  }
+  },
+
+  [SecurityError.AUTH_REFRESH_FAILED]: {
+    error: 'Failed to refresh authentication token',
+    warn: 'Token refresh encountered issues',
+    info: 'Token refresh attempted'
+  },
+
+  [SecurityError.REQUEST_INTERCEPTOR_ERROR]: {
+    error: 'Request interceptor error',
+    warn: 'Request interceptor encountered issues',
+    info: 'Request interceptor attempted'
+  },
+
+  // API Messages
+  [SecurityError.API_REQUEST_FAILED]: {
+    error: 'API request failed',
+    warn: 'API request encountered issues',
+    info: 'API request attempted'
+  },
+
 } as const;

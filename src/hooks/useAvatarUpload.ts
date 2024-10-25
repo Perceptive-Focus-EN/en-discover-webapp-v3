@@ -1,6 +1,11 @@
+// src/hooks/useAvatarUpload.ts
 import { useState, useEffect, useCallback } from 'react';
 import { UploadResponse } from '../types/responses/UploadResponse';
-import axiosInstance, { isAxiosError } from 'axios';
+import { api } from '../lib/axiosSetup';
+
+interface AvatarResponse {
+  avatarUrl: string;
+}
 
 export const useAvatarUpload = () => {
   const [isUploading, setIsUploading] = useState(false);
@@ -9,8 +14,8 @@ export const useAvatarUpload = () => {
 
   const fetchAvatarUrl = useCallback(async () => {
     try {
-      const response = await axiosInstance.get<{ avatarUrl: string }>('/api/auth/user/avatar');
-      setAvatarUrl(response.data.avatarUrl);
+      const response = await api.get<AvatarResponse>('/api/auth/user/avatar');
+      setAvatarUrl(response.avatarUrl);
     } catch (err) {
       console.error('Failed to fetch avatar URL:', err);
       setError('Failed to load avatar. Please try again.');
@@ -24,25 +29,28 @@ export const useAvatarUpload = () => {
   const handleAvatarUpload = async (file: File): Promise<UploadResponse> => {
     setIsUploading(true);
     setError(null);
+    
     try {
       const formData = new FormData();
       formData.append('avatar', file);
-      const response = await axiosInstance.post<UploadResponse>('/api/auth/user/avatar', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      
+      const response = await api.post<UploadResponse>(
+        '/api/auth/user/avatar',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      
       setIsUploading(false);
       await fetchAvatarUrl();
-      return response.data;
-    } catch (err) {
+      return response;
+    } catch (error) {
       setIsUploading(false);
-      if (isAxiosError(err)) {
-        setError(err.response?.data?.error || 'Failed to upload avatar. Please try again.');
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
-      throw err;
+      setError('Failed to upload avatar. Please try again.');
+      throw error;
     }
   };
 

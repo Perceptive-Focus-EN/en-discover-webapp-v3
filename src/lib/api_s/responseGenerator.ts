@@ -1,8 +1,11 @@
+// src/lib/api_s/chunkProcessing.ts
 import { generateResponse } from './openAIApiService';
-import axiosInstance from '../axiosSetup';
-import { AxiosResponse, AxiosError } from 'axios';
+import { api } from '../axiosSetup';
+import { CHUNK_CONFIG } from '../../components/AI/constants/aiConstants';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { SystemError } from '@/MonitoringSystem/constants/errors';
+import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
 
 interface GenerateResponseProps {
   userInput: string;
@@ -16,25 +19,25 @@ interface ChunkUploadResponse {
   requestId?: string;
 }
 
-const CHUNK_CONFIG = {
-  MAX_SIZE: 4000,
-  MAX_CONTEXT_LENGTH: 5,
-  MAX_RETRIES: 3,
-  RETRY_DELAY: 1000,
-  TIMEOUT: 30000
-} as const;
-
 class ChunkProcessingError extends Error {
   public readonly retryable: boolean;
   public readonly statusCode?: number;
   public readonly requestId?: string;
+  public readonly metadata?: Record<string, unknown>;
 
-  constructor(message: string, retryable: boolean, statusCode?: number, requestId?: string) {
+  constructor(
+    message: string, 
+    retryable: boolean, 
+    statusCode?: number, 
+    requestId?: string,
+    metadata?: Record<string, unknown>
+  ) {
     super(message);
+    this.name = 'ChunkProcessingError';
     this.retryable = retryable;
     this.statusCode = statusCode;
     this.requestId = requestId;
-    this.name = 'ChunkProcessingError';
+    this.metadata = metadata;
   }
 }
 
@@ -49,7 +52,7 @@ const uploadChunk = async (
   formData.append('chunk', new Blob([chunk], { type: 'text/plain' }));
 
   try {
-    const response: AxiosResponse<ChunkUploadResponse> = await axiosInstance.post(
+    const response = await api.post<ChunkUploadResponse>(
       '/api/chunks/text',
       formData,
       {
@@ -69,16 +72,16 @@ const uploadChunk = async (
       MetricUnit.MILLISECONDS,
       {
         chunkSize: chunk.length,
-        requestId: response.data.requestId,
+        requestId: response.requestId,
         success: true
       }
     );
 
-    return response.data;
+    return response;
   } catch (error) {
-    const isAxiosError = error instanceof AxiosError;
-    const statusCode = isAxiosError ? error.response?.status : undefined;
+    const statusCode = error.response?.status;
     const isRetryable = statusCode ? statusCode >= 500 : false;
+    const requestId = error.response?.data?.requestId;
 
     monitoringManager.metrics.recordMetric(
       MetricCategory.SYSTEM,
@@ -88,10 +91,11 @@ const uploadChunk = async (
       MetricType.COUNTER,
       MetricUnit.COUNT,
       {
-        errorType: isAxiosError ? 'network' : 'unknown',
+        errorType: 'network',
         statusCode,
         retryCount,
-        retryable: isRetryable
+        retryable: isRetryable,
+        requestId
       }
     );
 
@@ -103,7 +107,13 @@ const uploadChunk = async (
     throw new ChunkProcessingError(
       `Failed to upload chunk: ${error.message}`,
       isRetryable,
-      statusCode
+      statusCode,
+      requestId,
+      {
+        chunkSize: chunk.length,
+        retryCount,
+        duration: Date.now() - startTime
+      }
     );
   }
 };
@@ -157,7 +167,7 @@ class ChunkProcessingService {
 
       while (currentIndex < text.length) {
         let chunkEnd = Math.min(
-          currentIndex + CHUNK_CONFIG.MAX_SIZE,
+          currentIndex + CHUNK_CONFIG.MAX_CHUNK_SIZE,
           text.length
         );
 
@@ -219,8 +229,8 @@ const generateResponseGenerator = async ({
     for (const [index, chunk] of chunks.entries()) {
       const chunkStartTime = Date.now();
       try {
-        const { chunkId } = await uploadChunk(chunk);
-        const partialResponse = await generateResponse(chunkId);
+        const uploadResponse = await uploadChunk(chunk);
+        const partialResponse = await generateResponse(uploadResponse.chunkId);
         response += partialResponse;
 
         monitoringManager.metrics.recordMetric(
@@ -233,7 +243,7 @@ const generateResponseGenerator = async ({
           {
             chunkIndex: index,
             chunkSize: chunk.length,
-            requestId
+            requestId: uploadResponse.requestId
           }
         );
       } catch (error) {
@@ -248,7 +258,8 @@ const generateResponseGenerator = async ({
             {
               chunkIndex: index,
               error: error.message,
-              requestId
+              requestId: error.requestId,
+              metadata: error.metadata
             }
           );
           continue;
@@ -273,19 +284,20 @@ const generateResponseGenerator = async ({
 
     return response.trim();
   } catch (error) {
-    monitoringManager.metrics.recordMetric(
-      MetricCategory.SYSTEM,
-      'response',
-      'generation_error',
-      1,
-      MetricType.COUNTER,
-      MetricUnit.COUNT,
+    monitoringManager.logger.error(
+      error instanceof Error ? error : new Error('Generation failed'),
+      SystemError.PROCESSING_CHUNK_FAILED,
       {
-        error: error instanceof Error ? error.message : 'unknown',
-        requestId,
-        duration: Date.now() - startTime
+        category: LogCategory.SYSTEM,
+        pattern: LOG_PATTERNS.SYSTEM,
+        metadata: {
+          requestId,
+          duration: Date.now() - startTime,
+          error: error instanceof Error ? error.message : 'unknown'
+        }
       }
     );
+
     throw error;
   }
 };

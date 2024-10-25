@@ -1,7 +1,6 @@
 // src/services/ai/chunkProcessing.ts
 import { generateResponse } from '../../lib/api_s/openAIApiService';
-import axiosInstance from '../../lib/axiosSetup';
-import { AxiosResponse, AxiosError } from 'axios';
+import { api } from '../../lib/axiosSetup';
 import { CHUNK_CONFIG } from './constants/aiConstants';
 import { promptBuilderService } from './services/PromptBuilderService';
 import { chunkProcessingService } from './services/ChunkProcessingService';
@@ -10,6 +9,7 @@ import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/const
 import { SystemContext } from '@/MonitoringSystem/types/logging';
 import { IntegrationError, SystemError } from '@/MonitoringSystem/constants/errors';
 import { LOG_PATTERNS, LogCategory } from '@/MonitoringSystem/constants/logging';
+
 interface ChunkProcessingSystemContext extends SystemContext {
   component: string;
 }
@@ -24,7 +24,7 @@ const SYSTEM_CONTEXT: ChunkProcessingSystemContext = {
     service: 'chunk-processing'
   }
 };
-// Types
+
 export interface GenerateResponseProps {
   userInput: string;
   context?: string[];
@@ -40,8 +40,6 @@ export interface ChunkUploadResponse {
   };
 }
 
-// Error handling
-// Update ChunkProcessingError
 class ChunkProcessingError extends Error {
   public readonly retryable: boolean;
   public readonly requestId?: string;
@@ -75,7 +73,7 @@ const uploadChunk = async (
   formData.append('chunk', new Blob([chunk], { type: 'text/plain' }));
 
   try {
-    const response: AxiosResponse<ChunkUploadResponse> = await axiosInstance.post(
+    const response = await api.post<ChunkUploadResponse>(
       '/api/chunks/text',
       formData,
       {
@@ -95,18 +93,17 @@ const uploadChunk = async (
       MetricUnit.MILLISECONDS,
       {
         chunkSize: chunk.length,
-        requestId: response.data.data.requestId,
+        requestId: response.data.requestId,
         success: true,
         component: SYSTEM_CONTEXT.component
       }
     );
 
-    return response.data;
+    return response;
   } catch (error) {
-    const isAxiosError = error instanceof AxiosError;
-    const statusCode = isAxiosError ? error.response?.status : undefined;
+    const statusCode = error.response?.status;
     const isRetryable = statusCode ? statusCode >= 500 : false;
-    const requestId = isAxiosError ? error.response?.data?.requestId : undefined;
+    const requestId = error.response?.data?.requestId;
 
     monitoringManager.logger.error(
       error instanceof Error ? error : new Error('Upload failed'),
@@ -131,7 +128,7 @@ const uploadChunk = async (
       MetricType.COUNTER,
       MetricUnit.COUNT,
       {
-        errorType: isAxiosError ? 'network' : 'unknown',
+        errorType: 'network',
         statusCode,
         retryCount,
         retryable: isRetryable,
@@ -183,7 +180,8 @@ const generateResponseGenerator = async ({
           {
             chunkIndex: index,
             chunkSize: chunk.length,
-            requestId: uploadResponse.data.requestId
+            requestId: uploadResponse.data.requestId,
+            component: SYSTEM_CONTEXT.component
           }
         );
       } catch (error) {
@@ -198,7 +196,8 @@ const generateResponseGenerator = async ({
             {
               chunkIndex: index,
               error: error.message,
-              requestId: error.requestId
+              requestId: error.requestId,
+              component: SYSTEM_CONTEXT.component
             }
           );
           continue;
@@ -217,55 +216,56 @@ const generateResponseGenerator = async ({
       {
         chunksCount: chunks.length,
         responseLength: response.length,
-        requestId
+        requestId,
+        component: SYSTEM_CONTEXT.component
       }
     );
 
     return response.trim();
   } catch (error) {
     monitoringManager.logger.error(
-    error instanceof Error ? error : new Error('Generation failed'),
-    SystemError.PROCESSING_CHUNK_FAILED,
-    {
-      category: LogCategory.SYSTEM,
-      pattern: LOG_PATTERNS.SYSTEM,
-      metadata: {
+      error instanceof Error ? error : new Error('Generation failed'),
+      SystemError.PROCESSING_CHUNK_FAILED,
+      {
+        category: LogCategory.SYSTEM,
+        pattern: LOG_PATTERNS.SYSTEM,
+        metadata: {
+          requestId,
+          duration: Date.now() - startTime,
+          component: SYSTEM_CONTEXT.component
+        }
+      }
+    );
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'response',
+      'generation_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        error: error instanceof Error ? error.message : 'unknown',
         requestId,
         duration: Date.now() - startTime,
         component: SYSTEM_CONTEXT.component
       }
-    }
-  );
+    );
 
-  monitoringManager.metrics.recordMetric(
-    MetricCategory.SYSTEM,
-    'response',
-    'generation_error',
-    1,
-    MetricType.COUNTER,
-    MetricUnit.COUNT,
-    {
-      error: error instanceof Error ? error.message : 'unknown',
-      requestId,
-      duration: Date.now() - startTime,
-      component: SYSTEM_CONTEXT.component
-    }
-  );
-
-  throw monitoringManager.error.createError(
-    'system',
-    SystemError.PROCESSING_CHUNK_FAILED,
-    'Failed to generate response',
-    { 
-      error, 
-      requestId,
-      metadata: {
-        component: SYSTEM_CONTEXT.component,
-        duration: Date.now() - startTime
+    throw monitoringManager.error.createError(
+      'system',
+      SystemError.PROCESSING_CHUNK_FAILED,
+      'Failed to generate response',
+      { 
+        error, 
+        requestId,
+        metadata: {
+          component: SYSTEM_CONTEXT.component,
+          duration: Date.now() - startTime
+        }
       }
-    }
-  );
+    );
   }
-}
+};
 
 export default generateResponseGenerator;

@@ -195,4 +195,10 @@ export const API_ENDPOINTS = {
   LOGS: '/api/logs',
   METRICS: '/api/metrics',
 
+  UPLOAD_PHOTO: '/api/upload/photo',
+  UPLOAD_VIDEO: '/api/upload/video',
+  UPLOAD_AUDIO: '/api/upload/audio',
+  UPLOAD_FILE: '/api/upload/file',
+  UPLOAD_DOCUMENT: '/api/upload/document',
+  
 } as const;

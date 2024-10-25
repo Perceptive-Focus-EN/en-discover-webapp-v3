@@ -1,25 +1,31 @@
 // src/MonitoringSystem/managers/MetricsManager.ts
-
 import { MetricType, MetricUnit, MetricCategory } from '../constants/metrics';
 import { MetricComponent, MetricEntry, MetricResponse } from '../types/metrics';
-import { errorManager } from './ErrorManager';
+import { ErrorManager } from './ErrorManager';
 import { MetricsAggregator } from '../Metrics/MetricsAggregator';
 import { MetricsPersistence } from '../Metrics/MetricsPersistence';
+import { CircuitBreaker } from '../utils/CircuitBreaker';
 
-class MetricsManager {
+export class MetricsManager {
   private metrics: Map<string, MetricEntry> = new Map();
   private static instance: MetricsManager;
   private aggregator: MetricsAggregator;
   private persistence: MetricsPersistence;
 
-  private constructor() {
+  private constructor(
+    private circuitBreaker: CircuitBreaker,
+    private errorManager: ErrorManager
+  ) {
     this.aggregator = MetricsAggregator.getInstance();
-    this.persistence = MetricsPersistence.getInstance();
+    this.persistence = MetricsPersistence.getInstance(circuitBreaker);
   }
 
-  public static getInstance(): MetricsManager {
+  public static getInstance(
+    circuitBreaker: CircuitBreaker,
+    errorManager: ErrorManager
+  ): MetricsManager {
     if (!MetricsManager.instance) {
-      MetricsManager.instance = new MetricsManager();
+      MetricsManager.instance = new MetricsManager(circuitBreaker, errorManager);
     }
     return MetricsManager.instance;
   }
@@ -46,22 +52,18 @@ class MetricsManager {
         type,
         unit
       };
-
       const reference = this.generateReference(metricComponent);
-      
       const entry: MetricEntry = {
         ...metricComponent,
         reference,
         timestamp: new Date(),
         metadata
       };
-
       this.metrics.set(reference, entry);
       
-      // Process metric
       this.aggregator.aggregate(entry);
       void this.persistence.persistMetric(entry);
-
+      
       return {
         reference,
         value,
@@ -70,7 +72,7 @@ class MetricsManager {
         metadata
       };
     } catch (error) {
-      throw errorManager.createError(
+      throw this.errorManager.createError(
         'system',
         'METRICS_PROCESSING_FAILED',
         'Failed to record metric',
@@ -87,12 +89,11 @@ class MetricsManager {
     return Array.from(this.metrics.values());
   }
 
-  // Added methods for MonitoringManager compatibility
   public async flush(): Promise<void> {
     try {
       await this.persistence.flush();
     } catch (error) {
-      throw errorManager.createError(
+      throw this.errorManager.createError(
         'system',
         'METRICS_FLUSH_FAILED',
         'Failed to flush metrics',
@@ -107,4 +108,5 @@ class MetricsManager {
   }
 }
 
-export const metricsManager = MetricsManager.getInstance();
+// Remove singleton export - let MonitoringManager handle this
+// export const metricsManager = MetricsManager.getInstance();

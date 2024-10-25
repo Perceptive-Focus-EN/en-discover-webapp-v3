@@ -1,5 +1,4 @@
 // src/MonitoringSystem/managers/LoggerManager.ts
-
 import { 
   SystemContext, 
   LogEntry, 
@@ -7,25 +6,40 @@ import {
   LogFunction,
   LogOptions,
 } from '../types/logging';
-import { LogCategory, LogLevel, } from '../constants/logging';
+import { LogCategory, LogLevel } from '../constants/logging';
 import { ErrorType } from '../constants/errors';
-import { errorManager } from './ErrorManager';
+import { ErrorManager } from './ErrorManager';
 import { LoggerAggregator } from '../Loggers/LoggerAggregator';
 import { LoggerPersistence } from '../Loggers/LoggerPersistence';
+import { CircuitBreaker } from '../utils/CircuitBreaker';
 
-class LoggerManager implements ILogger {
+export class LoggerManager implements ILogger {
   private static instance: LoggerManager;
   private aggregator: LoggerAggregator;
   private persistence: LoggerPersistence;
 
-  private constructor(private systemContext: SystemContext) {
+  private constructor(
+    private systemContext: SystemContext,
+    private circuitBreaker: CircuitBreaker,
+    private errorManager: ErrorManager
+  ) {
     this.aggregator = LoggerAggregator.getInstance();
-    this.persistence = LoggerPersistence.getInstance();
+    this.persistence = LoggerPersistence.getInstance(
+      this.circuitBreaker,
+      this.errorManager
+    );
   }
-
-  public static getInstance(systemContext: SystemContext): LoggerManager {
+  public static getInstance(
+    systemContext: SystemContext,
+    circuitBreaker: CircuitBreaker,
+    errorManager: ErrorManager
+  ): LoggerManager {
     if (!LoggerManager.instance) {
-      LoggerManager.instance = new LoggerManager(systemContext);
+      LoggerManager.instance = new LoggerManager(
+        systemContext, 
+        circuitBreaker,
+        errorManager
+      );
     }
     return LoggerManager.instance;
   }
@@ -67,7 +81,7 @@ class LoggerManager implements ILogger {
       
       this.processLogEntry(logEntry);
     } catch (err) {
-      throw errorManager.createError(
+      throw this.errorManager.createError(
         'system',
         'LOGGING_ERROR',
         'Failed to log error',
@@ -89,35 +103,38 @@ class LoggerManager implements ILogger {
   }
 
   public child(metadata: Record<string, unknown>): ILogger {
-    return LoggerManager.getInstance({
-      ...this.systemContext,
-      metadata: { ...this.systemContext.metadata, ...metadata }
-    });
-  }
-
-  // Just add this method to your existing LoggerManager
-public async getLogs(startDate: Date, endDate: Date): Promise<LogEntry[]> {
-  try {
-    if ('getLogs' in this.persistence) {
-      return await (this.persistence as any).getLogs(startDate, endDate);
-    }
-    throw new Error('getLogs not implemented in persistence layer');
-  } catch (error) {
-    throw errorManager.createError(
-      'system',
-      'LOG_RETRIEVAL_FAILED',
-      'Failed to retrieve logs',
-      { startDate, endDate, error }
+    return LoggerManager.getInstance(
+      {
+        ...this.systemContext,
+        metadata: { ...this.systemContext.metadata, ...metadata }
+      },
+      this.circuitBreaker,
+      this.errorManager
     );
   }
-}
+
+  public async getLogs(startDate: Date, endDate: Date): Promise<LogEntry[]> {
+    try {
+      if ('getLogs' in this.persistence) {
+        return await (this.persistence as any).getLogs(startDate, endDate);
+      }
+      throw new Error('getLogs not implemented in persistence layer');
+    } catch (error) {
+      throw this.errorManager.createError(
+        'system',
+        'LOG_RETRIEVAL_FAILED',
+        'Failed to retrieve logs',
+        { startDate, endDate, error }
+      );
+    }
+  }
 
   private processLogEntry(logEntry: LogEntry): void {
     try {
       this.aggregator.aggregate(logEntry);
       void this.persistence.persistLog(logEntry);
     } catch (error) {
-      throw errorManager.createError(
+      throw this.errorManager.createError(
         'system',
         'LOG_PROCESSING_FAILED',
         'Failed to process log entry',
@@ -130,7 +147,7 @@ public async getLogs(startDate: Date, endDate: Date): Promise<LogEntry[]> {
     try {
       await this.persistence.flush();
     } catch (error) {
-      throw errorManager.createError(
+      throw this.errorManager.createError(
         'system',
         'LOG_FLUSH_FAILED',
         'Failed to flush logs',
@@ -144,13 +161,5 @@ public async getLogs(startDate: Date, endDate: Date): Promise<LogEntry[]> {
   }
 }
 
-// Initialize with system context
-const systemContext: SystemContext = {
-  systemId: process.env.SYSTEM_ID || 'default-system',
-  systemName: process.env.SYSTEM_NAME || 'default-name',
-  environment: (process.env.NODE_ENV as 'development' | 'production' | 'staging') || 'development',
-  version: process.env.SYSTEM_VERSION,
-  region: process.env.SYSTEM_REGION
-};
-
-export const loggerManager = LoggerManager.getInstance(systemContext);
+// Remove the systemContext initialization and export
+// Let MonitoringManager handle the initialization and instantiation

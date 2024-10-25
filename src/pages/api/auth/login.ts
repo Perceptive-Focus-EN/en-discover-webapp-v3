@@ -1,3 +1,4 @@
+// pages/api/auth/login.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import bcrypt from 'bcrypt';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
@@ -9,115 +10,141 @@ import { AuthResponse, LoginRequest } from '../../../types/Login/interfaces';
 import { COLLECTIONS } from '../../../constants/collections';
 import { ROLES } from '@/constants/AccessKey/AccountRoles/index';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
-import { 
-  MetricCategory, 
-  MetricType, 
-  MetricUnit 
-} from '@/MonitoringSystem/constants/metrics';
+import { SystemError, SecurityError, BusinessError } from '@/MonitoringSystem/constants/errors';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
+
+interface LoginContext {
+  component: string;
+  systemId: string;
+  systemName: string;
+  environment: 'development' | 'production' | 'staging';
+}
+
+const SYSTEM_CONTEXT: LoginContext = {
+  component: 'LoginHandler',
+  systemId: process.env.SYSTEM_ID || 'auth-service',
+  systemName: 'AuthenticationService',
+  environment: (process.env.NODE_ENV as 'development' | 'production' | 'staging') || 'development'
+};
 
 export default async function loginHandler(
   req: NextApiRequest,
   res: NextApiResponse<AuthResponse | { error: string }>
 ) {
-  const monitor = monitoringManager;
-  
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID();
+
   try {
-    // Start monitoring login attempt
-    monitor.metrics.recordMetric(
+    monitoringManager.metrics.recordMetric(
       MetricCategory.BUSINESS,
       'auth',
       'login_attempt',
       1,
       MetricType.COUNTER,
       MetricUnit.COUNT,
-      { path: req.url }
+      { 
+        requestId,
+        path: req.url 
+      }
     );
 
-    monitor.logger.info('Login handler invoked', { 
-      path: req.url,
-      method: req.method 
+    monitoringManager.logger.info('Login attempt initiated', {
+      category: LogCategory.BUSINESS,
+      pattern: LOG_PATTERNS.BUSINESS,
+      metadata: {
+        requestId,
+        path: req.url,
+        method: req.method
+      }
     });
 
-    // Validate request method
     if (req.method !== 'POST') {
-      throw monitor.error.createError(
+      throw monitoringManager.error.createError(
         'business',
-        'METHOD_NOT_ALLOWED',
-        'Invalid request method',
+        BusinessError.VALIDATION_FAILED,
+        'Method not allowed',
         { method: req.method }
       );
     }
 
-    // Validate request body
     const { email, password } = req.body as LoginRequest;
     if (!email || !password) {
-      throw monitor.error.createError(
+      throw monitoringManager.error.createError(
         'business',
-        'VALIDATION_FAILED',
-        'Email and password are required'
+        BusinessError.VALIDATION_FAILED,
+        'Email and password are required',
+        { 
+          missingFields: {
+            email: !email,
+            password: !password
+          }
+        }
       );
     }
 
-    // Database connection
     const { db } = await getCosmosClient();
     const usersCollection = db.collection(COLLECTIONS.USERS) as Collection<WithId<User>>;
     const tenantsCollection = db.collection(COLLECTIONS.TENANTS) as Collection<WithId<Tenant>>;
 
-    // Find user
     const user = await usersCollection.findOne({ email });
     if (!user) {
-      monitor.metrics.recordMetric(
-        MetricCategory.SYSTEM,
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SECURITY,
         'auth',
-        'user_not_found',
+        'invalid_credentials',
         1,
         MetricType.COUNTER,
         MetricUnit.COUNT,
-        { email }
+        { 
+          requestId,
+          reason: 'user_not_found' 
+        }
       );
 
-      throw monitor.error.createError(
+      throw monitoringManager.error.createError(
         'security',
-        'AUTH_INVALID_CREDENTIALS',
-        'User not found',
-        { email }
+        SecurityError.AUTH_INVALID_CREDENTIALS,
+        'Invalid credentials'
       );
     }
 
-    // Validate password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      monitor.metrics.recordMetric(
-        MetricCategory.SYSTEM,
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SECURITY,
         'auth',
-        'invalid_password',
+        'invalid_credentials',
         1,
         MetricType.COUNTER,
         MetricUnit.COUNT,
-        { email }
+        { 
+          requestId,
+          userId: user.userId,
+          reason: 'invalid_password' 
+        }
       );
 
-      throw monitor.error.createError(
+      throw monitoringManager.error.createError(
         'security',
-        'AUTH_INVALID_CREDENTIALS',
-        'Invalid password',
-        { email }
+        SecurityError.AUTH_INVALID_CREDENTIALS,
+        'Invalid credentials'
       );
     }
 
-    // Generate tokens
     const accessToken = generateAccessToken({
       userId: user.userId,
       email: user.email,
       tenantId: user.currentTenantId,
       title: user.title,
     });
-    const refreshToken = generateRefreshToken();
 
-    // Get tenant info
+    const refreshToken = generateRefreshToken();
+    const sessionId = crypto.randomUUID(); // Generate unique session ID
+
     const tenantInfo = await tenantsCollection.findOne({ tenantId: user.currentTenantId });
     
-    // Construct user info
+        // Construct user info
     const extendedUserInfo: ExtendedUserInfo = {
       ...user,
       tenant: tenantInfo ? {
@@ -146,26 +173,30 @@ export default async function loginHandler(
       role: ROLES.Personal.SELF,
     };
 
-    // Update last login
+    // Update user's last login and session info
     await usersCollection.updateOne(
       { userId: user.userId },
-      { $set: { lastLogin: new Date().toISOString() } }
+      { 
+        $set: { 
+          lastLogin: new Date().toISOString(),
+          sessionId,
+          refreshToken
+        } 
+      }
     );
 
-    // Prepare response
     const authResponse: AuthResponse = {
       success: true,
       message: 'User logged in successfully',
       user: extendedUserInfo,
       accessToken,
       refreshToken,
-      sessionId: '',
+      sessionId,
       onboardingComplete: user.onboardingStatus.isOnboardingComplete
     };
 
-    // Record successful login
-    monitor.metrics.recordMetric(
-      MetricCategory.SYSTEM,
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
       'auth',
       'login_success',
       1,
@@ -173,33 +204,53 @@ export default async function loginHandler(
       MetricUnit.COUNT,
       { 
         userId: user.userId,
-        email: user.email 
+        requestId,
+        duration: Date.now() - startTime
       }
     );
 
-    monitor.logger.info('Login successful', { 
-      userId: user.userId,
-      email: user.email 
+    monitoringManager.logger.info('Login successful', {
+      category: LogCategory.BUSINESS,
+      pattern: LOG_PATTERNS.BUSINESS,
+      metadata: {
+        userId: user.userId,
+        requestId,
+        duration: Date.now() - startTime
+      }
     });
 
-    res.status(200).json(authResponse);
+    return res.status(200).json(authResponse);
 
   } catch (error) {
-    const errorResponse = monitor.error.handleError(error);
-
-    // Record login failure
-    monitor.metrics.recordMetric(
+    monitoringManager.metrics.recordMetric(
       MetricCategory.SYSTEM,
       'auth',
-      'login_failure',
+      'login_error',
       1,
       MetricType.COUNTER,
       MetricUnit.COUNT,
-      { error: errorResponse.errorType }
+      {
+        error: error instanceof Error ? error.message : 'unknown',
+        requestId,
+        duration: Date.now() - startTime
+      }
     );
 
-    res.status(errorResponse.statusCode).json({ 
-      error: errorResponse.userMessage 
+    const appError = monitoringManager.error.createError(
+      'system',
+      SystemError.SERVER_INTERNAL_ERROR,
+      'Login process failed',
+      { 
+        error,
+        requestId,
+        duration: Date.now() - startTime
+      }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
     });
   }
 }

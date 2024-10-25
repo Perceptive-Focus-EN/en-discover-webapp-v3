@@ -1,39 +1,49 @@
 // src/MonitoringSystem/Metrics/MetricsPersistence.ts
-
-import axiosInstance from '../../lib/axiosSetup';
+import { api } from '../../lib/axiosSetup';
 import { MetricEntry } from '../types/metrics';
 import { errorManager } from '../managers/ErrorManager';
+import { CircuitBreaker } from '../utils/CircuitBreaker';
+
+interface MetricsResponse {
+  success: boolean;
+  message: string;
+  batchId?: string;
+}
 
 export class MetricsPersistence {
   private static instance: MetricsPersistence;
   private metricsQueue: MetricEntry[] = [];
   private flushInterval: NodeJS.Timeout | null = null;
   private processingQueue: boolean = false;
-  private backoffInterval: number = 1000; // Initial backoff of 1 second
+  private backoffInterval: number = 1000;
   
-  // Optimized constants for high scale
-  private readonly MAX_BATCH_SIZE = 50;  // Reduced for better throughput
-  private readonly MIN_BATCH_SIZE = 10;  // Minimum batch size for efficiency
-  private readonly MAX_QUEUE_SIZE = 10000; // Prevent memory issues
-  private readonly FLUSH_INTERVAL_MS = 5000; // More frequent flushes
+  private readonly MAX_BATCH_SIZE = 50;
+  private readonly MIN_BATCH_SIZE = 10;
+  private readonly MAX_QUEUE_SIZE = 10000;
+  private readonly FLUSH_INTERVAL_MS = 5000;
   private readonly MAX_RETRY_ATTEMPTS = 3;
   private readonly MAX_BACKOFF_MS = 10000;
-  private readonly CHUNK_SIZE = 25; // Size for chunked processing
+  private readonly CHUNK_SIZE = 25;
 
-  private constructor() {
+  private constructor(private circuitBreaker: CircuitBreaker) {
     this.startFlushInterval();
   }
 
-  public static getInstance(): MetricsPersistence {
+  public static getInstance(circuitBreaker: CircuitBreaker): MetricsPersistence {
     if (!MetricsPersistence.instance) {
-      MetricsPersistence.instance = new MetricsPersistence();
+      MetricsPersistence.instance = new MetricsPersistence(circuitBreaker);
     }
     return MetricsPersistence.instance;
   }
 
   public async persistMetric(metric: MetricEntry): Promise<void> {
-    // Drop metrics if queue is too large to prevent memory issues
-    if (this.metricsQueue.length >= this.MAX_QUEUE_SIZE) {
+    if (this.circuitBreaker.isOpen('metrics-persistence')) {
+      // Drop metric silently when circuit is open
+      return;
+    }
+
+        if (this.metricsQueue.length >= this.MAX_QUEUE_SIZE) {
+      this.circuitBreaker.recordError('metrics-persistence');
       throw errorManager.createError(
         'system',
         'METRICS_QUEUE_FULL',
@@ -44,7 +54,6 @@ export class MetricsPersistence {
 
     this.metricsQueue.push(metric);
 
-    // Adaptive batch flushing based on queue size
     if (this.metricsQueue.length >= this.MAX_BATCH_SIZE && !this.processingQueue) {
       await this.flush();
     }
@@ -60,13 +69,13 @@ export class MetricsPersistence {
         try {
           await this.flush();
         } catch (error) {
-          // Exponential backoff on interval errors
           const nextInterval = Math.min(
             this.backoffInterval * 2,
             this.MAX_BACKOFF_MS
           );
           this.backoffInterval = nextInterval;
-          
+
+          // Removed monitoringManager usage
           throw errorManager.createError(
             'integration',
             'API_REQUEST_FAILED',
@@ -81,21 +90,22 @@ export class MetricsPersistence {
   public async flush(): Promise<void> {
     if (this.metricsQueue.length === 0 || this.processingQueue) return;
 
-    this.processingQueue = true;
+    if (this.circuitBreaker.isOpen('metrics-flush')) {
+      return;
+    }
+
     const batchToFlush = [...this.metricsQueue];
     this.metricsQueue = [];
+    this.processingQueue = true;
 
     try {
-      // Process in chunks for better reliability
       for (let i = 0; i < batchToFlush.length; i += this.CHUNK_SIZE) {
         const chunk = batchToFlush.slice(i, i + this.CHUNK_SIZE);
         await this.sendWithRetry(chunk);
       }
-      
-      // Reset backoff on success
       this.backoffInterval = 1000;
     } catch (error) {
-      // On failure, requeue only the failed metrics
+      this.circuitBreaker.recordError('metrics-flush');
       this.metricsQueue.unshift(...batchToFlush);
       throw error;
     } finally {
@@ -103,36 +113,38 @@ export class MetricsPersistence {
     }
   }
 
-  private async sendWithRetry(metrics: MetricEntry[], attempt = 1): Promise<void> {
+   private async sendWithRetry(metrics: MetricEntry[], attempt = 1): Promise<void> {
+    if (this.circuitBreaker.isOpen('metrics-api')) {
+      return;
+    }
+
     try {
       const compressedMetrics = this.compressMetrics(metrics);
-      await axiosInstance.post('/api/metrics', { metrics: compressedMetrics });
+      await api.post<MetricsResponse>(
+        '/api/metrics',
+        { metrics: compressedMetrics }
+      );
     } catch (error) {
       if (attempt < this.MAX_RETRY_ATTEMPTS) {
         const backoffMs = Math.min(
           this.backoffInterval * Math.pow(2, attempt - 1),
           this.MAX_BACKOFF_MS
         );
-        
         await new Promise(resolve => setTimeout(resolve, backoffMs));
         return this.sendWithRetry(metrics, attempt + 1);
       }
 
+      this.circuitBreaker.recordError('metrics-api');
       throw errorManager.createError(
         'integration',
         'API_REQUEST_FAILED',
         'Failed to persist metrics batch after retries',
-        {
-          batchSize: metrics.length,
-          attempts: attempt,
-          error
-        }
+        { batchSize: metrics.length, attempts: attempt, error }
       );
     }
   }
 
   private compressMetrics(metrics: MetricEntry[]): MetricEntry[] {
-    // Aggregate similar metrics within the same timestamp window
     const aggregateWindow = new Map<string, MetricEntry>();
 
     metrics.forEach(metric => {
@@ -142,7 +154,6 @@ export class MetricsPersistence {
         const existing = aggregateWindow.get(key)!;
         existing.value += metric.value;
         
-        // Merge metadata if needed
         if (metric.metadata && existing.metadata) {
           existing.metadata = {
             ...existing.metadata,

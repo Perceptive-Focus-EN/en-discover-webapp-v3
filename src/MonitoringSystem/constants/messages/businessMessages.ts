@@ -142,6 +142,24 @@ export const BusinessMessages = {
         error: 'Failed to create post',
         warn: 'Post creation issues',
         info: 'Post creation attempted'
-}
+},
+
+    [BusinessError.USER_UPDATE_FAILED]: {
+        error: 'Failed to update user',
+        warn: 'User update issues detected',
+        info: 'User update attempted'
+    },
+
+    [BusinessError.UPLOAD_FAILED]: {
+        error: 'Failed to upload file',
+        warn: 'File upload issues detected',
+        info: 'File upload attempted'
+    },
+
+    [BusinessError.GENERATE_TEXT_FAILURE]: {
+        error: 'Failed to generate text',
+        warn: 'Text generation issues detected',
+        info: 'Text generation attempted'
+    },
 
 } as const;

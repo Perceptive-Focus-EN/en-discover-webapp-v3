@@ -19,6 +19,9 @@ export class AppError extends Error {
   public readonly metadata?: Record<string, unknown>;
   public readonly errorReference: string;
   public readonly timestamp: Date;
+  public readonly tenantId: string;
+  public readonly currentTenantId?: string;
+  public readonly personalTenantId?: string;
 
   constructor(details: ErrorDetails) {
     super(details.message);
@@ -28,6 +31,9 @@ export class AppError extends Error {
     this.metadata = details.metadata;
     this.errorReference = details.errorReference || this.generateErrorReference();
     this.timestamp = new Date();
+    this.tenantId = details.tenantId;
+    this.currentTenantId = details.currentTenantId;
+    this.personalTenantId = details.personalTenantId;
     this.name = this.constructor.name;
 
     if (Error.captureStackTrace) {
@@ -46,29 +52,36 @@ export class AppError extends Error {
   }
 
   public toJSON(): Record<string, unknown> {
-    return {
-      name: this.name,
-      message: this.message,
-      type: this.type,
-      errorReference: this.errorReference,
-      statusCode: this.statusCode,
-      timestamp: this.timestamp,
-      metadata: this.metadata,
-      stack: process.env.NODE_ENV === 'development' ? this.stack : undefined,
-    };
+  return {
+    name: this.name,
+    message: this.message,
+    type: this.type,
+    errorReference: this.errorReference,
+    statusCode: this.statusCode,
+    timestamp: this.timestamp,
+    metadata: this.metadata,
+    tenantId: this.tenantId,
+    currentTenantId: this.currentTenantId,
+    personalTenantId: this.personalTenantId,
+    stack: process.env.NODE_ENV === 'development' ? this.stack : undefined,
+  };
   }
 
   public static isAppError(error: unknown): error is AppError {
     return error instanceof AppError;
   }
 
+    // Update withMetadata to preserve tenant info
   public withMetadata(metadata: Record<string, unknown>): AppError {
     return new AppError({
       type: this.type,
       message: this.message,
       statusCode: this.statusCode,
       metadata: { ...this.metadata, ...metadata },
-      errorReference: this.errorReference
+      errorReference: this.errorReference,
+      tenantId: this.tenantId,
+      currentTenantId: this.currentTenantId,
+      personalTenantId: this.personalTenantId
     });
   }
 
@@ -78,7 +91,10 @@ export class AppError extends Error {
       message,
       statusCode: this.statusCode,
       metadata: this.metadata,
-      errorReference: this.errorReference
+      errorReference: this.errorReference,
+      tenantId: this.tenantId,
+      currentTenantId: this.currentTenantId,
+      personalTenantId: this.personalTenantId
     });
   }
 
@@ -88,7 +104,10 @@ export class AppError extends Error {
       message: this.message,
       statusCode,
       metadata: this.metadata,
-      errorReference: this.errorReference
+      errorReference: this.errorReference,
+      tenantId: this.tenantId,
+      currentTenantId: this.currentTenantId,
+      personalTenantId: this.personalTenantId
     });
   }
 
@@ -98,7 +117,10 @@ export class AppError extends Error {
       message: this.message,
       statusCode: this.statusCode,
       metadata: this.metadata,
-      errorReference
+      errorReference,
+      tenantId: this.tenantId,
+      currentTenantId: this.currentTenantId,
+      personalTenantId: this.personalTenantId
     });
   }
 }

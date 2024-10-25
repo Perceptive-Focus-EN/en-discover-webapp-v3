@@ -1,95 +1,186 @@
+// src/pages/api/auth/refresh.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
-import { 
-  generateAccessToken, 
-  generateRefreshToken, 
-  verifyRefreshToken, 
-  getRefreshToken, 
-  blacklistToken, 
-  deleteRefreshToken, 
-  isTokenExpired, 
-  isTokenBlacklisted 
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+  getRefreshToken,
+  blacklistToken,
+  deleteRefreshToken,
+  isTokenExpired,
+  isTokenBlacklisted
 } from '../../../utils/TokenManagement/serverTokenUtils';
+import crypto from 'crypto';
 import { AuthResponse } from '../../../types/Login/interfaces';
 import { redisService } from '../../../services/cache/redisService';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
+import { SecurityError } from '@/MonitoringSystem/constants/errors';
+
+interface RefreshTokenContext {
+  component: string;
+  systemId: string;
+  systemName: string;
+  environment: 'development' | 'production' | 'staging';
+}
+
+const SYSTEM_CONTEXT: RefreshTokenContext = {
+  component: 'RefreshTokenHandler',
+  systemId: process.env.SYSTEM_ID || 'auth-service',
+  systemName: 'AuthenticationService',
+  environment: (process.env.NODE_ENV as 'development' | 'production' | 'staging') || 'development'
+};
+
+async function cleanupOldSession(
+  sessionId: string,
+  storedToken: string,
+  newSessionId: string
+): Promise<void> {
+  const cleanupStartTime = Date.now();
+  
+  try {
+    await blacklistToken(storedToken);
+    await Promise.all([
+      deleteRefreshToken(sessionId),
+      redisService.deleteSession(sessionId),
+      redisService.deleteValue(`jwt:${sessionId}`)
+    ]);
+
+    const cleanupDuration = Date.now() - cleanupStartTime;
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SECURITY,
+      'auth',
+      'session_cleanup',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        oldSessionId: sessionId,
+        newSessionId,
+        duration: cleanupDuration,
+        success: true,
+        component: SYSTEM_CONTEXT.component
+      }
+    );
+
+    monitoringManager.logger.info('Session cleanup completed', {
+      category: LogCategory.SECURITY,
+      pattern: LOG_PATTERNS.SECURITY,
+      metadata: {
+        oldSessionId: sessionId,
+        newSessionId,
+        duration: cleanupDuration,
+        component: SYSTEM_CONTEXT.component
+      }
+    });
+  } catch (cleanupError) {
+    monitoringManager.logger.error(
+      new Error('Session cleanup failed'),
+      SecurityError.AUTH_SESSION_INVALID,
+      {
+        category: LogCategory.SECURITY,
+        pattern: LOG_PATTERNS.SECURITY,
+        metadata: {
+          error: cleanupError,
+          oldSessionId: sessionId,
+          newSessionId,
+          component: SYSTEM_CONTEXT.component
+        }
+      }
+    );
+
+    throw monitoringManager.error.createError(
+      'security',
+      SecurityError.AUTH_SESSION_INVALID,
+      'Failed to cleanup old session',
+      {
+        cleanupError,
+        oldSessionId: sessionId,
+        newSessionId,
+        component: SYSTEM_CONTEXT.component
+      }
+    );
+  }
+}
 
 export default async function refreshHandler(req: NextApiRequest, res: NextApiResponse) {
   const startTime = Date.now();
+  const requestId = crypto.randomUUID();
 
   try {
+    monitoringManager.logger.info('Token refresh attempt initiated', {
+      category: LogCategory.SECURITY,
+      pattern: LOG_PATTERNS.SECURITY,
+      metadata: {
+        requestId,
+        path: req.url,
+        method: req.method,
+        component: SYSTEM_CONTEXT.component
+      }
+    });
+
     if (req.method !== 'POST') {
-      const appError = monitoringManager.error.createError(
-        'business',
-        'METHOD_NOT_ALLOWED',
+      throw monitoringManager.error.createError(
+        'security',
+        SecurityError.AUTH_UNAUTHORIZED,
         'Method not allowed',
-        { method: req.method }
+        {
+          method: req.method,
+          component: SYSTEM_CONTEXT.component,
+          requestId
+        }
       );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
     }
 
     const { refreshToken, sessionId } = req.body;
 
     if (!refreshToken || !sessionId) {
-      const appError = monitoringManager.error.createError(
+      throw monitoringManager.error.createError(
         'security',
-        'AUTH_VALIDATION_FAILED',
-        'Refresh token and session ID are required'
+        SecurityError.AUTH_TOKEN_INVALID,
+        'Refresh token and session ID are required',
+        {
+          component: SYSTEM_CONTEXT.component,
+          requestId
+        }
       );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
     }
 
     const storedToken = await getRefreshToken(sessionId);
 
     if (!storedToken || isTokenExpired(storedToken)) {
-      const appError = monitoringManager.error.createError(
+      throw monitoringManager.error.createError(
         'security',
-        'AUTH_TOKEN_EXPIRED',
+        SecurityError.AUTH_TOKEN_EXPIRED,
         'Refresh token expired or invalid',
-        { sessionId }
+        {
+          sessionId,
+          component: SYSTEM_CONTEXT.component,
+          requestId
+        }
       );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
     }
 
     if (await isTokenBlacklisted(storedToken)) {
-      const appError = monitoringManager.error.createError(
+      throw monitoringManager.error.createError(
         'security',
-        'AUTH_TOKEN_BLACKLISTED',
+        SecurityError.AUTH_TOKEN_INVALID,
         'Refresh token is blacklisted',
-        { sessionId }
+        {
+          sessionId,
+          component: SYSTEM_CONTEXT.component,
+          requestId
+        }
       );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
     }
 
-    // Token reuse detection
     if (refreshToken !== storedToken) {
       await blacklistToken(storedToken);
       await deleteRefreshToken(sessionId);
-      
-      const appError = monitoringManager.error.createError(
-        'security',
-        'AUTH_TOKEN_REUSED',
-        'Refresh token reuse detected',
-        { sessionId }
-      );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      
+
       monitoringManager.metrics.recordMetric(
         MetricCategory.SECURITY,
         'auth',
@@ -97,43 +188,50 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
         1,
         MetricType.COUNTER,
         MetricUnit.COUNT,
-        { sessionId }
+        {
+          sessionId,
+          requestId,
+          component: SYSTEM_CONTEXT.component
+        }
       );
 
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
+      throw monitoringManager.error.createError(
+        'security',
+        SecurityError.AUTH_TOKEN_INVALID,
+        'Refresh token reuse detected',
+        {
+          sessionId,
+          component: SYSTEM_CONTEXT.component,
+          requestId
+        }
+      );
     }
 
     if (!verifyRefreshToken(refreshToken, storedToken)) {
-      const appError = monitoringManager.error.createError(
+      throw monitoringManager.error.createError(
         'security',
-        'AUTH_TOKEN_INVALID',
+        SecurityError.AUTH_TOKEN_INVALID,
         'Invalid refresh token',
-        { sessionId }
+        {
+          sessionId,
+          component: SYSTEM_CONTEXT.component,
+          requestId
+        }
       );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
     }
 
-    // Retrieve session data
     const sessionData = await redisService.getSession(sessionId);
     if (!sessionData) {
-      const appError = monitoringManager.error.createError(
+      throw monitoringManager.error.createError(
         'security',
-        'AUTH_SESSION_INVALID',
+        SecurityError.AUTH_SESSION_INVALID,
         'Invalid session',
-        { sessionId }
+        {
+          sessionId,
+          component: SYSTEM_CONTEXT.component,
+          requestId
+        }
       );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
     }
 
     const parsedSessionData = JSON.parse(sessionData);
@@ -148,9 +246,12 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
     const newRefreshToken = generateRefreshToken();
     const newSessionId = generateRefreshToken();
 
-    // Store new tokens with consistent prefixes
+    // Store new tokens
     await redisService.storeRefreshToken(newSessionId, newRefreshToken);
     await redisService.storeSession(newSessionId, JSON.stringify(parsedSessionData), 60 * 60 * 24);
+
+    // Cleanup old session
+    await cleanupOldSession(sessionId, storedToken, newSessionId);
 
     const authResponse: AuthResponse = {
       success: true,
@@ -163,7 +264,6 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
       permissions: []
     };
 
-    // Record success metrics
     monitoringManager.metrics.recordMetric(
       MetricCategory.BUSINESS,
       'auth',
@@ -173,137 +273,68 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
       MetricUnit.COUNT,
       {
         userId: parsedSessionData.userId,
-        duration: Date.now() - startTime
+        requestId,
+        duration: Date.now() - startTime,
+        component: SYSTEM_CONTEXT.component
       }
     );
 
-    // Add additional security metrics
-    monitoringManager.metrics.recordMetric(
-      MetricCategory.SECURITY,
-      'auth',
-      'token_refresh_attempt',
-      1,
-      MetricType.COUNTER,
-      MetricUnit.COUNT,
-      {
-        sessionId,
-        success: true,
-        duration: Date.now() - startTime
+    monitoringManager.logger.info('Token refresh completed successfully', {
+      category: LogCategory.SECURITY,
+      pattern: LOG_PATTERNS.SECURITY,
+      metadata: {
+        userId: parsedSessionData.userId,
+        requestId,
+        duration: Date.now() - startTime,
+        component: SYSTEM_CONTEXT.component
       }
-    );
+    });
 
-    // Cleanup old session
-    try {
-      const cleanupStartTime = Date.now();
-      
-      // First blacklist the old token for security
-      await blacklistToken(storedToken);
-      
-      // Then cleanup all related data
-      await Promise.all([
-        deleteRefreshToken(sessionId),
-        redisService.deleteSession(sessionId),
-        redisService.deleteValue(`jwt:${sessionId}`), // Clear any JWT associations
-      ]);
-
-      const cleanupDuration = Date.now() - cleanupStartTime;
-
-      // Record detailed cleanup metrics
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.SECURITY,
-        'auth',
-        'session_cleanup',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        {
-          oldSessionId: sessionId,
-          newSessionId: newSessionId,
-          duration: cleanupDuration,
-          success: true
-        }
-      );
-
-      // Record cleanup performance
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.PERFORMANCE,
-        'auth',
-        'cleanup_duration',
-        cleanupDuration,
-        MetricType.HISTOGRAM,
-        MetricUnit.MILLISECONDS,
-        {
-          operation: 'session_cleanup',
-          oldSessionId: sessionId
-        }
-      );
-
-      monitoringManager.logger.info('Successfully cleaned up old session', {
-        oldSessionId: sessionId,
-        newSessionId: newSessionId,
-        duration: cleanupDuration
-      });
-
-    } catch (cleanupError) {
-      // Record cleanup failure metrics
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.SECURITY,
-        'auth',
-        'session_cleanup_error',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        {
-          oldSessionId: sessionId,
-          newSessionId: newSessionId,
-          error: cleanupError instanceof Error ? cleanupError.message : 'unknown'
-        }
-      );
-
-      // Enhanced error logging
-      monitoringManager.logger.warn('Failed to cleanup old session', {
-        error: cleanupError,
-        oldSessionId: sessionId,
-        newSessionId: newSessionId,
-        errorType: cleanupError instanceof Error ? cleanupError.name : 'unknown',
-        errorMessage: cleanupError instanceof Error ? cleanupError.message : 'unknown'
-      });
-
-      // Create a non-blocking error for monitoring
-      monitoringManager.error.createError(
-        'security',
-        'SESSION_CLEANUP_FAILED',
-        'Failed to cleanup old session completely',
-        { 
-          cleanupError,
-          oldSessionId: sessionId,
-          newSessionId: newSessionId
-        }
-      );
-    }
     return res.status(200).json(authResponse);
 
   } catch (error) {
-    const appError = monitoringManager.error.createError(
-      'system',
-      'AUTH_REFRESH_FAILED',
-      'Error refreshing token',
-      { error }
+    monitoringManager.logger.error(
+      new Error('Token refresh failed'),
+      SecurityError.AUTH_FAILED,  // Consistent error usage
+      {
+        category: LogCategory.SECURITY,
+        pattern: LOG_PATTERNS.SECURITY,
+        metadata: {
+          error: error instanceof Error ? error.message : 'unknown',
+          requestId,
+          duration: Date.now() - startTime,
+          component: SYSTEM_CONTEXT.component
+        }
+      }
     );
-    const errorResponse = monitoringManager.error.handleError(appError);
 
     monitoringManager.metrics.recordMetric(
-      MetricCategory.SYSTEM,
+      MetricCategory.SECURITY,
       'auth',
       'token_refresh_error',
       1,
       MetricType.COUNTER,
       MetricUnit.COUNT,
       {
-        errorType: error instanceof Error ? error.name : 'unknown',
-        duration: Date.now() - startTime
+        error: error instanceof Error ? error.message : 'unknown',
+        requestId,
+        duration: Date.now() - startTime,
+        component: SYSTEM_CONTEXT.component
       }
     );
+
+    const appError = monitoringManager.error.createError(
+      'security',
+      SecurityError.AUTH_FAILED,
+      'Token refresh process failed',
+      {
+        error,
+        requestId,
+        duration: Date.now() - startTime,
+        component: SYSTEM_CONTEXT.component
+      }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
 
     return res.status(errorResponse.statusCode).json({
       error: errorResponse.userMessage,

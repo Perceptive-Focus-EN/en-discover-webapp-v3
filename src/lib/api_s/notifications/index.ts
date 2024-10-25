@@ -1,48 +1,174 @@
 // src/lib/api_s/notifications/index.ts
-import axiosInstance from '../../axiosSetup';
+import { api } from '../../axiosSetup';
 import { API_ENDPOINTS } from '../../../constants/endpointsConstants';
 import { Notification } from '../../../components/Notifications/types/notification';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+
+interface NotificationsResponse {
+  notifications: Notification[];
+  totalCount: number;
+  unreadCount: number;
+}
+
+interface UnreadCountResponse {
+  count: number;
+}
+
+interface NotificationUpdateResponse {
+  success: boolean;
+  message: string;
+}
 
 export const notificationsApi = {
-  // Fetch notifications with pagination
   fetch: async (limit: number = 20, skip: number = 0): Promise<Notification[]> => {
-    const response = await axiosInstance.get<{ notifications: Notification[] }>(
-      `${API_ENDPOINTS.NOTIFICATIONS_FETCH}?limit=${limit}&skip=${skip}`
-    );
-    return response.data.notifications;
+    const startTime = Date.now();
+    
+    try {
+      const response = await api.get<NotificationsResponse>(
+        API_ENDPOINTS.NOTIFICATIONS_FETCH,
+        {
+          params: {
+            limit,
+            skip
+          }
+        }
+      );
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'notifications',
+        'fetch_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        {
+          count: response.notifications.length,
+          limit,
+          skip
+        }
+      );
+
+      return response.notifications;
+    } catch (error) {
+      messageHandler.error('Failed to fetch notifications');
+      throw error;
+    }
   },
 
-  // Mark single notification as read
   markAsRead: async (notificationId: string): Promise<void> => {
-    await axiosInstance.post(API_ENDPOINTS.NOTIFICATIONS_MARK_AS_READ, { notificationId });
-    messageHandler.success('Notification marked as read');
+    try {
+      await api.post<NotificationUpdateResponse>(
+        API_ENDPOINTS.NOTIFICATIONS_MARK_AS_READ,
+        { notificationId }
+      );
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'notifications',
+        'marked_read',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { notificationId }
+      );
+
+      messageHandler.success('Notification marked as read');
+    } catch (error) {
+      messageHandler.error('Failed to mark notification as read');
+      throw error;
+    }
   },
 
-  // Mark all notifications as read
   markAllAsRead: async (): Promise<void> => {
-    await axiosInstance.post(API_ENDPOINTS.NOTIFICATIONS_MARK_ALL_AS_READ);
-    messageHandler.success('All notifications marked as read');
+    const startTime = Date.now();
+    
+    try {
+      await api.post<NotificationUpdateResponse>(
+        API_ENDPOINTS.NOTIFICATIONS_MARK_ALL_AS_READ
+      );
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'notifications',
+        'marked_all_read',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        {
+          duration: Date.now() - startTime
+        }
+      );
+
+      messageHandler.success('All notifications marked as read');
+    } catch (error) {
+      messageHandler.error('Failed to mark all notifications as read');
+      throw error;
+    }
   },
 
-  // Get unread notification count
   getUnreadCount: async (): Promise<number> => {
-    const response = await axiosInstance.get<{ count: number }>(
-      API_ENDPOINTS.NOTIFICATIONS_UNREAD_COUNT
-    );
-    return response.data.count;
+    try {
+      const response = await api.get<UnreadCountResponse>(
+        API_ENDPOINTS.NOTIFICATIONS_UNREAD_COUNT
+      );
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'notifications',
+        'unread_count',
+        response.count,
+        MetricType.GAUGE,
+        MetricUnit.COUNT
+      );
+
+      return response.count;
+    } catch (error) {
+      messageHandler.error('Failed to fetch unread count');
+      throw error;
+    }
+  },
+
+  // Additional utility methods
+  subscribe: async (topic: string): Promise<void> => {
+    try {
+      await api.post<NotificationUpdateResponse>(
+        API_ENDPOINTS.NOTIFICATIONS_SUBSCRIBE,
+        { topic }
+      );
+      messageHandler.success(`Subscribed to ${topic} notifications`);
+    } catch (error) {
+      messageHandler.error('Failed to subscribe to notifications');
+      throw error;
+    }
+  },
+
+  unsubscribe: async (topic: string): Promise<void> => {
+    try {
+      await api.post<NotificationUpdateResponse>(
+        API_ENDPOINTS.NOTIFICATIONS_UNSUBSCRIBE,
+        { topic }
+      );
+      messageHandler.success(`Unsubscribed from ${topic} notifications`);
+    } catch (error) {
+      messageHandler.error('Failed to unsubscribe from notifications');
+      throw error;
+    }
   }
 };
 
-// src/lib/api_s/notifications/fetch-notifications.ts
-
-// import { Notification } from '../../../components/Notifications/types/notification';
-// import { getMockNotifications } from '../../mockData/notifications';
-// 
-// export const fetchNotifications = async (): Promise<Notification[]> => {
-  // Simulate API call delay
+// Mock data fetcher (if needed for development)
+// export const getMockNotifications = async (): Promise<Notification[]> => {
   // await new Promise(resolve => setTimeout(resolve, 500));
-  // return getMockNotifications();
+  // return [
+    // {
+      // id: '1',
+      // type: 'info',
+      // message: 'Mock notification 1',
+      // read: false,
+      // createdAt: new Date().toISOString()
+    // },
+    // ... more mock notifications
+  // ];
 // };
-// 
-// 

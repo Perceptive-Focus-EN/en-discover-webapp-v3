@@ -4,12 +4,28 @@ import { Collection, WithId } from 'mongodb';
 import { User, ExtendedUserInfo } from '../../../types/User/interfaces';
 import { Tenant, TenantInfo } from '../../../types/Tenant/interfaces';
 import { generateAccessToken, generateRefreshToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../MonitoringSystem/Loggers/logger';
 import { authMiddleware } from '../../../middlewares/authMiddleware';
 import { getCosmosClient } from '@/config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
 import { ROLES } from '@/constants/AccessKey/AccountRoles';
-import { ErrorType } from '@/MonitoringSystem/constants/errors';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { SystemError, BusinessError } from '@/MonitoringSystem/constants/errors';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
+
+interface MeHandlerSystemContext {
+  component: string;
+  systemId: string;
+  systemName: string;
+  environment: 'development' | 'production' | 'staging';
+}
+
+const SYSTEM_CONTEXT: MeHandlerSystemContext = {
+  component: 'MeHandler',
+  systemId: process.env.SYSTEM_ID || 'auth-service',
+  systemName: 'AuthenticationService',
+  environment: (process.env.NODE_ENV as 'development' | 'production' | 'staging') || 'development'
+};
 
 interface DecodedToken {
   userId: string;
@@ -22,15 +38,30 @@ async function meHandler(
   req: NextApiRequest,
   res: NextApiResponse<AuthResponse | { error: string }>
 ) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID();
 
   try {
+    if (req.method !== 'GET') {
+      throw monitoringManager.error.createError(
+        'business',
+        BusinessError.VALIDATION_FAILED,
+        'Method not allowed',
+        { method: req.method }
+      );
+    }
+
     const decodedToken = (req as any).user as DecodedToken;
 
     const client = await getCosmosClient();
-    logger.info('Connected to Cosmos DB');
+    monitoringManager.logger.info('Database connection established', {
+      category: LogCategory.SYSTEM,
+      pattern: LOG_PATTERNS.SYSTEM,
+      metadata: {
+        component: SYSTEM_CONTEXT.component,
+        userId: decodedToken.userId
+      }
+    });
 
     const db = client.db;
     const usersCollection = db.collection(COLLECTIONS.USERS) as Collection<User>;
@@ -38,29 +69,42 @@ async function meHandler(
 
     const user = await usersCollection.findOne({ userId: decodedToken.userId }) as WithId<User> | null;
     if (!user) {
-      logger.warn(`User not found: ${decodedToken.userId}`);
-      return res.status(404).json({ error: 'User not found' });
+      throw monitoringManager.error.createError(
+        'business',
+        BusinessError.USER_NOT_FOUND,
+        'User not found',
+        { userId: decodedToken.userId }
+      );
     }
 
-    logger.info(`User found: ${user.email}`);
-
     if (user.isDeleted) {
-      logger.warn(`Deleted user attempting access: ${user.userId}`);
-      return res.status(401).json({ error: 'Unauthorized: User account has been deleted' });
+      throw monitoringManager.error.createError(
+        'security',
+        'AUTH_UNAUTHORIZED',
+        'User account has been deleted',
+        { userId: user.userId }
+      );
     }
 
     const tenantAssociations = user.tenantAssociations || [];
-
     const currentTenantAssociation = tenantAssociations.find(ta => ta.tenantId === user.currentTenantId);
 
     if (!currentTenantAssociation) {
-      logger.warn(`Current tenant not found for user: ${user.userId}`);
-      // Set personal tenant as current if no current tenant is found
+      monitoringManager.logger.warn('Current tenant not found, using personal tenant', {
+        category: LogCategory.BUSINESS,
+        pattern: LOG_PATTERNS.BUSINESS,
+        metadata: {
+          userId: user.userId,
+          currentTenantId: user.currentTenantId,
+          personalTenantId: user.personalTenantId
+        }
+      });
       user.currentTenantId = user.personalTenantId;
     }
 
     const currentTenant = await tenantsCollection.findOne({ tenantId: user.currentTenantId }) as WithId<Tenant> | null;
 
+    // Build tenant info and user info...
     const tenantInfo: TenantInfo | null = currentTenant ? {
       tenantId: currentTenant.tenantId,
       name: currentTenant.name,
@@ -109,9 +153,23 @@ async function meHandler(
       tenantId: user.currentTenantId,
       role: ROLES.Personal.SELF,
     });
-    logger.info(`Access token generated for user: ${user.email}`);
 
     const refreshToken = generateRefreshToken();
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.BUSINESS,
+      'auth',
+      'session_restored',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        userId: user.userId,
+        tenantId: user.currentTenantId,
+        duration: Date.now() - startTime,
+        requestId
+      }
+    );
 
     const loginResponse: AuthResponse = {
       success: true,
@@ -123,15 +181,50 @@ async function meHandler(
       onboardingComplete: user.onboardingStatus.isOnboardingComplete,
     };
     
-    logger.info(`Me handler successful for user: ${user.email}`);
-    res.status(200).json(loginResponse);
+    monitoringManager.logger.info('Session restored successfully', {
+      category: LogCategory.BUSINESS,
+      pattern: LOG_PATTERNS.BUSINESS,
+      metadata: {
+        userId: user.userId,
+        email: user.email,
+        duration: Date.now() - startTime,
+        requestId
+      }
+    });
+
+    return res.status(200).json(loginResponse);
+
   } catch (error) {
-    logger.error(new Error('Error in me handler'), ErrorType.GENERIC, { error });
-    if (error instanceof Error) {
-      res.status(500).json({ error: `Internal server error: ${error.message}` });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'auth',
+      'session_restore_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        error: error instanceof Error ? error.message : 'unknown',
+        duration: Date.now() - startTime,
+        requestId
+      }
+    );
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      SystemError.SERVER_INTERNAL_ERROR,
+      'Error in me handler',
+      { 
+        error,
+        requestId,
+        duration: Date.now() - startTime
+      }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }
 

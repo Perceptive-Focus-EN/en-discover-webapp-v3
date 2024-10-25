@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+// src/components/BuildingAccess/EnhancedNFCBuildingAccess.tsx
+import React, { useState } from 'react';
 import { 
     TextField, Button, Typography, CircularProgress, Snackbar, Alert,
     SnackbarCloseReason
 } from '@mui/material';
 import { useAuth } from '../../../contexts/AuthContext';
-import axiosInstance from '../../../lib/axiosSetup';
-import AccessHistory from './AccessHistory'; // Import the new AccessHistory component
+import { api } from '../../../lib/axiosSetup';
+import AccessHistory from './AccessHistory';
 
 interface AccessAttempt {
     timestamp: string;
@@ -20,6 +21,11 @@ interface UserData {
     department: string;
 }
 
+interface NFCAccessResponse {
+    accessGranted: boolean;
+    userData?: UserData;
+}
+
 const EnhancedNFCBuildingAccess: React.FC = () => {
     const { user } = useAuth();
     const [nfcId, setNfcId] = useState('');
@@ -28,7 +34,11 @@ const EnhancedNFCBuildingAccess: React.FC = () => {
     const [accessHistory, setAccessHistory] = useState<AccessAttempt[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [snackbar, setSnackbar] = useState<{open: boolean, message: string, severity: 'error' | 'warning' | 'info'}>({
+    const [snackbar, setSnackbar] = useState<{
+        open: boolean;
+        message: string;
+        severity: 'error' | 'warning' | 'info';
+    }>({
         open: false,
         message: '',
         severity: 'info'
@@ -41,15 +51,19 @@ const EnhancedNFCBuildingAccess: React.FC = () => {
         setUserData(null);
 
         try {
-            const response = await axiosInstance.post(`/api/tenant/${user?.currentTenantId}/nfc-access`, { nfcId });
-            const { accessGranted, userData } = response.data;
+            const response = await api.post<NFCAccessResponse>(
+                `/api/tenant/${user?.currentTenantId}/nfc-access`,
+                { nfcId }
+            );
+
+            const { accessGranted, userData: responseUserData } = response;
             setAccessStatus(accessGranted ? 'Granted' : 'Denied');
 
-            if (accessGranted && userData) {
+            if (accessGranted && responseUserData) {
                 setUserData({
-                    name: userData.name,
-                    role: userData.role || 'N/A',
-                    department: userData.department || 'N/A',
+                    name: responseUserData.name,
+                    role: responseUserData.role || 'N/A',
+                    department: responseUserData.department || 'N/A',
                 });
                 setSnackbar({ open: true, message: 'Access Granted', severity: 'info' });
             } else {
@@ -60,7 +74,7 @@ const EnhancedNFCBuildingAccess: React.FC = () => {
                 {
                     timestamp: new Date().toISOString(),
                     nfcId,
-                    name: userData ? userData.name : 'Unknown',
+                    name: responseUserData ? responseUserData.name : 'Unknown',
                     accessGranted
                 },
                 ...prev.slice(0, 9)
@@ -74,7 +88,10 @@ const EnhancedNFCBuildingAccess: React.FC = () => {
         }
     };
 
-    const handleCloseSnackbar = (event: Event | React.SyntheticEvent<any, Event>, reason?: SnackbarCloseReason) => {
+    const handleCloseSnackbar = (
+        event: Event | React.SyntheticEvent<any, Event>,
+        reason?: SnackbarCloseReason
+    ) => {
         if (reason === 'clickaway') {
             return;
         }

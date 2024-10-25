@@ -2,7 +2,6 @@
 
 import { MetricEntry } from '../types/metrics';
 import { errorManager } from '../managers/ErrorManager';
-import { logger } from '../Loggers/logger';
 
 interface AggregatedMetric {
   min: number;

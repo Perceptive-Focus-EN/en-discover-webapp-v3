@@ -1,6 +1,8 @@
 // src/lib/api_s/uploads/video.ts
-import axiosInstance from '../../axiosSetup';
+import { api } from '../../axiosSetup';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 
 interface VideoUploadResponse {
   blobName: string;
@@ -15,27 +17,73 @@ interface VideoUrlResponse {
 
 export const videoApi = {
   upload: async (file: File, caption?: string): Promise<VideoUploadResponse> => {
+    const startTime = Date.now();
     const formData = new FormData();
     formData.append('video', file);
     if (caption) {
       formData.append('caption', caption);
     }
 
-    messageHandler.info('Uploading video...');
-    const response = await axiosInstance.post('/api/posts/video', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    try {
+      messageHandler.info('Uploading video...');
+      
+      const response = await api.post<VideoUploadResponse>(
+        '/api/posts/video',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
 
-    messageHandler.success('Video uploaded successfully');
-    return response.data;
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'video',
+        'upload_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        {
+          fileSize: file.size,
+          hasCaption: !!caption,
+          status: response.processingStatus
+        }
+      );
+
+      messageHandler.success('Video uploaded successfully');
+      return response;
+    } catch (error) {
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'video',
+        'upload_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        {
+          fileSize: file.size,
+          error: error instanceof Error ? error.message : 'unknown'
+        }
+      );
+      throw error;
+    }
   },
 
   getUrl: async (blobName: string): Promise<string> => {
-    const response = await axiosInstance.get(
-      `/api/posts/getVideoUrl?blobName=${encodeURIComponent(blobName)}`
-    );
-    return response.data.videoUrl;
+    try {
+      const response = await api.get<VideoUrlResponse>(
+        `/api/posts/getVideoUrl`,
+        {
+          params: {
+            blobName: encodeURIComponent(blobName)
+          }
+        }
+      );
+      return response.videoUrl;
+    } catch (error) {
+      messageHandler.error('Failed to get video URL');
+      throw error;
+    }
   }
 };

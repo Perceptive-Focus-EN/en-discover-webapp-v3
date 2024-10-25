@@ -4,27 +4,57 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '../../../constants/collections';
 import { verifyEmailToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../MonitoringSystem/Loggers/logger';
-import { ErrorType } from '@/MonitoringSystem/constants/errors';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { SystemError, BusinessError } from '@/MonitoringSystem/constants/errors';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
+
+interface EmailVerificationContext {
+  component: string;
+  systemId: string;
+  systemName: string;
+  environment: 'development' | 'production' | 'staging';
+}
+
+const SYSTEM_CONTEXT: EmailVerificationContext = {
+  component: 'EmailVerificationHandler',
+  systemId: process.env.SYSTEM_ID || 'auth-service',
+  systemName: 'AuthenticationService',
+  environment: (process.env.NODE_ENV as 'development' | 'production' | 'staging') || 'development'
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID();
+
   try {
     if (req.method !== 'POST') {
-      logger.warn('Incorrect HTTP method used for email verification');
-      return res.status(405).json({ message: 'Method Not Allowed. Use POST for email verification.' });
+      throw monitoringManager.error.createError(
+        'business',
+        BusinessError.VALIDATION_FAILED,
+        'Method not allowed. Use POST for email verification.',
+        { method: req.method }
+      );
     }
 
     const { verificationToken } = req.body;
     if (!verificationToken) {
-      logger.warn('Email verification attempted without a token');
-      return res.status(400).json({ message: 'Verification token is required.' });
+      throw monitoringManager.error.createError(
+        'business',
+        BusinessError.VALIDATION_FAILED,
+        'Verification token is required'
+      );
     }
 
     // Verify the JWT token
     const decodedToken = verifyEmailToken(verificationToken);
     if (!decodedToken) {
-      logger.warn(`Invalid or expired verification token: ${verificationToken}`);
-      return res.status(400).json({ message: 'Invalid or expired verification token.' });
+      throw monitoringManager.error.createError(
+        'security',
+        'AUTH_TOKEN_INVALID',
+        'Invalid or expired verification token',
+        { tokenProvided: !!verificationToken }
+      );
     }
 
     const { db } = await getCosmosClient();
@@ -37,16 +67,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     if (!user) {
-      logger.warn(`No user found for userId: ${decodedToken.userId} with matching verification token`);
-      return res.status(400).json({ message: 'Invalid verification token.' });
+      throw monitoringManager.error.createError(
+        'business',
+        BusinessError.USER_NOT_FOUND,
+        'Invalid verification token',
+        { userId: decodedToken.userId }
+      );
     }
 
     if (user.isVerified) {
-      logger.info(`User ${decodedToken.userId} is already verified`);
+      monitoringManager.logger.info('Email already verified', {
+        category: LogCategory.BUSINESS,
+        pattern: LOG_PATTERNS.BUSINESS,
+        metadata: {
+          userId: decodedToken.userId,
+          requestId
+        }
+      });
       return res.status(200).json({ message: 'Email is already verified.' });
     }
 
-    // Update user
     try {
       const updateResult = await usersCollection.updateOne(
         { userId: decodedToken.userId },
@@ -60,27 +100,98 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       );
 
-      logger.info(`Update result: ${JSON.stringify(updateResult)}`);
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'email',
+        'verification_attempt',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        {
+          success: updateResult.modifiedCount > 0,
+          userId: decodedToken.userId,
+          requestId
+        }
+      );
 
       if (updateResult.matchedCount === 0) {
-        logger.warn(`No user found for update with userId: ${decodedToken.userId}`);
-        return res.status(404).json({ message: 'User not found for update.' });
+        throw monitoringManager.error.createError(
+          'business',
+          BusinessError.USER_NOT_FOUND,
+          'User not found for update',
+          { userId: decodedToken.userId }
+        );
       }
 
       if (updateResult.modifiedCount === 0) {
-        logger.warn(`User found but not modified: ${decodedToken.userId}`);
-        return res.status(400).json({ message: 'User found but not modified. Possibly already verified.' });
-    }
+        throw monitoringManager.error.createError(
+          'business',
+          BusinessError.USER_UPDATE_FAILED,
+          'User found but not modified',
+          { 
+            userId: decodedToken.userId,
+            reason: 'possibly_already_verified' 
+          }
+        );
+      }
 
-      logger.info(`Email verified successfully for user: ${decodedToken.userId}`);
-      res.status(200).json({ message: 'Email verified successfully. You can now proceed with your account.' });
+      monitoringManager.logger.info('Email verified successfully', {
+        category: LogCategory.BUSINESS,
+        pattern: LOG_PATTERNS.BUSINESS,
+        metadata: {
+          userId: decodedToken.userId,
+          duration: Date.now() - startTime,
+          requestId
+        }
+      });
+
+      return res.status(200).json({ 
+        message: 'Email verified successfully. You can now proceed with your account.' 
+      });
+
     } catch (updateError) {
-      logger.error(new Error(`Error updating user: ${decodedToken.userId}`), ErrorType.GENERIC, { error: updateError });
-      return res.status(500).json({ message: 'Failed to update user. Please try again.' });
+      throw monitoringManager.error.createError(
+        'system',
+        SystemError.DATABASE_OPERATION_FAILED,
+        'Failed to update user verification status',
+        { 
+          error: updateError,
+          userId: decodedToken.userId,
+          duration: Date.now() - startTime
+        }
+      );
     }
 
   } catch (error) {
-    logger.error(new Error('Error in email verification process'), ErrorType.GENERIC, { error });
-    res.status(500).json({ message: 'An unexpected error occurred. Please try again later.' });
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'email',
+      'verification_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        error: error instanceof Error ? error.message : 'unknown',
+        duration: Date.now() - startTime,
+        requestId
+      }
+    );
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      SystemError.SERVER_INTERNAL_ERROR,
+      'Email verification process failed',
+      { 
+        error,
+        requestId,
+        duration: Date.now() - startTime
+      }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+      reference: errorResponse.errorReference
+    });
   }
 }

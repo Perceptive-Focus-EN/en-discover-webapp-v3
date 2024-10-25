@@ -5,22 +5,35 @@ import { Tenant } from '../../../types/Tenant/interfaces';
 import { User } from '../../../types/User/interfaces';
 import { COLLECTIONS } from '../../../constants/collections';
 import { ClientSession, Collection } from 'mongodb';
-import { frontendLogger } from '../../../MonitoringSystem/managers/FrontendMessageHandler';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { ROLES } from '@/constants/AccessKey/AccountRoles/index';
 import { AccessLevel } from '@/constants/AccessKey/access_levels';
-import { PERMISSIONS } from '@/constants/AccessKey/permissions';
 import { PERSONAL_PERMISSIONS } from '@/constants/AccessKey/permissions/personal';
 import { ACCOUNT_TYPES, UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
 import { Subscription_Type } from '@/constants/AccessKey/accounts';
-import { SYSTEM_LEVEL_ROLES } from '@/constants/AccessKey/AccountRoles/system-level-roles';
 import { generateUniqueUserId, hashPassword } from '../../../utils/utils';
 import { isValidEmail, isStrongPassword } from '../../../validation/validation';
 import { sendVerificationEmail } from '../../../services/emailService';
 import { generateEmailVerificationToken, setEmailVerificationToken } from '../../../utils/emailUtils';
 import { BaseEmailData } from '../../../types/email';
 import { Industry } from '@/types/Shared/enums';
-import { SignupError } from '@/MonitoringSystem/errors/specific';
+import { SystemError, BusinessError } from '@/MonitoringSystem/constants/errors';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
 
+interface SignupSystemContext {
+  component: string;
+  systemId: string;
+  systemName: string;
+  environment: 'development' | 'production' | 'staging';
+}
+
+const SYSTEM_CONTEXT: SignupSystemContext = {
+  component: 'SignupHandler',
+  systemId: process.env.SYSTEM_ID || 'auth-service',
+  systemName: 'AuthenticationService',
+  environment: (process.env.NODE_ENV as 'development' | 'production' | 'staging') || 'development'
+};
 
 function createDefaultPersonalAccountSettings(userId: string, email: string, firstName: string, lastName: string): { user: User, tenant: Tenant } {
   const personalTenantId = generateUniqueUserId();
@@ -115,97 +128,192 @@ export default async function signupHandler(
   req: NextApiRequest,
   res: NextApiResponse<SignupResponse | { error: string }>
 ) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID();
 
-  const { email, password, firstName, lastName } = req.body as SignupRequest;
-
-  if (!email || !password || !firstName || !lastName) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ error: 'Invalid email format' });
-  }
-
-  if (!isStrongPassword(password)) {
-    return res.status(400).json({
-      error: 'Password is not strong enough. It should be at least 8 characters long and contain uppercase, lowercase, number, and special character.',
-    });
-  }
-
-  let client: { client?: any; db: any; };
-  let session: ClientSession | undefined;
   try {
-    client = await getCosmosClient();
-    session = client.client!.startSession();
+    if (req.method !== 'POST') {
+      throw monitoringManager.error.createError(
+        'business',
+        BusinessError.VALIDATION_FAILED,
+        'Method not allowed',
+        { method: req.method }
+      );
+    }
+
+    const { email, password, firstName, lastName } = req.body as SignupRequest;
+
+    if (!email || !password || !firstName || !lastName) {
+      throw monitoringManager.error.createError(
+        'business',
+        BusinessError.VALIDATION_FAILED,
+        'All fields are required',
+        { 
+          missingFields: {
+            email: !email,
+            password: !password,
+            firstName: !firstName,
+            lastName: !lastName
+          }
+        }
+      );
+    }
+
+    if (!isValidEmail(email)) {
+      throw monitoringManager.error.createError(
+        'business',
+        BusinessError.VALIDATION_FAILED,
+        'Invalid email format',
+        { email }
+      );
+    }
+
+    if (!isStrongPassword(password)) {
+      throw monitoringManager.error.createError(
+        'business',
+        BusinessError.VALIDATION_FAILED,
+        'Password does not meet security requirements',
+        { passwordLength: password.length }
+      );
+    }
+
+    let client = await getCosmosClient();
+    let session = client.client!.startSession();
 
     if (!session) {
-      throw new Error('Failed to start session');
+      throw monitoringManager.error.createError(
+        'system',
+        SystemError.DATABASE_CONNECTION_FAILED,
+        'Failed to start database session'
+      );
     }
-    await session.withTransaction(async () => {
-      const db = client.db;
-      const usersCollection: Collection<User> = db.collection(COLLECTIONS.USERS);
-      const tenantsCollection: Collection<Tenant> = db.collection(COLLECTIONS.TENANTS);
 
-      const existingUser = await usersCollection.findOne({ email }, { session });
-      if (existingUser) {
-        throw new SignupError('User with this email already exists');
+    try {
+      await session.withTransaction(async () => {
+        const db = client.db;
+        const usersCollection: Collection<User> = db.collection(COLLECTIONS.USERS);
+        const tenantsCollection: Collection<Tenant> = db.collection(COLLECTIONS.TENANTS);
+
+        const existingUser = await usersCollection.findOne({ email }, { session });
+        if (existingUser) {
+          throw monitoringManager.error.createError(
+            'business',
+            BusinessError.USER_CREATE_FAILED,
+            'User with this email already exists',
+            { email }
+          );
+        }
+
+        const userId = generateUniqueUserId();
+        const { user, tenant } = createDefaultPersonalAccountSettings(userId, email, firstName, lastName);
+
+        user.password = await hashPassword(password);
+
+        await tenantsCollection.insertOne(tenant, { session });
+        await usersCollection.insertOne(user, { session });
+
+        const verificationToken = generateEmailVerificationToken({ userId, email });
+        await setEmailVerificationToken(userId, verificationToken);
+
+        try {
+          const emailData: BaseEmailData = {
+            recipientEmail: email,
+            recipientName: `${firstName} ${lastName}`,
+            additionalData: { verificationToken },
+          };
+          await sendVerificationEmail(emailData);
+
+          monitoringManager.logger.info('Verification email sent', {
+            category: LogCategory.BUSINESS,
+            pattern: LOG_PATTERNS.BUSINESS,
+            metadata: {
+              userId,
+              email,
+              requestId
+            }
+          });
+        } catch (emailError) {
+          monitoringManager.logger.warn('Failed to send verification email', {
+            category: LogCategory.SYSTEM,
+            pattern: LOG_PATTERNS.SYSTEM,
+            metadata: {
+              error: emailError,
+              userId,
+              email,
+              requestId
+            }
+          });
+        }
+
+        monitoringManager.metrics.recordMetric(
+          MetricCategory.BUSINESS,
+          'signup',
+          'user_created',
+          1,
+          MetricType.COUNTER,
+          MetricUnit.COUNT,
+          {
+            userId,
+            tenantId: tenant.tenantId,
+            accountType: UserAccountTypeEnum.PERSONAL,
+            requestId
+          }
+        );
+
+        const response: SignupResponse = {
+          message: 'Signup successful. Please check your email to verify your account.',
+          user: {
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            userId: user.userId || '',
+            role: user.title,
+            tenantId: user.tenantId,
+            _id: ''
+          },
+          tenant: {
+            name: tenant.name,
+            tenantId: tenant.tenantId || ''
+          },
+        };
+
+        res.status(201).json(response);
+      });
+    } finally {
+      if (session) {
+        await session.endSession();
       }
+    }
 
-      const userId = generateUniqueUserId();
-      const { user, tenant } = createDefaultPersonalAccountSettings(userId, email, firstName, lastName);
-
-      user.password = await hashPassword(password);
-
-      await tenantsCollection.insertOne(tenant, { session });
-      await usersCollection.insertOne(user, { session });
-
-      const verificationToken = generateEmailVerificationToken({ userId, email });
-      await setEmailVerificationToken(userId, verificationToken);
-
-      const emailData: BaseEmailData = {
-        recipientEmail: email,
-        recipientName: `${firstName} ${lastName}`,
-        additionalData: { verificationToken },
-      };
-
-      try {
-        await sendVerificationEmail(emailData);
-      } catch (emailError) {
-        frontendLogger.info('An error occurred while sending verification email', { emailError });
-      }
-
-      const response: SignupResponse = {
-        message: 'Signup successful. Please check your email to verify your account.',
-        user: {
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          userId: user.userId || '',
-          role: user.title,
-          tenantId: user.tenantId,
-          _id: ''
-        },
-        tenant: {
-          name: tenant.name,
-          tenantId: tenant.tenantId || ''
-        },
-      };
-
-      res.status(201).json(response);
-    });
   } catch (error) {
-    frontendLogger.error(new Error('Signup error'), 'An error occurred during signup', { error });
-    if (error instanceof SignupError) {
-      res.status(400).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'An unexpected error occurred during signup' });
-    }
-  } finally {
-    if (session) {
-      await session.endSession();
-    }
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'signup',
+      'error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      {
+        error: error instanceof Error ? error.message : 'unknown',
+        duration: Date.now() - startTime,
+        requestId
+      }
+    );
+
+    const appError = monitoringManager.error.createError(
+      'system',
+      SystemError.SERVER_INTERNAL_ERROR,
+      'Signup process failed',
+      { 
+        error,
+        requestId,
+        duration: Date.now() - startTime
+      }
+    );
+    const errorResponse = monitoringManager.error.handleError(appError);
+
+    return res.status(errorResponse.statusCode).json({
+      error: errorResponse.userMessage,
+    });
   }
 }
