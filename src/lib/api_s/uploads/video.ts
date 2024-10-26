@@ -7,28 +7,16 @@ import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/const
 interface VideoUploadResponse {
   blobName: string;
   videoUrl: string;
-  processingStatus: 'queued' | 'processing' | 'completed' | 'failed' | 'pending' | 'unavailable';
-  message: string;
-}
-
-interface VideoUrlResponse {
-  videoUrl: string;
+  thumbnailUrl: string;
+  processingStatus: 'queued' | 'processing' | 'completed' | 'failed';
 }
 
 export const videoApi = {
-  upload: async (file: File, caption?: string): Promise<VideoUploadResponse> => {
+  upload: async (formData: FormData): Promise<VideoUploadResponse> => {
     const startTime = Date.now();
-    const formData = new FormData();
-    formData.append('video', file);
-    if (caption) {
-      formData.append('caption', caption);
-    }
-
     try {
-      messageHandler.info('Uploading video...');
-      
       const response = await api.post<VideoUploadResponse>(
-        '/api/posts/video',
+        '/api/videos/upload',
         formData,
         {
           headers: {
@@ -44,45 +32,41 @@ export const videoApi = {
         Date.now() - startTime,
         MetricType.HISTOGRAM,
         MetricUnit.MILLISECONDS,
-        {
-          fileSize: file.size,
-          hasCaption: !!caption,
-          status: response.processingStatus
+        { 
+          fileSize: formData.get('video') instanceof File ? (formData.get('video') as File).size : 0 
         }
       );
 
-      messageHandler.success('Video uploaded successfully');
       return response;
     } catch (error) {
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.SYSTEM,
-        'video',
-        'upload_error',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        {
-          fileSize: file.size,
-          error: error instanceof Error ? error.message : 'unknown'
+      const appError = monitoringManager.error.createError(
+        'system',
+        'VIDEO_UPLOAD_FAILED',
+        'Video upload failed',
+        { 
+          error: error as Error,
+          fileSize: formData.get('video') instanceof File ? (formData.get('video') as File).size : 0 
         }
       );
+      monitoringManager.error.handleError(appError);
       throw error;
     }
   },
 
-  getUrl: async (blobName: string): Promise<string> => {
+  getVideoUrl: async (blobName: string): Promise<{ videoUrl: string }> => {
     try {
-      const response = await api.get<VideoUrlResponse>(
-        `/api/posts/getVideoUrl`,
-        {
-          params: {
-            blobName: encodeURIComponent(blobName)
-          }
-        }
+      const response = await api.get<{ videoUrl: string }>(
+        `/api/videos/${blobName}/url`
       );
-      return response.videoUrl;
+      return response;
     } catch (error) {
-      messageHandler.error('Failed to get video URL');
+      const appError = monitoringManager.error.createError(
+        'system',
+        'VIDEO_URL_FETCH_FAILED',
+        'Failed to fetch video URL',
+        { error: error as Error, blobName }
+      );
+      monitoringManager.error.handleError(appError);
       throw error;
     }
   }

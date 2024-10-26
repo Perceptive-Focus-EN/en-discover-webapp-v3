@@ -6,7 +6,7 @@ import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import LoopIcon from '@mui/icons-material/Loop';
-import { useFeed } from '../context/FeedContext';
+import useFeedOperations from '../context/useFeedOperations';
 
 export interface VideoCardProps extends BaseCardProps {
   blobName?: string;
@@ -32,15 +32,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   loop = false,
   ...baseProps
 }) => {
-  const { getVideoUrl } = useFeed(); // Get getVideoUrl from FeedContext
+  const { getVideoUrl } = useFeedOperations(); // Import from useFeedOperations
   const [isPlaying, setIsPlaying] = useState(autoplay);
   const [isMuted, setIsMuted] = useState(muted);
   const [isLooping, setIsLooping] = useState(loop);
   const [videoUrl, setVideoUrl] = useState<string | null>(initialVideoUrl || null);
-  const [loading, setLoading] = useState(!initialVideoUrl);
+  const [loading, setLoading] = useState(!initialVideoUrl && processingStatus !== 'completed');
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Fetch video URL based on blobName if processing is complete
   useEffect(() => {
     const fetchVideoUrl = async () => {
       if (initialVideoUrl) {
@@ -52,7 +53,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           const url = await getVideoUrl(blobName);
           setVideoUrl(url);
           setError(null);
-        } catch (error) {
+        } catch (err) {
           setError('Unable to load video');
           setVideoUrl(null);
         } finally {
@@ -66,50 +67,38 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     fetchVideoUrl();
   }, [blobName, initialVideoUrl, processingStatus, getVideoUrl]);
 
+  // Play/Pause toggle function
   const togglePlay = useCallback(() => {
     if (videoRef.current) {
-      try {
-        if (isPlaying) {
-          videoRef.current.pause();
-        } else {
-          const playPromise = videoRef.current.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(() => {
-              setError('Unable to play video. Please try again.');
-            });
-          }
-        }
-        setIsPlaying(!isPlaying);
-      } catch {
-        setError('Unable to control video playback. Please try again.');
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play().catch(() => {
+          setError('Unable to play video. Please try again.');
+        });
       }
+      setIsPlaying(!isPlaying);
     }
   }, [isPlaying]);
 
+  // Mute/Unmute toggle function
   const toggleMute = useCallback(() => {
     if (videoRef.current) {
-      try {
-        videoRef.current.muted = !isMuted;
-        setIsMuted(!isMuted);
-      } catch {
-        setError('Unable to change audio settings. Please try again.');
-      }
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
     }
   }, [isMuted]);
 
+  // Loop toggle function
   const toggleLoop = useCallback(() => {
     if (videoRef.current) {
-      try {
-        videoRef.current.loop = !isLooping;
-        setIsLooping(!isLooping);
-      } catch {
-        setError('Unable to change loop settings. Please try again.');
-      }
+      videoRef.current.loop = !isLooping;
+      setIsLooping(!isLooping);
     }
   }, [isLooping]);
 
-  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    const videoElement = e.target as HTMLVideoElement;
+  // Handle video playback errors
+  const handleVideoError = () => {
     setError('Video playback error');
   };
 
@@ -117,31 +106,35 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     <BaseCard {...baseProps}>
       <Box sx={{ position: 'relative', paddingTop: '56.25%', overflow: 'hidden' }}>
         {loading ? (
-          <Box sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: 'rgba(0, 0, 0, 0.1)',
-          }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'rgba(0, 0, 0, 0.1)',
+            }}
+          >
             <CircularProgress size={40} />
           </Box>
         ) : error ? (
-          <Box sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: 'rgba(0, 0, 0, 0.1)',
-          }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'rgba(0, 0, 0, 0.1)',
+            }}
+          >
             <Typography variant="body2" color="error">
               {error}
             </Typography>
@@ -165,29 +158,34 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               muted={muted}
               loop={loop}
               onError={handleVideoError}
+              controls
             />
-            <Box sx={{
-              position: 'absolute',
-              top: 16,
-              right: 16,
-              px: 1,
-              py: 0.5,
-              bgcolor: 'rgba(0, 0, 0, 0.5)',
-              borderRadius: 1,
-              color: 'white',
-              fontSize: 12,
-            }}>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                px: 1,
+                py: 0.5,
+                bgcolor: 'rgba(0, 0, 0, 0.5)',
+                borderRadius: 1,
+                color: 'white',
+                fontSize: 12,
+              }}
+            >
               {duration}
             </Box>
-            <Box sx={{
-              position: 'absolute',
-              bottom: 16,
-              left: 16,
-              right: 16,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}>
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 16,
+                left: 16,
+                right: 16,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
               <IconButton onClick={togglePlay} sx={{ color: 'white' }}>
                 {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
               </IconButton>
@@ -202,19 +200,21 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             </Box>
           </>
         ) : (
-          <Box sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: 'rgba(0, 0, 0, 0.1)',
-          }}>
-            {processingStatus === 'queued' || processingStatus === 'processing' || processingStatus === 'pending' ? (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'rgba(0, 0, 0, 0.1)',
+            }}
+          >
+            {['queued', 'processing', 'pending'].includes(processingStatus) ? (
               <>
                 <CircularProgress size={40} sx={{ mb: 2 }} />
                 <Typography variant="body2">

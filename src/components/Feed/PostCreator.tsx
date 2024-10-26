@@ -15,11 +15,17 @@ import {
   CircularProgress,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { TextFields as TextIcon, Image as ImageIcon, Videocam as VideoIcon, Mood as MoodIcon, Poll as SurveyIcon } from '@mui/icons-material';
+import {
+  TextFields as TextIcon,
+  Image as ImageIcon,
+  Videocam as VideoIcon,
+  Mood as MoodIcon,
+  Poll as SurveyIcon,
+} from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
-import { useFeed } from './context/FeedContext';
+import useFeedOperations from './context/useFeedOperations'; // Updated import
 import { PostType, PostData, PostContent } from './types/Post';
-import { UserAccountType, UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
+import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
 import { PhotoUploader } from './PhotoUploader';
 import { ImageListType } from 'react-images-uploading';
 import { VideoCard } from './cards/VideoCard';
@@ -30,7 +36,7 @@ interface PostCreatorProps {
 
 const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
   const { user } = useAuth();
-  const { createNewPost, uploadPostVideo } = useFeed();
+  const { createNewPost, uploadPostVideo, getVideoUrl } = useFeedOperations(); // Updated to use useFeedOperations
   const [expanded, setExpanded] = useState<PostType | false>(false);
   const [postType, setPostType] = useState<PostType>('TEXT');
   const [content, setContent] = useState('');
@@ -54,8 +60,6 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
   const [mediaUrl, setMediaUrl] = useState('');
   const [videoProcessingStatus, setVideoProcessingStatus] = useState<'queued' | 'processing' | 'completed' | 'failed'>('queued');
   const [images, setImages] = useState<ImageListType>([]);
-
-  const { getVideoUrl } = useFeed();
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,11 +77,11 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
       setFile(files[0]);
       setLoading(true);
       try {
-        const result = await uploadPostVideo(files[0], content);
+        const result = await uploadPostVideo(files[0], content); // Updated upload logic
         const url = await getVideoUrl(result.blobName);
         setVideoUrl(url);
         setMediaUrl(url);
-        setVideoProcessingStatus(result.processingStatus as 'queued' | 'processing' | 'completed' | 'failed');
+        setVideoProcessingStatus(result.processingStatus);
       } catch (error) {
         console.error('Error uploading video:', error);
         setError('Failed to upload video');
@@ -86,7 +90,6 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
       }
     }
   }, [content, uploadPostVideo, getVideoUrl]);
-
 
   const handleContentChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setContent(event.target.value);
@@ -113,36 +116,35 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
   const preparePostContent = useCallback(async (): Promise<PostContent | null> => {
     switch (postType) {
       case 'TEXT':
-        return { 
-          text: content, 
+        return {
+          text: content,
           backgroundColor,
           textColor,
           fontSize,
           alignment,
           fontWeight,
           padding,
-          maxLines: 10 // Add appropriate default value
+          maxLines: 10,
         };
-        case 'PHOTO':
+      case 'PHOTO':
         return {
           photos: images.map(img => img.dataURL).filter((url): url is string => url !== undefined),
-          caption: content
+          caption: content,
         };
-
       case 'VIDEO':
         if (file) {
           try {
             const result = await uploadPostVideo(file, content);
             const duration = await getVideoDuration(file);
             setMediaUrl(result.videoUrl);
-            setVideoProcessingStatus(result.processingStatus as 'queued' | 'processing' | 'completed' | 'failed');
+            setVideoProcessingStatus(result.processingStatus);
             return {
               blobName: result.blobName,
               videoUrl: result.videoUrl,
-              thumbnailUrl: '',
+              thumbnailUrl: result.thumbnailUrl,
               duration: duration.toString(),
               caption: content,
-              processingStatus: result.processingStatus as 'queued' | 'processing' | 'completed' | 'failed',
+              processingStatus: result.processingStatus,
               autoplay,
               muted,
               loop,
@@ -155,7 +157,7 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
           return {
             videoUrl: mediaUrl,
             caption: content,
-            processingStatus: videoProcessingStatus as 'queued' | 'processing' | 'completed' | 'failed',
+            processingStatus: videoProcessingStatus,
             autoplay,
             muted,
             loop,
@@ -166,13 +168,13 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
       case 'MOOD':
         return { mood, color: moodColor };
       case 'SURVEY':
-        return { 
-          question: content, 
+        return {
+          question: content,
           options: surveyOptions.filter(option => option.trim() !== '').map(option => ({ text: option })),
           backgroundColor: surveyBackgroundColor,
           questionColor: surveyQuestionColor,
           optionTextColor: surveyOptionTextColor,
-          showResults: false
+          showResults: false,
         };
       default:
         return null;
@@ -195,21 +197,18 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
     setLoop(false);
     setExpanded(false);
     setImages([]);
-
   }, []);
 
-
   const handleSubmit = useCallback(async () => {
-  if (!user) return;
+    if (!user) return;
 
-  const preparedContent = await preparePostContent();
-  if (!preparedContent) {
-    console.error('Failed to prepare post content');
-    return;
-  }
+    const preparedContent = await preparePostContent();
+    if (!preparedContent) {
+      console.error('Failed to prepare post content');
+      return;
+    }
 
     const newPost: PostData = {
-
       postType,
       content: preparedContent,
       userId: user.userId,
@@ -219,28 +218,21 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
       lastName: user.lastName,
       timestamp: new Date().toISOString(),
       tenantId: user.currentTenantId,
-      tenantInfo: user.tenant ? {
-        name: user.tenant.name,
-        type: user.tenant.type,
-      } : undefined,
+      tenantInfo: user.tenant ? { name: user.tenant.name, type: user.tenant.type } : undefined,
       type: user.accountType as UserAccountTypeEnum,
       reactionCounts: [],
     };
 
-  try {
-    console.log('Attempting to create new post:', JSON.stringify(newPost, null, 2));
-    await createNewPost(newPost);
-    console.log('Post created successfully:', JSON.stringify(newPost, null, 2));
-
-    if (onPostCreated) {
-      await onPostCreated(newPost);
+    try {
+      await createNewPost(newPost);
+      if (onPostCreated) {
+        await onPostCreated(newPost);
+      }
+      resetForm();
+    } catch (error) {
+      console.error('Error creating post:', error);
     }
-    
-    resetForm();
-  } catch (error) {
-    console.error('Error creating post:', error);
-  }
-}, [user, postType, preparePostContent, createNewPost, onPostCreated, resetForm]);
+  }, [user, postType, preparePostContent, createNewPost, onPostCreated, resetForm]);
 
   useEffect(() => {
     if (postType === 'VIDEO' && mediaUrl) {
@@ -249,7 +241,6 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
         await new Promise(resolve => setTimeout(resolve, 3000));
         setVideoProcessingStatus('completed');
       };
-
       simulateProcessing();
     }
   }, [postType, mediaUrl]);
@@ -330,27 +321,27 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
           </>
         );
       case 'PHOTO':
-  return (
-    <>
-      <PhotoUploader
-        images={images}
-        onUpload={(imageList) => {
-          setImages(imageList);
-        }}
-      />
-      <TextField
-        fullWidth
-        multiline
-        rows={2}
-        variant="outlined"
-        placeholder="Add a caption..."
-        value={content}
-        onChange={handleContentChange}
-        sx={{ mt: 2 }}
-      />
-    </>
-  );
-          case 'VIDEO':
+        return (
+          <>
+            <PhotoUploader
+              images={images}
+              onUpload={(imageList) => {
+                setImages(imageList);
+              }}
+            />
+            <TextField
+              fullWidth
+              multiline
+              rows={2}
+              variant="outlined"
+              placeholder="Add a caption..."
+              value={content}
+              onChange={handleContentChange}
+              sx={{ mt: 2 }}
+            />
+          </>
+        );
+      case 'VIDEO':
         return (
           <>
             <TextField
@@ -400,13 +391,13 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
                 timestamp={new Date().toISOString()}
                 blobName=""
                 videoUrl={videoUrl}
-                duration="0:00" // You might want to calculate this based on the uploaded video
+                duration="0:00"
                 caption={content}
                 processingStatus={videoProcessingStatus}
                 autoplay={autoplay}
                 muted={muted}
                 loop={loop}
-                userType={user?.accountType as UserAccountType} // Change UserAccountTypeEnum to UserAccountType
+                userType={user?.accountType as UserAccountTypeEnum}
               />
             )}
             {loading && <CircularProgress />}

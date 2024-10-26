@@ -179,7 +179,9 @@ const FeedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const handleVideoUpload = useCallback(async (file: File, caption?: string) => {
     dispatch({ type: 'UPLOAD_VIDEO_START' });
     try {
-      const response = await videoApi.upload(file, caption);
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await videoApi.upload(formData);
       dispatch({ type: 'UPLOAD_VIDEO_SUCCESS', payload: response.blobName });
       messageHandler.success('Video uploaded successfully');
       return {
