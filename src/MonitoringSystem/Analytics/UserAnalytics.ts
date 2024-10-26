@@ -1,5 +1,3 @@
-import { logger } from '../Loggers/logger';
-
 interface UserSession {
   userId: string;
   startTime: Date;
@@ -37,12 +35,6 @@ export class UserAnalytics {
 
     session.lastActive = new Date();
     this.sessions.set(userId, session);
-
-    logger.info('Page view tracked', {
-      userId,
-      path,
-      sessionDuration: Date.now() - session.startTime.getTime()
-    });
   }
 
   trackUserAction(userId: string, actionType: string, target: string, metadata: Record<string, any> = {}) {
@@ -57,13 +49,6 @@ export class UserAnalytics {
 
     session.lastActive = new Date();
     this.sessions.set(userId, session);
-
-    logger.info('User action tracked', {
-      userId,
-      actionType,
-      target,
-      metadata
-    });
   }
 
   private getOrCreateSession(userId: string): UserSession {
