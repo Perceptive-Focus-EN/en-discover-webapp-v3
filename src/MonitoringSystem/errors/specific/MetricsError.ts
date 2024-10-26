@@ -13,6 +13,8 @@ export class MetricsError extends AppError {
       message,
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       metadata,
+      errorReference: 'METRICS_ERROR',
+      tenantId: 'defaultTenant'
     });
   }
 }
