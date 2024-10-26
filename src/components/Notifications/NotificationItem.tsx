@@ -1,9 +1,11 @@
+// NotificationItem.tsx
 import React from 'react';
 import { Box, Typography, Avatar, IconButton, Tooltip, Fade } from '@mui/material';
 import { Notification } from './types/notification';
 import { formatDistanceToNow } from 'date-fns';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
 interface NotificationItemProps {
   notification: Notification;
@@ -11,6 +13,19 @@ interface NotificationItemProps {
 }
 
 const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onMarkAsRead }) => {
+  const handleMarkAsRead = async () => {
+    try {
+      await onMarkAsRead(notification.id);
+    } catch (error) {
+      messageHandler.error('Failed to mark notification as read');
+    }
+  };
+
+  const handleOptionsClick = () => {
+    // Future implementation for options menu
+    messageHandler.info('Options menu coming soon');
+  };
+
   return (
     <Box
       sx={{
@@ -53,19 +68,19 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onMar
           {notification.message}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+          {formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true })}
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         {!notification.read && (
           <Tooltip title="Mark as read" placement="top" TransitionComponent={Fade} TransitionProps={{ timeout: 600 }}>
-            <IconButton size="small" onClick={() => onMarkAsRead(notification.id)}>
+            <IconButton size="small" onClick={handleMarkAsRead}>
               <CheckCircleOutlineIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         )}
         <Tooltip title="More options" placement="top" TransitionComponent={Fade} TransitionProps={{ timeout: 600 }}>
-          <IconButton size="small">
+          <IconButton size="small" onClick={handleOptionsClick}>
             <MoreVertIcon fontSize="small" />
           </IconButton>
         </Tooltip>

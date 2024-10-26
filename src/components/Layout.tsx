@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   useTheme,
@@ -15,6 +15,7 @@ import { useRouter } from 'next/router';
 import AIAssistant from './AIAssistant';
 import Image from 'next/image';
 import { useAIAssistant } from '@/contexts/AIAssistantContext';
+import MessagingDrawer from './Messaging/MessagingDrawer'; // New import
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,6 +29,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [currentAccount, setCurrentAccount] = useState<ExtendedUserInfo | null>(null);
   const { state, toggleAIAssistant } = useAIAssistant();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+
+  // New state for messaging drawer
+  const [isMessagingOpen, setIsMessagingOpen] = useState(false);
 
   useEffect(() => {
     if (!loading) {
@@ -60,9 +64,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       updateCurrentAccount(tenantId);
     } catch (error) {
       console.error('Failed to switch tenant context:', error);
-      // Handle error (e.g., show notification)
     }
   };
+
+  // New function to handle messaging drawer toggle
+  const handleMessagingToggle = useCallback((open: boolean) => {
+    setIsMessagingOpen(open);
+  }, []);
 
   if (loading) {
     return (
@@ -109,6 +117,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           currentAccount={currentAccount}
           onAccountChange={handleAccountChange}
           user={user}
+          onMessagingToggle={handleMessagingToggle} // Pass the toggle handler to Header
         />
       </Box>
 
@@ -123,7 +132,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           overflowY: 'auto',
           display: 'block',
           mt: user && currentAccount ? '64px' : 0,
-          mb: '56px', // Margin bottom for footer spacing
+          mb: '56px',
           transition: 'all 0.3s ease-in-out',
         }}
         className="animate-fade-in-up"
@@ -205,6 +214,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <AIAssistant />
           </Box>
         </>
+      )}
+
+      {/* Messaging Drawer at Layout level */}
+      {user && (
+        <MessagingDrawer 
+          open={isMessagingOpen} 
+          onClose={() => setIsMessagingOpen(false)} 
+        />
       )}
     </Box>
   );

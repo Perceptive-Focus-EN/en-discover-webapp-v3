@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ExtendedUserInfo } from '../types/User/interfaces';
 import ClientOnly from './ClientOnly';
 import AvatarComponent from './Uploads/AvatarComponent';
+import MessagingDrawer from './Messaging/MessagingDrawer';
 
 // Dynamically import components with client-side rendering only
 const SwipeableDrawer = dynamic(() => import('@mui/material/SwipeableDrawer'), { ssr: false });
@@ -108,15 +109,15 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
   },
     { id: 9, name: 'Settings', icon: <SettingsIcon />, path: '/settings' },
     { id: 10, name: 'Feed', icon: <FeedIcon />, path: '/feed' },
-    // {
-      // id: 11,
-      // name: 'Messaging',
-      // icon: <ChatIcon />,
-      // onClick: () => {
-        // setActiveDrawerComponent(<MessagingDrawer onClose={handleDrawerClose} />);
-        // setIsDrawerOpen(true);
-      // },
-    // },
+    {
+      id: 11,
+      name: 'Messaging',
+      icon: <ChatIcon />,
+      onClick: () => {
+        setActiveDrawerComponent(<MessagingDrawer open={isDrawerOpen} onClose={handleDrawerClose} />);
+        setIsDrawerOpen(true);
+      },
+    },
     {
       id: 12,
       name: 'Store',

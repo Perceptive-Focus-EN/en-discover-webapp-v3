@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Box, Tooltip, Typography, Select, MenuItem, SelectChangeEvent } from '@mui/material';
-import { format, parseISO, getYear, isValid } from 'date-fns';
+import { useTheme } from '@mui/material/styles';
+import { format, parseISO, getYear, isValid, startOfWeek, addDays, getDaysInMonth } from 'date-fns';
 import { Emotion } from './types/emotions';
 import { MoodHistoryItem, TimeRange } from './types/moodHistory';
 import { EmotionName, EmotionId } from '../Feed/types/Reaction';
@@ -8,10 +9,16 @@ import { VOLUME_LEVELS, VolumeLevelId, VolumeLevelName } from './constants/volum
 import { SOURCE_CATEGORIES, SourceCategoryId } from './constants/sources';
 import { convertSourceIdsToNames } from './types/moodHistory';
 
-interface BubbleBarChartProps {
+export interface BubbleBarChartProps {
   emotions: Emotion[];
-  history: MoodHistoryItem[];
   timeRange: TimeRange;
+  history: MoodHistoryItem[];
+  selectedVolume: VolumeLevelId | null;
+  selectedSource: string | null;
+}
+
+export interface BasicChartProps {
+  emotions: Emotion[];
 }
 
 const CONTAINER_WIDTH = 1000;
@@ -37,7 +44,11 @@ const getVolumeName = (id: VolumeLevelId): VolumeLevelName => {
   return volumeLevel ? volumeLevel.name : VOLUME_LEVELS[0].name;
 };
 
-const BubbleBarChart: React.FC<BubbleBarChartProps> = ({ emotions, history, timeRange }) => {
+const BubbleBarChart: React.FC<BubbleBarChartProps> = ({
+  emotions,
+  history = [], // Provide default empty array
+  timeRange }) => {
+  const theme = useTheme();
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [intervalCount, setIntervalCount] = useState(INITIAL_INTERVALS);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -73,18 +84,52 @@ const BubbleBarChart: React.FC<BubbleBarChartProps> = ({ emotions, history, time
     return isValid(date) ? getYear(date) : null;
   }).filter((year): year is number => year !== null))).sort((a, b) => b - a);
 
+  // Add this useEffect to handle timeRange changes
+  useEffect(() => {
+    setIntervalCount(INITIAL_INTERVALS); // Reset interval count when timeRange changes
+  }, [timeRange]);
+
+  // Update getTimeIntervals to be more dynamic
   const getTimeIntervals = useCallback((): (string | number)[] => {
+    const now = new Date();
+    
     switch (timeRange) {
-      case 'day': return Array.from({ length: 24 }, (_, i) => i);
-      case 'week': return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      case 'month': return Array.from({ length: 31 }, (_, i) => i + 1);
-      case 'year': return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      case 'lifetime': return years;
-      default: return [];
+      case 'day':
+        return Array.from({ length: 24 }, (_, i) => 
+          format(new Date(now.setHours(i, 0, 0, 0)), 'HH:mm')
+        );
+      
+      case 'week':
+        const weekStart = startOfWeek(now);
+        return Array.from({ length: 7 }, (_, i) => 
+          format(addDays(weekStart, i), 'EEE')
+        );
+      
+      case 'month':
+        const daysInMonth = getDaysInMonth(now);
+        return Array.from({ length: daysInMonth }, (_, i) => 
+          format(new Date(now.getFullYear(), now.getMonth(), i + 1), 'd MMM')
+        );
+      
+      case 'year':
+        return Array.from({ length: 12 }, (_, i) => 
+          format(new Date(now.getFullYear(), i), 'MMM')
+        );
+      
+      case 'lifetime':
+        return years.length > 0 ? years : [now.getFullYear()];
+      
+      default:
+        return [];
     }
   }, [timeRange, years]);
 
-  const timeIntervals = getTimeIntervals().slice(0, intervalCount);
+  // Update the timeIntervals calculation
+  const timeIntervals = useMemo(() => {
+    const intervals = getTimeIntervals();
+    return intervals.slice(0, Math.min(intervalCount, intervals.length));
+  }, [getTimeIntervals, intervalCount]);
+
   const emotionSpacing = (GRID_HEIGHT - 2 * CONTAINER_PADDING) / (emotions.length + 1);
   const timeSpacing = (GRID_WIDTH - 2 * CONTAINER_PADDING) / (timeIntervals.length + 1);
 
@@ -144,6 +189,7 @@ const BubbleBarChart: React.FC<BubbleBarChartProps> = ({ emotions, history, time
                 fontSize={12}
                 textAnchor="end"
                 dominantBaseline="middle"
+                fill={theme.palette.text.primary}
               >
                 {emotion.emotionName.length > 10 ? `${emotion.emotionName.slice(0, 10)}...` : emotion.emotionName}
               </text>
@@ -153,17 +199,22 @@ const BubbleBarChart: React.FC<BubbleBarChartProps> = ({ emotions, history, time
 
         {/* X-axis: Time Intervals */}
         <g transform={`translate(${Y_AXIS_WIDTH + CONTAINER_PADDING}, ${GRID_HEIGHT + X_AXIS_HEIGHT + CONTAINER_PADDING})`}>
-          {timeIntervals.map((interval, index) => (
-            <text
-              key={index}
-              x={index * timeSpacing + timeSpacing / 2}
-              y={20}
-              fontSize={12}
-              textAnchor="middle"
-            >
-              {interval.toString()}
-            </text>
-          ))}
+          {timeIntervals.map((interval, index) => {
+            const x = index * timeSpacing + timeSpacing / 2;
+            return (
+              <text
+                key={index}
+                x={x}
+                y={20}
+                fontSize={12}
+                textAnchor="middle"
+                fill={theme.palette.text.primary}
+                transform={timeRange === 'month' ? `rotate(45, ${x}, 20)` : undefined}
+              >
+                {interval.toString()}
+              </text>
+            );
+          })}
         </g>
 
         {/* Grid lines */}
@@ -176,7 +227,7 @@ const BubbleBarChart: React.FC<BubbleBarChartProps> = ({ emotions, history, time
               y1={0}
               x2={index * timeSpacing}
               y2={GRID_HEIGHT - 2 * CONTAINER_PADDING}
-              stroke="#333"
+              stroke={theme.palette.divider}
               strokeWidth={0.5}
             />
           ))}
@@ -188,7 +239,7 @@ const BubbleBarChart: React.FC<BubbleBarChartProps> = ({ emotions, history, time
               y1={index * emotionSpacing}
               x2={GRID_WIDTH - 2 * CONTAINER_PADDING}
               y2={index * emotionSpacing}
-              stroke="#333"
+              stroke={theme.palette.divider}
               strokeWidth={0.5}
             />
           ))}
@@ -198,11 +249,14 @@ const BubbleBarChart: React.FC<BubbleBarChartProps> = ({ emotions, history, time
         <g transform={`translate(${Y_AXIS_WIDTH + CONTAINER_PADDING}, ${X_AXIS_HEIGHT + CONTAINER_PADDING})`}>
           {emotions.map((emotion, emotionIndex) => (
             timeIntervals.map((_, timeIndex) => {
-              const historyItem = filteredHistory.find(item => 
-                item.emotionId === emotion.id &&
-                getFormattedDate(item, getDateFormat(timeRange)) === timeIntervals[timeIndex].toString()
-              );
-
+              const historyItem = filteredHistory.find(item => {
+                const itemDate = item.timeStamp ? parseISO(item.timeStamp) : parseISO(item.date);
+                const formattedItemDate = isValid(itemDate) ? format(itemDate, getDateFormat(timeRange)) : '';
+                return (
+                  item.emotionId === emotion.id &&
+                  formattedItemDate === timeIntervals[timeIndex].toString()
+                );
+              });
               return (
                 <Tooltip
                   key={`${emotion.id}-${timeIndex}`}

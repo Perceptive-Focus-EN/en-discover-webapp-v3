@@ -24,7 +24,7 @@ export interface Emotion {
     emotionName: EmotionName;
     sources: string[];
     color: string; // This should be an RGBA string like "rgba(r, g, b, a)"
-    volume?: number;
+    volume: number;
     timestamp?: Date;
     createdAt?: string;
     updatedAt?: string;

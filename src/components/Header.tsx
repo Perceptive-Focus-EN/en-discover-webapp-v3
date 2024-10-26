@@ -24,9 +24,10 @@ interface HeaderProps {
     onAccountChange: (tenantId: string) => void;
     currentAccount: ExtendedUserInfo | null;
     user: User | null;
+    onMessagingToggle: (open: boolean) => void; // Added prop for messaging toggle
 }
 
-const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user }) => {
+const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user, onMessagingToggle }) => {
     const { settings, updateTheme } = useSettings();
     const { mode, toggleThemeMode } = useContext(ThemeModeContext);
     const { toggleAIAssistant } = useAIAssistant();
@@ -71,108 +72,123 @@ const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user }
         setAnchorEl(null);
     };
 
-    return (
-        <AppBar
-            position="fixed"
-            color="default"
-            sx={{
-                bgcolor: 'background.paper',
-                boxShadow: theme.shadows[1],
-                transition: 'all 0.3s ease-in-out',
-                mt: 1, // Add margin on top
-                borderRadius: 2, // Add a slight border radius for a softer look
-                width: '100%', // Ensure it spans the full width
-            }}
-            className="animate-fade-in-down"
-        >
-            <Toolbar sx={{ justifyContent: 'space-between', py: 1, px: { xs: 2, sm: 3, md: 4 } }}>
-                {/* Logo & User Details */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    {user ? (
-                        <>
-                            {isMobile ? (
-                                <IconButton 
-                                    edge="start" 
-                                    color="inherit" 
-                                    aria-label="menu" 
-                                    onClick={handleOpenAccountDrawer}
-                                    className="transition-all hover:scale-105"
-                                >
-                                    <MenuIcon />
-                                </IconButton>
-                            ) : (
-                                currentAccount && (
-                                    <>
-                                        <IconButton
-                                            onClick={handleMenuOpen}
-                                            className="transition-all hover:scale-105"
-                                        >
-                                            <AvatarComponent
-                                                user={{
-                                                    avatarUrl: currentAccount.avatarUrl,
-                                                    firstName: user.firstName,
-                                                    lastName: user.lastName,
-                                                }}
-                                                size={40}
-                                            />
-                                        </IconButton>
-                                        <Typography variant="body1" color="textPrimary">
-                                            {currentAccount.firstName} {currentAccount.lastName}
-                                        </Typography>
-                                        <Menu
-                                            anchorEl={anchorEl}
-                                            open={Boolean(anchorEl)}
-                                            onClose={handleMenuClose}
-                                            PaperProps={{
-                                                sx: {
-                                                    bgcolor: 'background.paper',
-                                                    borderRadius: 2,
-                                                    boxShadow: theme.shadows[3],
-                                                },
-                                            }}
-                                        >
-                                            <TenantSwitcher onAccountChange={(tenantId) => {
-                                                onAccountChange(tenantId);
-                                                handleMenuClose();
-                                            }} />
-                                        </Menu>
-                                    </>
-                                )
-                            )}
-                            <Typography variant="h6" color="primary" sx={{ fontWeight: 'bold' }}>
-                                {getPageTitle}
-                            </Typography>
-                        </>
-                    ) : (
-                        <Typography variant="h6" color="primary" sx={{ fontWeight: 'bold' }}>
-                            EN Discover
-                        </Typography>
-                    )}
-                </Box>
+    // Handle messaging toggle using prop function
+    const handleMessagingToggle = useCallback(() => {
+        onMessagingToggle(true); // Open messaging drawer when toggled
+    }, [onMessagingToggle]);
 
-                {/* Theme & Chat Icons */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <ThemeToggleIcon theme={mode} toggleTheme={handleThemeToggle} />
-                    {user && !isMobile && (
-                        <>
-                            <IconButton
-                                color="primary"
-                                sx={{
-                                    p: 1,
-                                    bgcolor: 'background.paper',
-                                    borderRadius: '16px',
-                                    transition: 'all 0.2s ease-in-out',
-                                    '&:hover': {
-                                        bgcolor: 'action.hover',
-                                    },
-                                }}
-                                className="transition-all hover:scale-105"
-                                onClick={() => {
-                                    router.push('/messaging');
-                                }}
-                            >
-                                <ChatIcon />
-                            </IconButton>
+    return (
+        <>
+            <AppBar
+                position="fixed"
+                color="default"
+                sx={{
+                    bgcolor: 'background.paper',
+                    boxShadow: theme.shadows[1],
+                    transition: 'all 0.3s ease-in-out',
+                    mt: 1,
+                    borderRadius: 2,
+                    width: '100%',
+                }}
+                className="animate-fade-in-down"
+            >
+                <Toolbar sx={{ justifyContent: 'space-between', py: 1, px: { xs: 2, sm: 3, md: 4 } }}>
+                    {/* Logo & User Details */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        {user ? (
+                            <>
+                                {isMobile ? (
+                                    <IconButton 
+                                        edge="start" 
+                                        color="inherit" 
+                                        aria-label="menu" 
+                                        onClick={handleOpenAccountDrawer}
+                                        className="transition-all hover:scale-105"
+                                    >
+                                        <MenuIcon />
+                                    </IconButton>
+                                ) : (
+                                    currentAccount && (
+                                        <>
+                                            <IconButton
+                                                onClick={handleMenuOpen}
+                                                className="transition-all hover:scale-105"
+                                            >
+                                                <AvatarComponent
+                                                    user={{
+                                                        avatarUrl: currentAccount.avatarUrl,
+                                                        firstName: user.firstName,
+                                                        lastName: user.lastName,
+                                                    }}
+                                                    size={40}
+                                                />
+                                            </IconButton>
+                                            <Typography variant="body1" color="textPrimary">
+                                                {currentAccount.firstName} {currentAccount.lastName}
+                                            </Typography>
+                                            <Menu
+                                                anchorEl={anchorEl}
+                                                open={Boolean(anchorEl)}
+                                                onClose={handleMenuClose}
+                                                PaperProps={{
+                                                    sx: {
+                                                        bgcolor: 'background.paper',
+                                                        borderRadius: 2,
+                                                        boxShadow: theme.shadows[3],
+                                                    },
+                                                }}
+                                            >
+                                                    <TenantSwitcher onAccountChange={(tenantId) => {
+                                                        onAccountChange(tenantId);
+                                                        handleMenuClose();
+                                                    }} />
+                                            </Menu>
+                                        </>
+                                    )
+                                )}
+                                <Typography variant="h6" color="primary" sx={{ fontWeight: 'bold' }}>
+                                    {getPageTitle}
+                                </Typography>
+                            </>
+                        ) : (
+                            <Typography variant="h6" color="primary" sx={{ fontWeight: 'bold' }}>
+                                EN Discover
+                            </Typography>
+                        )}
+                    </Box>
+
+                    {/* Theme & Chat Icons */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <ThemeToggleIcon theme={mode} toggleTheme={handleThemeToggle} />
+                        {user && !isMobile && (
+                            <>
+                                <IconButton
+                                    color="primary"
+                                    sx={{
+                                        p: 1,
+                                        bgcolor: 'background.paper',
+                                        borderRadius: '16px',
+                                        transition: 'all 0.2s ease-in-out',
+                                        '&:hover': {
+                                            bgcolor: 'action.hover',
+                                        },
+                                    }}
+                                    className="transition-all hover:scale-105"
+                                    onClick={handleMessagingToggle} // Updated to toggle messaging drawer
+                                >
+                                    <ChatIcon />
+                                </IconButton>
+                                <IconButton
+                                    edge="start"
+                                    color="inherit"
+                                    aria-label="AI Assistant"
+                                    onClick={toggleAIAssistant}
+                                >
+                                    <img src="/EN_LightMode.png" alt="EN Logo" style={{ width: 40, height: 40 }} />
+                                </IconButton>
+                            </>
+                        )}
+                        {!user && !isMobile && (
                             <IconButton
                                 edge="start"
                                 color="inherit"
@@ -181,45 +197,35 @@ const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user }
                             >
                                 <img src="/EN_LightMode.png" alt="EN Logo" style={{ width: 40, height: 40 }} />
                             </IconButton>
-                        </>
-                    )}
-                    {!user && !isMobile && (
-                        <IconButton
-                            edge="start"
-                            color="inherit"
-                            aria-label="AI Assistant"
-                            onClick={toggleAIAssistant}
-                        >
-                            <img src="/EN_LightMode.png" alt="EN Logo" style={{ width: 40, height: 40 }} />
-                        </IconButton>
-                    )}
-                </Box>
-            </Toolbar>
-
-            {/* Mobile Drawer for Account Switching */}
-            {isMobile && user && (
-                <SwipeableDrawer
-                    anchor="bottom"
-                    open={isAccountDrawerOpen}
-                    onClose={() => setIsAccountDrawerOpen(false)}
-                    onOpen={() => setIsAccountDrawerOpen(true)}
-                    PaperProps={{
-                        sx: {
-                            borderTopLeftRadius: 16,
-                            borderTopRightRadius: 16,
-                            bgcolor: 'background.paper',
-                        },
-                    }}
-                >
-                    <Box className="animate-fade-in p-4">
-                        <TenantSwitcher onAccountChange={(tenantId) => {
-                            onAccountChange(tenantId);
-                            setIsAccountDrawerOpen(false);
-                        }} />
+                        )}
                     </Box>
-                </SwipeableDrawer>
-            )}
-        </AppBar>
+                </Toolbar>
+
+                {/* Mobile Drawer for Account Switching */}
+                {isMobile && user && (
+                    <SwipeableDrawer
+                        anchor="bottom"
+                        open={isAccountDrawerOpen}
+                        onClose={() => setIsAccountDrawerOpen(false)}
+                        onOpen={() => setIsAccountDrawerOpen(true)}
+                        PaperProps={{
+                            sx: {
+                                borderTopLeftRadius: 16,
+                                borderTopRightRadius: 16,
+                                bgcolor: 'background.paper',
+                            },
+                        }}
+                    >
+                        <Box className="animate-fade-in p-4">
+                            <TenantSwitcher onAccountChange={(tenantId) => {
+                                onAccountChange(tenantId);
+                                setIsAccountDrawerOpen(false);
+                            }} />
+                        </Box>
+                    </SwipeableDrawer>
+                )}
+            </AppBar>
+        </>
     );
 };
 

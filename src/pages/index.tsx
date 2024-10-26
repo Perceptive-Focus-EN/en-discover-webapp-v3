@@ -22,6 +22,7 @@ import { TimeRange } from '@/components/EN/types/moodHistory';
 import { VolumeLevelId } from '@/components/EN/constants/volume';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import MonitoringDashboard from './admin/monitoring';
+import { MoodBoardRef } from '@/components/EN/MoodBoard';
 
 const MoodBoard = dynamic(() => import('./moodboard'), {
   loading: () => <CircularProgress />,
@@ -52,7 +53,8 @@ const DashboardPage: NextPage = () => {
   const theme = useTheme();
   const router = useRouter();
   const { user, loading: authLoading, onboardingStatus } = useAuth();
-  const moodBoardRef = useRef<{ fetchUserEmotions: () => Promise<void> }>(null);
+  // const moodBoardRef = useRef<{ fetchUserEmotions: () => Promise<void> }>(null);
+  const moodBoardRef = useRef<MoodBoardRef>(null);
 
   // Core states
   const [emotions, setEmotions] = useState<Emotion[]>([]);
@@ -178,14 +180,8 @@ const DashboardPage: NextPage = () => {
         }, 
         overflow: 'hidden' 
       }}>
-        <MoodBoard
-          ref={moodBoardRef}
-          selectedEmotion={selectedEmotion}
-          timeRange={timeRange}
-          selectedVolume={selectedVolume}
-          selectedSource={selectedSource}
-          onEmotionsUpdate={setEmotions}
-        />
+            <MoodBoard
+    />
       </Box>
 
       <Drawer

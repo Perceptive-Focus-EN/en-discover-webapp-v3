@@ -6,7 +6,7 @@ import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager
 
 interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
-  circuitId?: string; // Add the circuitId property
+  circuitId?: string;
 }
 
 const axiosInstance: AxiosInstance = axios.create({
@@ -25,6 +25,8 @@ axiosInstance.interceptors.request.use(
       if (token) {
         config.headers['Authorization'] = `Bearer ${token}`;
       }
+      // Add circuitId to all requests
+      config.circuitId = `circuit_${Date.now()}`;
       return config;
     } catch (error) {
       messageHandler.error('Unable to process request. Please try again.');
@@ -40,38 +42,44 @@ axiosInstance.interceptors.request.use(
 // Response Interceptor
 axiosInstance.interceptors.response.use(
   (response) => {
-    const circuitId = (response.config as CustomAxiosRequestConfig).circuitId;
-    if (circuitId) {
-      // Record success instead of trying to reset
-      monitoringManager.recordCircuitSuccess(circuitId);
+    // Safely check for circuitId
+    if (response.config && (response.config as CustomAxiosRequestConfig).circuitId) {
+      monitoringManager.recordCircuitSuccess(
+        (response.config as CustomAxiosRequestConfig).circuitId!
+      );
     }
 
     if (response.data?.message) {
       messageHandler.success(response.data.message);
     }
     return response;
-    },
+  },
   async (error: AxiosError<{ error?: { message: string; type: string; reference?: string } }>) => {
-    const originalRequest = error.config as CustomAxiosRequestConfig;
+    // Safe type casting with default values
+    const originalRequest = error.config as CustomAxiosRequestConfig || {};
     
-    if (originalRequest.circuitId) {
-      monitoringManager.error.createError(
-        'system',
-        'circuit_open',
-        'Circuit breaker is open for the request',
-        { circuitId: originalRequest.circuitId }
-      );
+    // Safe circuit breaker handling
+    if (originalRequest?.circuitId) {
+      try {
+        monitoringManager.error.createError(
+          'system',
+          'circuit_open',
+          'Circuit breaker is open for the request',
+          { circuitId: originalRequest.circuitId }
+        );
+      } catch (circuitError) {
+        console.error('Circuit breaker error:', circuitError);
+      }
     }
     
     // Handle 401 and token refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
       try {
+        originalRequest._retry = true;
         await authManager.refreshAuth();
         const token = await authManager.getValidToken();
         
-        if (token) {
+        if (token && originalRequest.headers) {
           originalRequest.headers['Authorization'] = `Bearer ${token}`;
           return axiosInstance(originalRequest);
         }
@@ -97,7 +105,6 @@ axiosInstance.interceptors.response.use(
         statusCode: error.response.status
       });
     } else {
-      // Fallback error message
       messageHandler.error('An unexpected error occurred. Please try again.');
     }
     
@@ -107,7 +114,6 @@ axiosInstance.interceptors.response.use(
 
 export default axiosInstance;
 
-// Add the api helper methods while maintaining the original functionality
 export const api = {
   get: <T>(url: string, config = {}) => 
     axiosInstance.get<T>(url, config).then(response => response.data),

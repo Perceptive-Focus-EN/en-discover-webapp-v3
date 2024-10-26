@@ -21,6 +21,8 @@ export const COLLECTIONS = {
     
     MOOD_HISTORY: 'moodHistory',
     
+    CONVERSATIONS: 'conversations',
+    
     SOCIAL_CONNECTIONS: 'socialConnections',
     TENANT_INVITATIONS: 'tenantInvitations',
     USER_PREFERENCES: 'userPreferences',

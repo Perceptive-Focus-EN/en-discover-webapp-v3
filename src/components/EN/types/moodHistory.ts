@@ -9,6 +9,8 @@ import { EmotionName, EmotionId } from '../constants/emotionsAndCategories';
 export type TimeRange = 'day' | 'week' | 'month' | 'year' | 'lifetime';
 
 
+
+
 export interface MoodEntry {
   // just using _id as a simulation of what the datbase will have whichw ill be be genereate uniquely automaticlaly by database
   // _id: string;

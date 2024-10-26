@@ -252,38 +252,38 @@ const getEmotionMappings = useCallback(async (userId?: string) => {
   }, []);
 
   const fetchPostReactionsData = useCallback(async (postId: string) => {
-      const startTime = Date.now();
-      try {
-        const postWithReactions = await postReactionsApi.fetchPostWithReactions(postId);
-        const reactions = postWithReactions.reactions;
+    const startTime = Date.now();
+    try {
+      const postWithReactions = await postReactionsApi.fetchPostWithReactions(postId);
+      const reactions = postWithReactions.reactions;
   
-        monitoringManager.metrics.recordMetric(
-          MetricCategory.PERFORMANCE,
-          'post_reactions',
-          'fetch_duration',
-          Date.now() - startTime,
-          MetricType.HISTOGRAM,
-          MetricUnit.MILLISECONDS,
-          { postId }
-        );
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'post_reactions',
+        'fetch_duration',
+        Date.now() - startTime,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        { postId }
+      );
   
-        return reactions;
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch post reactions';
-        setError(errorMessage);
+      return reactions;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch post reactions';
+      setError(errorMessage);
   
-        monitoringManager.metrics.recordMetric(
-          MetricCategory.SYSTEM,
-          'post_reactions',
-          'fetch_error',
-          1,
-          MetricType.COUNTER,
-          MetricUnit.COUNT,
-          { error: errorMessage, postId }
-        );
-        throw err;
-      }
-    }, []);
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        'post_reactions',
+        'fetch_error',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { error: errorMessage, postId }
+      );
+      throw err;
+    }
+  }, []);
 
   const updatePostReactionData = useCallback(async (postId: string, emotionId: EmotionId) => {
     const startTime = Date.now();
