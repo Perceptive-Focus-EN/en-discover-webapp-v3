@@ -4,7 +4,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { BlobServiceClient } from '@azure/storage-blob';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/MonitoringSystem/Loggers/logger';
 
 async function listContainersHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -17,10 +16,8 @@ async function listContainersHandler(req: NextApiRequest, res: NextApiResponse) 
     for await (const container of blobServiceClient.listContainers()) {
       containers.push(container.name);
     }
-    logger.info('Containers listed successfully');
     res.status(200).json(containers);
   } catch (error) {
-    logger.error(new Error('Error listing containers'), { error });
     res.status(500).json({ message: 'Failed to list containers' });
   }
 }

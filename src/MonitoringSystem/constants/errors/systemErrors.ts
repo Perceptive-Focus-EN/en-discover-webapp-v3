@@ -87,4 +87,7 @@ export enum SystemError {
     // API Related Errors
   LOGS_API_ERROR = 'system/api/logs_error',
   METRICS_API_ERROR = 'system/api/metrics_error',
+  LOG_RETRIEVAL_FAILED = "LOG_RETRIEVAL_FAILED",
+  METRICS_QUEUE_FULL = "METRICS_QUEUE_FULL",
+  SERVICE_QUEUE_CAPACITY_EXCEEDED = "SERVICE_QUEUE_CAPACITY_EXCEEDED",
 }

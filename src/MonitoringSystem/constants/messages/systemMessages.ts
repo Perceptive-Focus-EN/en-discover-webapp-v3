@@ -1,4 +1,5 @@
 // src/MonitoringSystem/constants/messages/systemMessages.ts
+import { warn } from "console";
 import { SystemError } from "../errors/systemErrors";
 
 export const SystemMessages = {
@@ -168,7 +169,12 @@ export const SystemMessages = {
     error: 'Failed to process metric batch',
     warn: 'Metric batch issues detected',
     info: 'Metric batch processing attempted'
-    },
+  },
+  [SystemError.METRICS_QUEUE_FULL]: {
+    error: 'Metrics queue is full',
+    warn: 'Metrics queue approaching capacity',
+    info: 'Metrics queue status checked'
+  },
 
 // <-------  Logging Messages -------->
 
@@ -206,6 +212,24 @@ export const SystemMessages = {
     error: 'Invalid log format',
     warn: 'Log format validation failed',
     info: 'Log format validation performed'
-  }
+  },
+  [SystemError.LOG_BATCH_FAILED]: {
+    error: 'Failed to process log batch',
+    warn: 'Log batch issues detected',
+    info: 'Log batch processing attempted'
+  },
+  [SystemError.LOG_RETRIEVAL_FAILED]: {
+    error: 'Failed to retrieve logs',
+    warn: 'Log retrieval issues detected',
+    info: 'Log retrieval attempted'
+  },
 
+  // <-------  Service Queue Messages -------->
+
+  [SystemError.SERVICE_QUEUE_CAPACITY_EXCEEDED]: {
+    error: 'Service queue capacity exceeded',
+    warn: 'Service queue approaching capacity',
+    info: 'Service queue status checked'
+  },
+  
 } as const;

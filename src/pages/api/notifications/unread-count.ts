@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { fetchUnreadNotificationCount } from '../../../services/notificationService';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../MonitoringSystem/Loggers/logger';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -24,7 +23,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json({ count });
   } catch (error) {
-    logger.error(new Error('Error fetching unread notification count'), { error });
     res.status(500).json({ message: 'Internal server error' });
   }
 }

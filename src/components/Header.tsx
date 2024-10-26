@@ -19,7 +19,6 @@ import AvatarComponent from './Uploads/AvatarComponent';
 import TenantSwitcher from './TenantSwitcher';
 import ThemeToggleIcon from './ui/ThemeToggleIcon';
 import { ExtendedUserInfo, User } from '../types/User/interfaces';
-import { frontendLogger } from '../MonitoringSystem/managers/FrontendMessageHandler';
 
 interface HeaderProps {
     onAccountChange: (tenantId: string) => void;
@@ -61,7 +60,6 @@ const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user }
     // Handle drawer open for account switching
     const handleOpenAccountDrawer = () => {
         setIsAccountDrawerOpen(true);
-        frontendLogger.info('Account drawer opened', 'User opened the account switcher');
     };
 
     // Handle menu interactions
@@ -171,7 +169,6 @@ const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user }
                                 className="transition-all hover:scale-105"
                                 onClick={() => {
                                     router.push('/messaging');
-                                    frontendLogger.info('Messaging opened', 'User navigated to messaging');
                                 }}
                             >
                                 <ChatIcon />

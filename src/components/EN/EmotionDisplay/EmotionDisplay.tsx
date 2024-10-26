@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Box, Typography, Paper, useTheme } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ValidHexColor } from '../types/colorPalette';
@@ -20,10 +20,11 @@ interface SelectedEmotion extends Emotion {
     rect: DOMRect;
 }
 
-const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotions }) => {
+const EmotionDisplay: React.FC<EmotionDisplayProps> = React.memo(({ onEmotionSelect, emotions }) => {
     const theme = useTheme();
     const [selectedEmotion, setSelectedEmotion] = useState<SelectedEmotion | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [isReady, setIsReady] = useState(false);
     const bubbleRefs = useRef<(HTMLDivElement | null)[]>([]);
     
     const getBackgroundColor = useCallback((color: string | string[] | undefined) => {
@@ -31,14 +32,6 @@ const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotio
         return Array.isArray(color) 
             ? createGradient(color as ValidHexColor[])
             : color;
-    }, []);
-
-    const getTextColor = useCallback((color: string | string[] | undefined): string => {
-        if (!color) return 'inherit';
-        const colorToUse: string = Array.isArray(color) ? color[0] : color;
-        const rgb = hexToRgb(colorToUse);
-        const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
-        return brightness > 128 ? '#000000' : '#FFFFFF';
     }, []);
 
     const hexToRgb = (hex: string) => {
@@ -49,6 +42,33 @@ const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotio
             b: parseInt(result[3], 16)
         } : { r: 0, g: 0, b: 0 };
     };
+
+    const getTextColor = useCallback((color: string | string[] | undefined): string => {
+        if (!color) return 'inherit';
+        const colorToUse: string = Array.isArray(color) ? color[0] : color;
+        const rgb = hexToRgb(colorToUse);
+        const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+        return brightness > 128 ? '#000000' : '#FFFFFF';
+    }, []);
+
+    // Pre-calculate colors on emotions change
+    useEffect(() => {
+        if (emotions.length > 0 && !isReady) {
+            bubbleRefs.current = new Array(emotions.length);
+            setIsReady(true);
+        }
+    }, [emotions, isReady]);
+
+    // Memoize color calculations
+    const colorCache = useMemo(() => {
+        return emotions.reduce<Record<string, { bg: string; text: string }>>((cache, emotion) => ({
+            ...cache,
+            [emotion.id]: {
+                bg: getBackgroundColor(emotion.color),
+                text: getTextColor(emotion.color)
+            }
+        }), {});
+    }, [emotions, getBackgroundColor, getTextColor]);
 
     const handleEmotionClick = useCallback((emotion: Emotion, index: number) => {
         const bubble = bubbleRefs.current[index];
@@ -83,6 +103,10 @@ const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotio
         handleDrawerClose();
     }, [selectedEmotion, onEmotionSelect, handleDrawerClose]);
 
+    if (!isReady) {
+        return null;
+    }
+
     return (
         <>
             <Box
@@ -95,11 +119,13 @@ const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotio
                 }}
             >
                 {emotions.map((emotion, index) => {
-                    const backgroundColor = getBackgroundColor(emotion.color);
-                    const textColor = getTextColor(emotion.color);
+                    const colors = colorCache[emotion.id];
                     return (
                         <motion.div
                             key={emotion.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.2, delay: index * 0.05 }}
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.95 }}
                         >
@@ -113,7 +139,7 @@ const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotio
                                     display: 'flex',
                                     justifyContent: 'center',
                                     alignItems: 'center',
-                                    background: backgroundColor,
+                                    background: colors.bg,
                                     cursor: 'pointer',
                                     boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
                                 }}
@@ -122,7 +148,7 @@ const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotio
                                     variant="body2"
                                     noWrap
                                     sx={{
-                                        color: textColor,
+                                        color: colors.text,
                                         fontWeight: 'bold',
                                         textAlign: 'center',
                                         textTransform: 'uppercase',
@@ -159,6 +185,8 @@ const EmotionDisplay: React.FC<EmotionDisplayProps> = ({ onEmotionSelect, emotio
             </AnimatePresence>
         </>
     );
-};
+});
+
+EmotionDisplay.displayName = 'EmotionDisplay';
 
 export default EmotionDisplay;

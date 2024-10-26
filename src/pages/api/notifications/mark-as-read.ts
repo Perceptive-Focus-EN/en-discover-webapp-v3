@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { markNotificationAsRead } from '../../../services/notificationService';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../MonitoringSystem/Loggers/logger';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -27,7 +26,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await markNotificationAsRead(notificationId);
     res.status(200).json({ message: 'Notification marked as read' });
   } catch (error) {
-    logger.error(new Error('Error marking notification as read'), { error });
     res.status(500).json({ message: 'Internal server error' });
   }
 }

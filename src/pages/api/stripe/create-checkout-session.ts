@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import Stripe from 'stripe';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../MonitoringSystem/Loggers/logger';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_51MmnePD1nktmyofyjhqmQIZNHmPKZIkU7NHf7P3sRioJAzDamxqyiWypB7RqLsCc2PIXpSnlRWUY4R8Awdlefvvn007QVUa0sQ';
 
@@ -47,7 +46,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json({ sessionId: session.id, url: session.url });
   } catch (error) {
-    logger.error(new Error('Error creating checkout session'), { error });
     res.status(500).json({ error: 'Error creating checkout session' });
   }
 }

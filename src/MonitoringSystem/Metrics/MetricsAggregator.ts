@@ -1,7 +1,7 @@
 // src/MonitoringSystem/Metrics/MetricsAggregator.ts
-
 import { MetricEntry } from '../types/metrics';
-import { errorManager } from '../managers/ErrorManager';
+import { ServiceBus } from '../core/ServiceBus';
+import { SystemError } from '../constants/errors';
 
 interface AggregatedMetric {
   min: number;
@@ -25,23 +25,33 @@ export class MetricsAggregator {
   private windows: AggregationWindow;
   private rotationInterval: NodeJS.Timeout | null = null;
   
-  // Configurable constants
-  private readonly WINDOW_SIZE_MS = 60 * 1000; // 1 minute
-  private readonly CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-  private readonly MAX_WINDOWS = 60; // Keep up to 60 minutes of data
+  private readonly WINDOW_SIZE_MS = 60 * 1000;
+  private readonly CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+  private readonly MAX_WINDOWS = 60;
   private readonly MAX_METRICS_PER_WINDOW = 10000;
 
-  private constructor() {
+  private constructor(private serviceBus: ServiceBus) {
     this.windows = {
       current: new Map(),
       previous: new Map()
     };
+    
+    this.setupEventListeners();
     this.startWindowRotation();
   }
 
-  public static getInstance(): MetricsAggregator {
+  private setupEventListeners(): void {
+    this.serviceBus.on('system.cleanup', () => {
+      this.cleanup();
+      this.serviceBus.emit('metrics.cleaned', {
+        timestamp: new Date()
+      });
+    });
+  }
+
+  public static getInstance(serviceBus: ServiceBus): MetricsAggregator {
     if (!MetricsAggregator.instance) {
-      MetricsAggregator.instance = new MetricsAggregator();
+      MetricsAggregator.instance = new MetricsAggregator(serviceBus);
     }
     return MetricsAggregator.instance;
   }
@@ -49,7 +59,7 @@ export class MetricsAggregator {
   public aggregate(metric: MetricEntry): void {
     try {
       if (this.windows.current.size >= this.MAX_METRICS_PER_WINDOW) {
-        this.rotateWindows(); // Force rotation if window is full
+        this.rotateWindows();
       }
 
       const key = this.generateAggregationKey(metric);
@@ -57,18 +67,25 @@ export class MetricsAggregator {
       
       this.updateAggregation(current, metric);
       this.windows.current.set(key, current);
+
+      this.serviceBus.emit('metric.aggregated', {
+        key,
+        value: metric.value,
+        timestamp: new Date(),
+        metadata: current.metadata
+      });
       
     } catch (error) {
-      throw errorManager.createError(
-        'system',
-        'METRICS_AGGREGATION_FAILED',
-        'Failed to aggregate metric',
-        { 
+      this.serviceBus.emit('error.occurred', {
+        type: 'system/metric_aggregation_failed',
+        message: 'Failed to aggregate metric',
+        metadata: { 
           metricReference: metric.reference,
           windowSize: this.windows.current.size,
           error 
         }
-      );
+      });
+      throw error;
     }
   }
 
@@ -136,9 +153,42 @@ export class MetricsAggregator {
   private rotateWindows(): void {
     this.windows.previous = this.windows.current;
     this.windows.current = new Map();
+    
+    this.serviceBus.emit('metrics.window.rotated', {
+      previousSize: this.windows.previous.size,
+      timestamp: new Date()
+    });
   }
 
   public getAggregation(
+    category: string,
+    component: string,
+    action: string,
+    timeWindow?: { start: Date; end: Date }
+  ): AggregatedMetric[] {
+    try {
+      const results = this.getAggregationInternal(category, component, action, timeWindow);
+      
+      this.serviceBus.emit('metrics.retrieved', {
+        category,
+        component,
+        action,
+        count: results.length,
+        timeWindow
+      });
+
+      return results;
+    } catch (error) {
+      this.serviceBus.emit('error.occurred', {
+        type: 'system/metrics_retrieval_failed',
+        message: 'Failed to retrieve metrics aggregation',
+        metadata: { category, component, action, timeWindow, error }
+      });
+      throw error;
+    }
+  }
+
+  private getAggregationInternal(
     category: string,
     component: string,
     action: string,
@@ -176,15 +226,24 @@ export class MetricsAggregator {
     return allMetrics;
   }
 
+
   public cleanup(): void {
     const cutoff = new Date(Date.now() - (this.MAX_WINDOWS * this.WINDOW_SIZE_MS));
+    let cleanedCount = 0;
     
     [this.windows.current, this.windows.previous].forEach(window => {
       window.forEach((metric, key) => {
         if (metric.timeWindowEnd < cutoff) {
           window.delete(key);
+          cleanedCount++;
         }
       });
+    });
+
+    this.serviceBus.emit('metrics.cleanup.completed', {
+      cleanedCount,
+      cutoff,
+      timestamp: new Date()
     });
   }
 
@@ -193,5 +252,13 @@ export class MetricsAggregator {
       clearInterval(this.rotationInterval);
       this.rotationInterval = null;
     }
+    
+    this.serviceBus.emit('metrics.aggregator.destroyed', {
+      timestamp: new Date(),
+      metrics: {
+        current: this.windows.current.size,
+        previous: this.windows.previous.size
+      }
+    });
   }
 }

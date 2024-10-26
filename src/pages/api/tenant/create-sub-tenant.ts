@@ -6,7 +6,6 @@ import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUti
 import { COLLECTIONS } from '@/constants/collections';
 import { generateUniqueUserId } from '@/utils/utils';
 import { Db, ClientSession, Collection } from 'mongodb';
-import { logger } from '../../../MonitoringSystem/Loggers/logger';
 
 interface DecodedToken {
   userId: string;
@@ -118,7 +117,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(201).json({ message: 'New sub-tenant created successfully', subTenantId: newSubTenantId });
     });
   } catch (error) {
-    logger.error(new Error('Error creating new sub-tenant'), { error });
     res.status(
       error instanceof Error && error.message === 'Invalid token' ? 401 :
       error instanceof Error && error.message === 'Parent tenant not found' ? 404 :

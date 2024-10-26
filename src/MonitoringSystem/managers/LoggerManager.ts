@@ -8,10 +8,10 @@ import {
 } from '../types/logging';
 import { LogCategory, LogLevel } from '../constants/logging';
 import { ErrorType } from '../constants/errors';
-import { ErrorManager } from './ErrorManager';
+import { ServiceBus } from '../core/ServiceBus';
+import { CircuitBreaker } from '../utils/CircuitBreaker';
 import { LoggerAggregator } from '../Loggers/LoggerAggregator';
 import { LoggerPersistence } from '../Loggers/LoggerPersistence';
-import { CircuitBreaker } from '../utils/CircuitBreaker';
 
 export class LoggerManager implements ILogger {
   private static instance: LoggerManager;
@@ -21,24 +21,38 @@ export class LoggerManager implements ILogger {
   private constructor(
     private systemContext: SystemContext,
     private circuitBreaker: CircuitBreaker,
-    private errorManager: ErrorManager
+    private serviceBus: ServiceBus
   ) {
-    this.aggregator = LoggerAggregator.getInstance();
+    this.aggregator = LoggerAggregator.getInstance(this.serviceBus);
     this.persistence = LoggerPersistence.getInstance(
       this.circuitBreaker,
-      this.errorManager
+      this.serviceBus
     );
+
+    // Listen for error events that need logging
+    this.serviceBus.on('error.occurred', (error) => {
+      this.processLogEntry({
+        ...this.systemContext,
+        level: LogLevel.ERROR,
+        message: error.message,
+        metadata: error.metadata,
+        timestamp: new Date(),
+        category: LogCategory.SYSTEM,
+        userId: 'system'
+      });
+    });
   }
+
   public static getInstance(
     systemContext: SystemContext,
     circuitBreaker: CircuitBreaker,
-    errorManager: ErrorManager
+    serviceBus: ServiceBus
   ): LoggerManager {
     if (!LoggerManager.instance) {
       LoggerManager.instance = new LoggerManager(
         systemContext, 
         circuitBreaker,
-        errorManager
+        serviceBus
       );
     }
     return LoggerManager.instance;
@@ -81,12 +95,11 @@ export class LoggerManager implements ILogger {
       
       this.processLogEntry(logEntry);
     } catch (err) {
-      throw this.errorManager.createError(
-        'system',
-        'LOGGING_ERROR',
-        'Failed to log error',
-        { originalError: error, metadata }
-      );
+      this.serviceBus.emit('error.occurred', {
+        type: 'system/logging_error',
+        message: 'Failed to log error',
+        metadata: { originalError: error, metadata }
+      });
     }
   }
 
@@ -109,37 +122,36 @@ export class LoggerManager implements ILogger {
         metadata: { ...this.systemContext.metadata, ...metadata }
       },
       this.circuitBreaker,
-      this.errorManager
+      this.serviceBus
     );
-  }
-
-  public async getLogs(startDate: Date, endDate: Date): Promise<LogEntry[]> {
-    try {
-      if ('getLogs' in this.persistence) {
-        return await (this.persistence as any).getLogs(startDate, endDate);
-      }
-      throw new Error('getLogs not implemented in persistence layer');
-    } catch (error) {
-      throw this.errorManager.createError(
-        'system',
-        'LOG_RETRIEVAL_FAILED',
-        'Failed to retrieve logs',
-        { startDate, endDate, error }
-      );
-    }
   }
 
   private processLogEntry(logEntry: LogEntry): void {
     try {
       this.aggregator.aggregate(logEntry);
       void this.persistence.persistLog(logEntry);
+      
+      // Emit log event for metrics
+      this.serviceBus.emit('log.processed', logEntry);
     } catch (error) {
-      throw this.errorManager.createError(
-        'system',
-        'LOG_PROCESSING_FAILED',
-        'Failed to process log entry',
-        { logEntry, error }
-      );
+      this.serviceBus.emit('error.occurred', {
+        type: 'system/log_processing_failed',
+        message: 'Failed to process log entry',
+        metadata: { logEntry, error }
+      });
+    }
+  }
+
+  public async getLogs(startDate: Date, endDate: Date): Promise<LogEntry[]> {
+    try {
+      return await this.persistence.getLogs(startDate, endDate);
+    } catch (error) {
+      this.serviceBus.emit('error.occurred', {
+        type: 'system/log_retrieval_failed',
+        message: 'Failed to retrieve logs',
+        metadata: { startDate, endDate, error }
+      });
+      throw error;
     }
   }
 
@@ -147,12 +159,12 @@ export class LoggerManager implements ILogger {
     try {
       await this.persistence.flush();
     } catch (error) {
-      throw this.errorManager.createError(
-        'system',
-        'LOG_FLUSH_FAILED',
-        'Failed to flush logs',
-        { error }
-      );
+      this.serviceBus.emit('error.occurred', {
+        type: 'system/log_flush_failed',
+        message: 'Failed to flush logs',
+        metadata: { error }
+      });
+      throw error;
     }
   }
 
@@ -160,6 +172,3 @@ export class LoggerManager implements ILogger {
     this.persistence.destroy();
   }
 }
-
-// Remove the systemContext initialization and export
-// Let MonitoringManager handle the initialization and instantiation

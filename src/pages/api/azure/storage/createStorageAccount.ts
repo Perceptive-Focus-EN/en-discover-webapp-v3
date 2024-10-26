@@ -2,7 +2,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/MonitoringSystem/Loggers/logger';
 import { createStorageAccount } from '@/config/azureStorage';
 import { AZURE_RESOURCE_GROUP } from '@/constants/azureConstants';
 
@@ -14,10 +13,8 @@ async function createStorageAccountHandler(req: NextApiRequest, res: NextApiResp
   const { name, location, replication } = req.body;
   try {
     await createStorageAccount(name, location, replication);
-    logger.info(`Storage account ${name} created successfully in ${location}`);
     res.status(200).json({ message: `Storage account ${name} created successfully in ${location}` });
   } catch (error) {
-    logger.error(new Error('Error creating storage account'), { error });
     res.status(500).json({ message: 'Failed to create storage account' });
   }
 }

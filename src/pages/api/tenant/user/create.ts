@@ -13,6 +13,7 @@ import { AppError } from '@/MonitoringSystem/managers/AppError';
 import { AccessLevel } from '@/constants/AccessKey/access_levels';
 import { Subscription_TypeEnum, UserAccountType, UserAccountTypeEnum } from '../../../../constants/AccessKey/accounts';
 import { BaseTenant } from '@/types/Tenant/interfaces';
+import { BusinessIndustryRoles } from '@/constants/AccessKey/AccountRoles/business-roles';
 // import { OnboardingStatusDetails } from '@/types/Onboarding/interfaces';
 
 interface TenantUserCreateResponse {
@@ -193,39 +194,48 @@ export default async function handler(
       const hashedPassword = await hashPassword(userData.password);
       const newUserId = generateUniqueUserId();
       const newUser: ExtendedUserInfo = {
-        ...userData,
-        userId: newUserId,
-        password: hashedPassword,
-        tenantId: adminTenantId,
-        tenants: [adminTenantId],
-        currentTenantId: adminTenantId,
-        tenantAssociations: [{
-          tenantId: adminTenantId,
-          role: userData.role as AllRoles || 'defaultRole', // Replace 'defaultRole' with an appropriate default value
-          accessLevel: userData.accessLevel as AccessLevel,
-          accountType: UserAccountTypeEnum.BUSINESS as UserAccountType,
-          permissions: [], // Add appropriate permissions if needed
-          tenant: {} as BaseTenant // Add tenant details if needed
-        }],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isActive: true,
-        connections: [],
-        connectionRequests: { sent: [], received: [] },
-        profile: {},
-        privacySettings: { profileVisibility: 'public' },
-        tenant: null,
-        softDelete: null,
-        role: userData.role as AllRoles || ROLES.Business.VIEWER,
-        accountType: UserAccountTypeEnum.BUSINESS,
-        permissions: [],
-        subscriptionType: Subscription_TypeEnum.TRIAL,
-        isVerified: false,
-        personalTenantId: '',
-        department: '',
-        lastLogin: '',
-        isDeleted: false,
-      };
+  onboardingStatus: {
+    steps: [],
+    isOnboardingComplete: false,
+    lastUpdated: '',
+    currentStepIndex: 0,
+    stage: 'initial'
+  },
+  ...userData,
+  userId: newUserId,
+  password: hashedPassword,
+  tenantId: adminTenantId,
+  tenants: [adminTenantId],
+  currentTenantId: adminTenantId,
+  tenantAssociations: [{
+    tenantId: adminTenantId,
+    role: userData.role as AllRoles || 'defaultRole', // Replace 'defaultRole' with an appropriate default value
+    accessLevel: AccessLevel[userData.accessLevel as keyof typeof AccessLevel] ?? AccessLevel.L4,
+    accountType: UserAccountTypeEnum.BUSINESS as UserAccountType,
+    permissions: [], // Add appropriate permissions if needed
+    tenant: {} as BaseTenant // Add tenant details if needed
+  }],
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  isActive: true,
+  connections: [],
+  connectionRequests: { sent: [], received: [] },
+  profile: {},
+  privacySettings: { profileVisibility: 'public' },
+  tenant: null,
+  softDelete: null,
+  role: userData.role as AllRoles || ROLES.Business.VIEWER,
+  accountType: UserAccountTypeEnum.BUSINESS,
+  permissions: [],
+  subscriptionType: Subscription_TypeEnum.TRIAL,
+  isVerified: false,
+  personalTenantId: '',
+  department: '',
+  lastLogin: '',
+  isDeleted: false,
+  title: BusinessIndustryRoles.CHIEF_EXECUTIVE_OFFICER,
+  accessLevel: AccessLevel[userData.accessLevel as keyof typeof AccessLevel] ?? AccessLevel.L4 // Ensure accessLevel is always set
+};
 
       const result = await usersCollection.insertOne(newUser as any, { session });
 

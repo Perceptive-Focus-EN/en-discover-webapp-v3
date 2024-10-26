@@ -14,14 +14,12 @@ async function listBlobsHandler(req: NextApiRequest, res: NextApiResponse) {
   
   try {
     if (!azureBlobStorageInstance) {
-        logger.error(new Error('Azure Blob Storage instance is null'));
         return res.status(500).json({ message: 'Azure Blob Storage instance is not configured' });
     }
     const blobs = await azureBlobStorageInstance.listBlobs(prefix as string);
     logger.info('Blobs listed successfully');
     res.status(200).json(blobs);
   } catch (error) {
-    logger.error(new Error('Error listing blobs'), { error });
     res.status(500).json({ message: 'Failed to list blobs' });
   }
 }

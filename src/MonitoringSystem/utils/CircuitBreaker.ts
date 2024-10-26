@@ -41,6 +41,20 @@ export class CircuitBreaker {
     this.errorCount.set(circuit, 0);
     this.timeouts.delete(circuit);
   }
+
+    public recordSuccess(circuit: string): void {
+    // Reset error count on success
+    this.errorCount.set(circuit, 0);
+    if (this.isOpen(circuit)) {
+      this.breakerStatus.set(circuit, false);
+      const existingTimeout = this.timeouts.get(circuit);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        this.timeouts.delete(circuit);
+      }
+    }
+  }
+
 }
 
 

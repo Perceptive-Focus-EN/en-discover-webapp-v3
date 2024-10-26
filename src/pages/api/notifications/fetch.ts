@@ -1,8 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { fetchNotifications } from '../../../services/notificationService';
 import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
-import { logger } from '../../../MonitoringSystem/Loggers/logger';
-import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -27,7 +25,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const notifications = await fetchNotifications(userId, limit, skip);
     res.status(200).json({ notifications });
   } catch (error) {
-    logger.error(new Error('Error fetching notifications'), ErrorType.GENERIC, { error });
     res.status(500).json({ message: 'Internal server error' });
   }
 }

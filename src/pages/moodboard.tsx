@@ -1,7 +1,5 @@
-// File: src/components/EN/MoodBoard.tsx
-
-import React, { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/router';
+// src/components/EN/MoodBoard.tsx
+import React, { useState, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   Box,
   Typography,
@@ -27,35 +25,35 @@ import MoodBubbleChart from '@/components/EN/charts/MoodBubbleChart';
 import RadarChart from '@/components/EN/RadarChart';
 import LineGraph from '@/components/EN/LineGraph';
 import Draggables from '@/components/EN/Draggables';
-import PercentileBubbles from '@/components/EN/Draggables';
 import PalettePreview from '@/components/EN/PalettePreview';
 import EmotionSelection from '@/components/EN/EmotionSelection/EmotionSelection';
 import ChartOptions from '@/components/EN/ChartOptions';
 import BubbleChart from '@/components/EN/BubbleChart';
-import EmotionFilter from '@/components/EN/EmotionFilter';
 import { MoodEntry } from '@/components/EN/types/moodHistory';
 import { EmotionName } from '@/components/Feed/types/Reaction';
 import { TimeRange } from '@/components/EN/types/moodHistory';
 import { VolumeLevelId } from '@/components/EN/constants/volume';
-import { useMoodBoard } from '@/contexts/MoodBoardContext';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
-export interface MoodBoardProps {
-  emotions: Emotion[];
+interface MoodBoardProps {
   selectedEmotion: EmotionName | null;
   timeRange: TimeRange;
   selectedVolume: VolumeLevelId | null;
   selectedSource: string | null;
+  onEmotionsUpdate: (emotions: Emotion[]) => void;
 }
 
-const MoodBoard: React.FC<MoodBoardProps> = ({
-  emotions,
+const MoodBoard = forwardRef<{ fetchUserEmotions: () => Promise<void> }, MoodBoardProps>(({
   selectedEmotion,
+  timeRange,
   selectedVolume,
-  selectedSource
-}) => {  
+  selectedSource,
+  onEmotionsUpdate
+}, ref) => {
   const theme = useTheme();
-  const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
+
+  // Local states
   const [openMoodSelector, setOpenMoodSelector] = useState<boolean>(false);
   const [openChartOptions, setOpenChartOptions] = useState<boolean>(false);
   const [chartType, setChartType] = useState<string>('Bubbles');
@@ -64,77 +62,61 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
   const [loadingEmotions, setLoadingEmotions] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // FILTER STATES
-  const [setSelectedEmotion] = useState<EmotionName | null>(null);
-  const [timeRange, setTimeRange] = useState<TimeRange>('week');
-  const [ setSelectedVolume] = useState<VolumeLevelId | null>(null);
-  const [setSelectedSource] = useState<string | null>(null);
-
-  const { saveMoodEntry } = useMoodBoard();
-
   const fetchUserEmotions = useCallback(async () => {
-    if (user) {
-      try {
-        setLoadingEmotions(true);
-        setError(null);
-        const emotions = await emotionMappingsApi.getEmotionMappings(user.userId);
-        setUserEmotions(emotions);
-      } catch (error) {
-        setError('Failed to load your emotions. Please try again.');
-      } finally {
-        setLoadingEmotions(false);
-      }
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.replace('/login');
-      } else {
-        fetchUserEmotions();
-      }
-    }
-  }, [user, authLoading, router, fetchUserEmotions]);
-
-  const toggleChartOptions = useCallback((open: boolean) => {
-    setOpenChartOptions(open);
-  }, []);
-
-  const handleChartTypeChange = useCallback((type: string) => {
-    setChartType(type);
-    setOpenChartOptions(false);
-  }, []);
-
-  const handleEmotionComplete = useCallback((selectedEmotions: Emotion[]) => {
-    if (selectedEmotions.length > 0) {
-      setOpenMoodSelector(false);
-    }
-  }, []);
-
-  const handlePaletteSelect = useCallback((palette: ColorPalette) => {
-    setSelectedPalette(palette);
-  }, []);
-
-  const handleEmotionSelect = useCallback(async (moodEntry: Omit<MoodEntry, 'userId' | 'createdAt' | 'updatedAt' | 'timeStamp'>) => {
     if (!user) return;
 
-    const fullMoodEntry: MoodEntry = {
-      ...moodEntry,
-      userId: user.userId,
-      timeStamp: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    setLoadingEmotions(true);
+    try {
+      setError(null);
+      const emotions = await emotionMappingsApi.getEmotionMappings(user.userId);
+      setUserEmotions(emotions);
+      onEmotionsUpdate(emotions);
+      messageHandler.success('Emotions loaded successfully');
+    } catch (error) {
+      setError('Failed to load your emotions. Please try again.');
+      messageHandler.error('Failed to load emotions');
+    } finally {
+      setLoadingEmotions(false);
+    }
+  }, [user, onEmotionsUpdate]);
+
+  // Expose fetchUserEmotions to parent
+  useImperativeHandle(ref, () => ({
+    fetchUserEmotions
+  }));
+
+  useEffect(() => {
+    fetchUserEmotions();
+  }, [fetchUserEmotions]);
+
+  const handleEmotionComplete = useCallback(async (selectedEmotions: Emotion[]) => {
+    if (selectedEmotions.length > 0) {
+      setOpenMoodSelector(false);
+      await fetchUserEmotions();
+    }
+  }, [fetchUserEmotions]);
+
+  const handleEmotionSelect = async (
+    moodEntry: Omit<MoodEntry, 'userId' | 'timeStamp' | 'createdAt' | 'updatedAt'>
+  ) => {
+    if (!user) return;
 
     try {
-      await saveMoodEntry(fullMoodEntry);
+      await emotionMappingsApi.updateEmotionMapping(user.userId, moodEntry.emotionId, {
+        ...moodEntry,
+        sources: moodEntry.sources.map(String),
+      });
+      messageHandler.success('Emotion updated successfully');
+      await fetchUserEmotions();
     } catch (error) {
-      setError('Failed to save mood entry. Please try again.');
+      setError('Failed to update your emotion. Please try again.');
+      messageHandler.error('Failed to update emotion');
     }
-  }, [saveMoodEntry, user]);
+  };
 
   const renderChart = useCallback(() => {
+    if (!userEmotions?.length) return null;
+
     const filteredEmotions = userEmotions.filter((emotion) => {
       if (selectedEmotion && emotion.emotionName !== selectedEmotion) return false;
       if (selectedVolume && emotion.volume !== selectedVolume) return false;
@@ -163,39 +145,39 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
       <Box sx={{ position: 'relative', height: '100%', width: '100%' }}>
         <ChartComponent
           emotions={filteredEmotions}
+          {...(chartType !== 'Graph' && { timeRange })}
         />
       </Box>
     );
-  }, [chartType, userEmotions, selectedEmotion, selectedVolume, selectedSource, timeRange, handleEmotionSelect]);
+  }, [chartType, userEmotions, selectedEmotion, selectedVolume, selectedSource, timeRange]);
 
-  if (authLoading || loadingEmotions) {
+  if (loadingEmotions) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+      <Box display="flex" justifyContent="center" alignItems="center" height="100%">
         <CircularProgress />
       </Box>
     );
   }
 
-  if (!user) return null;
-
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', p: 3, bgcolor: 'background.default' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold' }}>Moodboard</Typography>
         <Box>
-          <IconButton size="small" onClick={fetchUserEmotions} sx={{ mr: 1 }}>
+          <IconButton size="small" onClick={() => fetchUserEmotions()} sx={{ mr: 1 }}>
             <RefreshIcon />
           </IconButton>
-          <IconButton size="small" sx={{ mr: 1 }}>
-            <FilterIcon />
-          </IconButton>
-          <IconButton size="small" onClick={() => toggleChartOptions(true)}>
+          <IconButton size="small" onClick={() => setOpenChartOptions(true)}>
             <ChartIcon />
           </IconButton>
         </Box>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
       <Box
         sx={{
@@ -208,14 +190,13 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
           borderRadius: 2,
           p: 2,
           boxShadow: 2,
-          height: { xs: 300, sm: 400, md: 500 },
-          width: '100%',
-          mb: 4,
           overflow: 'hidden',
         }}
       >
-        {userEmotions.length > 0 ? renderChart() : (
-          <Typography variant="h6" color="text.secondary">No emotions found</Typography>
+        {userEmotions?.length > 0 ? renderChart() : (
+          <Typography variant="h6" color="text.secondary">
+            You haven't set any emotions yet. Click the button below to get started!
+          </Typography>
         )}
       </Box>
 
@@ -227,7 +208,7 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
         sx={{ mt: 2 }}
         onClick={() => setOpenMoodSelector(true)}
       >
-        {userEmotions.length > 0 ? "Update Your Mood" : "Set Your Mood"}
+        {userEmotions?.length > 0 ? "Update Your Mood" : "Set Your Mood"}
       </Button>
 
       <SwipeableDrawer
@@ -246,11 +227,11 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
       >
         <Box sx={{ p: 3, maxWidth: 600, mx: 'auto', height: '100%', overflow: 'auto' }}>
           <Typography variant="h5" align="center" gutterBottom>
-            Hey, <span style={{ color: theme.palette.primary.main }}>{user.firstName}!</span>
+            Hey, <span style={{ color: theme.palette.primary.main }}>{user?.firstName}!</span>
             <br />
             How are you feeling today?
           </Typography>
-          <PalettePreview palettes={palettes} onSelect={handlePaletteSelect} />
+          <PalettePreview palettes={palettes} onSelect={setSelectedPalette} />
           {selectedPalette && openMoodSelector && (
             <EmotionSelection
               onComplete={handleEmotionComplete}
@@ -265,11 +246,13 @@ const MoodBoard: React.FC<MoodBoardProps> = ({
       <ChartOptions
         open={openChartOptions}
         onClose={() => setOpenChartOptions(false)}
-        onSelect={handleChartTypeChange}
+        onSelect={setChartType}
         currentSelection={chartType}
       />
     </Box>
   );
-};
+});
+
+MoodBoard.displayName = 'MoodBoard';
 
 export default MoodBoard;

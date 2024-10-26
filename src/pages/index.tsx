@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { NextPage } from 'next';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
@@ -12,16 +12,16 @@ import {
   Drawer 
 } from '@mui/material';
 import MonitoringIcon from '@mui/icons-material/MonitorHeartOutlined';
-import CloseIcon from '@mui/icons-material/Close'; // Import CloseIcon
-import { useAuth } from '../contexts/AuthContext';
+import CloseIcon from '@mui/icons-material/Close';
+import { useAuth } from '@/contexts/AuthContext';
 import { MoodEntry } from '@/components/EN/types/moodHistory';
 import { Emotion } from '@/components/EN/types/emotions';
 import { emotionMappingsApi } from '@/lib/api_s/reactions/emotionMappings';
-import { useMoodBoard } from '@/contexts/MoodBoardContext';
 import { EmotionName } from '@/components/Feed/types/Reaction';
 import { TimeRange } from '@/components/EN/types/moodHistory';
 import { VolumeLevelId } from '@/components/EN/constants/volume';
-import MonitoringDashboard from './admin/monitoring'; // Import MonitoringDashboard
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
+import MonitoringDashboard from './admin/monitoring';
 
 const MoodBoard = dynamic(() => import('./moodboard'), {
   loading: () => <CircularProgress />,
@@ -29,7 +29,11 @@ const MoodBoard = dynamic(() => import('./moodboard'), {
 });
 
 const EmotionDisplay = dynamic(() => import('@/components/EN/EmotionDisplay/EmotionDisplay'), {
-  loading: () => <CircularProgress />,
+  loading: () => (
+    <Box sx={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <CircularProgress />
+    </Box>
+  ),
   ssr: false
 });
 
@@ -38,19 +42,22 @@ const EmotionFilter = dynamic(() => import('@/components/EN/EmotionFilter'), {
   ssr: false
 });
 
+interface EmotionDisplayProps {
+  emotions: Emotion[];
+  onEmotionSelect: (emotion: MoodEntry) => Promise<void>;
+  tenantId: string;
+}
+
 const DashboardPage: NextPage = () => {
-  const { user, loading: authLoading, onboardingStatus } = useAuth();
-  const router = useRouter();
   const theme = useTheme();
-  const { saveMoodEntry } = useMoodBoard();
+  const router = useRouter();
+  const { user, loading: authLoading, onboardingStatus } = useAuth();
+  const moodBoardRef = useRef<{ fetchUserEmotions: () => Promise<void> }>(null);
 
-  const [showMoodBoard, setShowMoodBoard] = useState(false);
+  // Core states
   const [emotions, setEmotions] = useState<Emotion[]>([]);
-  const [loadingEmotions, setLoadingEmotions] = useState(false);
-
-  // Monitoring state
-  const [showMonitoring, setShowMonitoring] = useState(false);
-  const [hasAlerts, setHasAlerts] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [displayLoading, setDisplayLoading] = useState(true);
 
   // Filter states
   const [selectedEmotion, setSelectedEmotion] = useState<EmotionName | null>(null);
@@ -58,70 +65,58 @@ const DashboardPage: NextPage = () => {
   const [selectedVolume, setSelectedVolume] = useState<VolumeLevelId | null>(null);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
 
-  const fetchEmotions = useCallback(async () => {
-    if (user) {
-      setLoadingEmotions(true);
-      const fetchedEmotions = await emotionMappingsApi.getEmotionMappings(user.userId);
-      setEmotions(fetchedEmotions);
-      setLoadingEmotions(false);
+  // Monitoring states
+  const [showMonitoring, setShowMonitoring] = useState(false);
+  const [hasAlerts, setHasAlerts] = useState(false);
+
+  useEffect(() => {
+    const initializeDashboard = async () => {
+      if (!authLoading && user) {
+        if (onboardingStatus && !onboardingStatus.isOnboardingComplete) {
+          router.replace('/onboarding');
+          return;
+        }
+        
+        setDisplayLoading(true);
+        try {
+          const fetchedEmotions = await emotionMappingsApi.getEmotionMappings(user.userId);
+          setEmotions(fetchedEmotions);
+          setIsInitialized(true);
+        } finally {
+          setDisplayLoading(false);
+        }
+      }
+    };
+
+    initializeDashboard();
+  }, [user, authLoading, onboardingStatus, router]);
+
+  const handleEmotionDisplaySelect = useCallback(async (moodEntry: MoodEntry) => {
+    if (!user) return;
+
+    try {
+      await emotionMappingsApi.updateEmotionMapping(user.userId, moodEntry.emotionId, {
+        ...moodEntry,
+        sources: moodEntry.sources.map(String),
+      });
+      messageHandler.success('Emotion updated successfully');
+      if (moodBoardRef.current) {
+        await moodBoardRef.current.fetchUserEmotions();
+      }
+    } catch (error) {
+      messageHandler.error('Failed to update emotion');
     }
   }, [user]);
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (authLoading) {
-        console.warn("Loading is taking longer than expected. Please refresh the page.");
-      }
-    }, 10000);
-
-    if (!authLoading) {
-      clearTimeout(timeout);
-      if (user) {
-        if (onboardingStatus && !onboardingStatus.isOnboardingComplete) {
-          router.replace('/onboarding');
-        } else {
-          setShowMoodBoard(true);
-          fetchEmotions();
-        }
-      } else {
-        router.replace('/login');
-      }
-    }
-
-    return () => clearTimeout(timeout);
-  }, [user, authLoading, onboardingStatus, router, fetchEmotions]);
-
-  const handleEmotionSelect = async (moodEntry: Omit<MoodEntry, 'userId' | '_id' | 'timeStamp' | 'createdAt' | 'updatedAt'>): Promise<void> => {
-    if (!user) {
-      return;
-    }
-
-    const fullMoodEntry: MoodEntry = {
-      ...moodEntry,
-      userId: user.userId,
-      timeStamp: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await saveMoodEntry(fullMoodEntry);
-    
-    // Refresh emotions after logging a new mood
-    await fetchEmotions();
-  };
-
-  // Filter change handlers
   const handleEmotionChange = (emotion: EmotionName | null) => setSelectedEmotion(emotion);
   const handleTimeRangeChange = (range: TimeRange) => setTimeRange(range);
   const handleVolumeChange = (volume: VolumeLevelId | null) => setSelectedVolume(volume);
   const handleSourceChange = (source: string | null) => setSelectedSource(source);
-
-  // Handler for alerts from MonitoringDashboard
   const handleMonitoringAlerts = useCallback((hasIssues: boolean) => {
     setHasAlerts(hasIssues);
   }, []);
 
-  if (authLoading || loadingEmotions) {
+  if (authLoading || !isInitialized) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
@@ -129,14 +124,23 @@ const DashboardPage: NextPage = () => {
     );
   }
 
-  if (!showMoodBoard) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
-    <Box sx={{ maxWidth: '1200px', margin: 'auto', padding: theme.spacing(3) }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4" gutterBottom align="center">
+    <Box sx={{ 
+      maxWidth: '1200px', 
+      margin: '0 auto',
+      padding: theme.spacing(3),
+      display: 'flex',
+      flexDirection: 'column',
+      gap: theme.spacing(3)
+    }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center'
+      }}>
+        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
           Your Mood Dashboard
         </Typography>
         <IconButton color="inherit" onClick={() => setShowMonitoring(true)}>
@@ -146,13 +150,13 @@ const DashboardPage: NextPage = () => {
         </IconButton>
       </Box>
 
-      <Box sx={{ mb: 4 }}>
+      {!displayLoading && (
         <EmotionDisplay
           emotions={emotions}
-          onEmotionSelect={handleEmotionSelect}
+          onEmotionSelect={handleEmotionDisplaySelect}
           tenantId={user?.tenantId || ''}
         />
-      </Box>
+      )}
 
       <EmotionFilter
         emotions={emotions.map(e => e.emotionName)}
@@ -166,47 +170,54 @@ const DashboardPage: NextPage = () => {
         onSourceChange={handleSourceChange}
       />
 
-      <Box sx={{ height: { xs: 'calc(100vh - 300px)', sm: 'calc(100vh - 250px)', md: 'calc(100vh - 200px)' }, overflow: 'hidden' }}>
+      <Box sx={{ 
+        height: { 
+          xs: 'calc(100vh - 300px)', 
+          sm: 'calc(100vh - 250px)', 
+          md: 'calc(100vh - 200px)' 
+        }, 
+        overflow: 'hidden' 
+      }}>
         <MoodBoard
-          emotions={emotions}
+          ref={moodBoardRef}
           selectedEmotion={selectedEmotion}
           timeRange={timeRange}
           selectedVolume={selectedVolume}
           selectedSource={selectedSource}
+          onEmotionsUpdate={setEmotions}
         />
       </Box>
 
-      / Replace the current Drawer with this:
-<Drawer
-  anchor="right"
-  open={showMonitoring}
-  onClose={() => setShowMonitoring(false)}
-  PaperProps={{ 
-    sx: { 
-      width: { xs: '100%', sm: 400 }, 
-      p: 3, 
-      bgcolor: 'background.paper' 
-    } 
-  }}
->
-  <Box sx={{ width: '100%' }}>
-    <Box sx={{ 
-      display: 'flex', 
-      justifyContent: 'space-between', 
-      alignItems: 'center', 
-      mb: 3 
-    }}>
-      <Typography variant="h6">System Health</Typography>
-      <IconButton 
-        onClick={() => setShowMonitoring(false)} 
-        size="small"
+      <Drawer
+        anchor="right"
+        open={showMonitoring}
+        onClose={() => setShowMonitoring(false)}
+        PaperProps={{ 
+          sx: { 
+            width: { xs: '100%', sm: 400 }, 
+            padding: theme.spacing(3),
+            bgcolor: 'background.paper' 
+          } 
+        }}
       >
-        <CloseIcon />
-      </IconButton>
-    </Box>
-    <MonitoringDashboard onAlertChange={handleMonitoringAlerts} />
-  </Box>
-</Drawer>
+        <Box sx={{ width: '100%' }}>
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: theme.spacing(3)
+          }}>
+            <Typography variant="h6">System Health</Typography>
+            <IconButton 
+              onClick={() => setShowMonitoring(false)} 
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          <MonitoringDashboard onAlertChange={handleMonitoringAlerts} />
+        </Box>
+      </Drawer>
     </Box>
   );
 };

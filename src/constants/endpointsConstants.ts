@@ -200,5 +200,13 @@ export const API_ENDPOINTS = {
   UPLOAD_AUDIO: '/api/upload/audio',
   UPLOAD_FILE: '/api/upload/file',
   UPLOAD_DOCUMENT: '/api/upload/document',
-  
+
+
+  NOTIFICATIONS_SUBSCRIBE: '/api/notifications/subscribe',
+  NOTIFICATIONS_UNSUBSCRIBE: '/api/notifications/unsubscribe',
+  NOTIFICATIONS_GET_SUBSCRIPTIONS: '/api/notifications/subscriptions',
+  NOTIFICATIONS_GET_SUBSCRIBERS: '/api/notifications/subscribers',
+  NOTIFICATIONS_GET_SUBSCRIBER: '/api/notifications/subscribers/${subscriberId}',
+  NOTIFICATIONS_GET_SUBSCRIBER_NOTIFICATIONS: '/api/notifications/subscribers/${subscriberId}/notifications',
+  NOTIFICATIONS_GET_SUBSCRIBER_NOTIFICATION: '/api/notifications/subscribers/${subscriberId}/notifications/${notificationId}',
 } as const;

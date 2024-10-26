@@ -2,7 +2,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/MonitoringSystem/Loggers/logger';
 import { getCosmosClient } from '@/config/azureCosmosClient';
 
 async function createDatabaseHandler(req: NextApiRequest, res: NextApiResponse) {
@@ -18,10 +17,8 @@ async function createDatabaseHandler(req: NextApiRequest, res: NextApiResponse) 
     }
     const db = await client.db(databaseName);
     await db.command({ create: databaseName });
-    logger.info(`Database ${databaseName} created successfully`);
     res.status(200).json({ id: databaseName });
   } catch (error) {
-    logger.error(new Error('Error creating database'), { error });
     res.status(500).json({ message: 'Failed to create database' });
   }
 }

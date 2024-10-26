@@ -20,6 +20,8 @@ export enum MetricCategory {
   PERFORMANCE = 'performance',
   RESOURCE = 'resource',
   SECURITY = 'security',
+  MESSAGING = "MESSAGING",
+  API = "API",
 }
 
 // Define metric patterns similar to error patterns

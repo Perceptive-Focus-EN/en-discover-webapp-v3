@@ -46,7 +46,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json(upcomingInvoice);
   } catch (error) {
-    logger.error(new Error('Error fetching upcoming invoice'), { error });
     if (error instanceof Stripe.errors.StripeError) {
       return res.status(error.statusCode || 500).json({ error: error.message });
     }

@@ -1,22 +1,16 @@
 // src/MonitoringSystem/managers/ErrorManager.ts
-import {
-  ErrorType,
-  ErrorCategory,
-  ErrorEnums
-} from '../constants/errors';
+import { ErrorType, ErrorCategory, ErrorEnums } from '../constants/errors';
 import { HttpStatus } from '../constants/httpStatus';
 import { ErrorResponse } from '../types/errors';
 import { AppError } from '../managers/AppError';
-import {
-  SystemMessages,
-  SecurityMessages,
-  BusinessMessages,
-  IntegrationMessages
+import { 
+  SystemMessages, 
+  SecurityMessages, 
+  BusinessMessages, 
+  IntegrationMessages 
 } from '../constants/messages';
-import { ErrorPatternsList, ErrorComponent } from '../types/ErrorPatternsList';
-import { ErrorReferenceGenerator } from '../utils/errorReferenceGenerator';
+import { ServiceBus } from '../core/ServiceBus';
 import { CircuitBreaker } from '../utils/CircuitBreaker';
-import { LoggerManager } from './LoggerManager';
 
 type MessageMap = {
   [K in ErrorCategory]: {
@@ -29,123 +23,110 @@ type MessageMap = {
 };
 
 const DEFAULT_ERROR_MESSAGE = 'An unexpected error occurred';
-const BACKUP_ERROR_TYPE = 'system/general_error';
-const BACKUP_CATEGORY = 'system';
-
-
-const ERROR_STATUS_MAP: Record<ErrorCategory, HttpStatus> = {
-  system: HttpStatus.INTERNAL_SERVER_ERROR,
-  security: HttpStatus.UNAUTHORIZED,
-  business: HttpStatus.BAD_REQUEST,
-  integration: HttpStatus.SERVICE_UNAVAILABLE
-};
-
-const CATEGORY_MAP: Record<ErrorCategory, ErrorComponent['category']> = {
-  system: 'SYS',
-  business: 'API',
-  security: 'SEC',
-  integration: 'INT'
-};
 
 export class ErrorManager {
-  private readonly DEFAULT_TENANT_ID = 'system';
-
   private static instance: ErrorManager;
-  private messageMap: MessageMap = {
+  private readonly DEFAULT_TENANT_ID = 'system';
+  
+  private readonly messageMap: MessageMap = {
     system: SystemMessages,
     security: SecurityMessages,
     business: BusinessMessages,
     integration: IntegrationMessages
   };
-  private logger: LoggerManager | null = null;
 
-  private constructor(private circuitBreaker: CircuitBreaker) {}
+  private constructor(
+    private readonly circuitBreaker: CircuitBreaker,
+    private readonly serviceBus: ServiceBus
+  ) {
+    this.setupEventListeners();
+  }
 
-  public static getInstance(circuitBreaker: CircuitBreaker): ErrorManager {
+  private setupEventListeners(): void {
+    this.serviceBus.on('circuit.error', (data) => {
+      this.handleCircuitError(data);
+    });
+
+    this.serviceBus.on('system.critical', (data) => {
+      this.handleSystemCritical(data);
+    });
+  }
+
+  private handleCircuitError(data: any): void {
+    const error = this.createError(
+      'system',
+      'CIRCUIT_BREAKER_TRIGGERED',
+      `Circuit breaker triggered for ${data.circuit}`,
+      data
+    );
+    this.handleError(error);
+  }
+
+  private handleSystemCritical(data: any): void {
+    const error = this.createError(
+      'system',
+      'SYSTEM_CRITICAL',
+      'System entered critical state',
+      data
+    );
+    this.handleError(error);
+  }
+
+  public static getInstance(
+    circuitBreaker: CircuitBreaker,
+    serviceBus: ServiceBus
+  ): ErrorManager {
     if (!ErrorManager.instance) {
-      ErrorManager.instance = new ErrorManager(circuitBreaker);
+      ErrorManager.instance = new ErrorManager(circuitBreaker, serviceBus);
     }
     return ErrorManager.instance;
   }
 
-  public setLogger(logger: LoggerManager): void {
-    this.logger = logger;
-  }
-
-  private getErrorEnum(category: ErrorCategory) {
+  private getErrorEnum(category: ErrorCategory): Record<string, string> {
     return ErrorEnums[category] || {};
   }
 
   private generateErrorReference(errorType: string, category: ErrorCategory): string {
     const [_, component, action] = errorType.split('/');
-    
-    return ErrorReferenceGenerator.generate({
-      category: CATEGORY_MAP[category] || CATEGORY_MAP[BACKUP_CATEGORY],
-      component: component || 'general',
-      action: action || 'error'
-    });
-  }
-
-  private handleUnknownError(
-    category: ErrorCategory,
-    errorCode: string,
-    message?: string,
-    metadata?: Record<string, unknown>,
-    tenantId?: string
-
-  ): AppError {
-    const errorType = BACKUP_ERROR_TYPE;
-
-    if (this.logger) {
-      this.logger.warn(`Unknown error code: ${errorCode} for category: ${category}. Using fallback.`);
-    }
-
-    const errorReference = this.generateErrorReference(errorType, BACKUP_CATEGORY);
-
-    return new AppError({
-      type: errorType as ErrorType,
-      message: message || DEFAULT_ERROR_MESSAGE,
-      statusCode: ERROR_STATUS_MAP[BACKUP_CATEGORY],
-      metadata,
-      errorReference,
-      tenantId: tenantId || this.DEFAULT_TENANT_ID
-    });
+    return `${category.toUpperCase()}_${component || 'UNKNOWN'}_${action || 'ERROR'}_${Date.now().toString(36)}`;
   }
 
   public handleError(error: AppError): ErrorResponse {
-  const [category] = error.type.split('/') as [ErrorCategory];
-  const userMessage = this.messageMap[category]?.[error.type]?.error || DEFAULT_ERROR_MESSAGE;
+    const [category] = error.type.split('/') as [ErrorCategory];
+    const userMessage = this.messageMap[category]?.[error.type]?.error || DEFAULT_ERROR_MESSAGE;
+    const statusCode = error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR;
+    const errorReference = error.errorReference || this.generateErrorReference(error.type, category);
 
-  const statusCode = error.statusCode || ERROR_STATUS_MAP[category] || HttpStatus.INTERNAL_SERVER_ERROR;
-  const errorReference = error.errorReference || this.generateErrorReference(error.type, category);
+    // Emit error event for logging and metrics
+    this.serviceBus.emit('error.occurred', {
+      type: error.type,
+      message: error.message,
+      metadata: {
+        errorReference,
+        stack: error.stack,
+        category,
+        statusCode,
+        metadata: error.metadata,
+        timestamp: error.timestamp,
+        tenantId: error.tenantId,
+        currentTenantId: error.currentTenantId,
+        personalTenantId: error.personalTenantId
+      }
+    });
 
-  if (this.logger) {
-    this.logger.error(new Error(error.message), error.type, {
-      errorReference,
-      stack: error.stack,
-      category,
+    return {
+      userMessage,
+      errorType: error.type as ErrorType,
       statusCode,
+      errorReference,
       metadata: error.metadata,
-      timestamp: error.timestamp,
       tenantId: error.tenantId,
       currentTenantId: error.currentTenantId,
       personalTenantId: error.personalTenantId
-    });
+    };
   }
 
-  return {
-    userMessage,
-    errorType: error.type as ErrorType,
-    statusCode,
-    errorReference,
-    metadata: error.metadata,
-    tenantId: error.tenantId,
-    currentTenantId: error.currentTenantId,
-    personalTenantId: error.personalTenantId
-  };
-  }
-  
-   public createError(
+  public createError(
     category: ErrorCategory,
     errorCode: string,
     message?: string,
@@ -153,23 +134,42 @@ export class ErrorManager {
     tenantId?: string
   ): AppError {
     const errorEnum = this.getErrorEnum(category);
-    const errorType = errorEnum[errorCode as keyof typeof errorEnum];
+    const errorType = errorEnum[errorCode];
 
     if (!errorType) {
-      return this.handleUnknownError(category, errorCode, message, metadata, tenantId);
+      return this.createUnknownError(category, errorCode, message, metadata, tenantId);
     }
 
     const errorReference = this.generateErrorReference(errorType, category);
 
     return new AppError({
       type: errorType as ErrorType,
-      message: message || this.messageMap[category]?.[errorType]?.error || DEFAULT_ERROR_MESSAGE,
-      statusCode: ERROR_STATUS_MAP[category],
+      message: message || DEFAULT_ERROR_MESSAGE,
+      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       metadata,
       errorReference,
       tenantId: tenantId || this.DEFAULT_TENANT_ID
     });
-    }
+  }
+
+  private createUnknownError(
+    category: ErrorCategory,
+    errorCode: string,
+    message?: string,
+    metadata?: Record<string, unknown>,
+    tenantId?: string
+  ): AppError {
+    const errorReference = this.generateErrorReference(`${category}/unknown/${errorCode}`, category);
+    
+    return new AppError({
+      type: `${category}/unknown_error` as ErrorType,
+      message: message || DEFAULT_ERROR_MESSAGE,
+      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+      metadata: { ...metadata, originalErrorCode: errorCode },
+      errorReference,
+      tenantId: tenantId || this.DEFAULT_TENANT_ID
+    });
+  }
 
   public enrichError(error: AppError, additionalMetadata?: Record<string, unknown>): AppError {
     return error.withMetadata(additionalMetadata || {});

@@ -9,7 +9,7 @@ import useClickOutside from '../hooks/useClickOutside';
 import { useAIAssistant } from '@/contexts/AIAssistantContext';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import generateResponseGenerator from '../lib/api_s/responseGenerator';
-import { synthesizeSpeech } from '../lib/api_s/audioGenerator';
+import { audioApi } from '@/lib/api_s/audioGenerator';
 
 const AssistantContainer = styled.div`
   display: flex;
@@ -81,6 +81,15 @@ const AIAssistant: React.FC = () => {
     browserSupportsSpeechRecognition
   } = useSpeechRecognition();
 
+  // Cleanup audio URL when component unmounts or audio URL changes
+  useEffect(() => {
+    return () => {
+      if (state.audioUrl) {
+        audioApi.revokeAudioUrl(state.audioUrl);
+      }
+    };
+  }, [state.audioUrl]);
+
   useEffect(() => {
     console.info('AI Assistant initialized', { initialVoice: state.selectedVoice });
   }, [state.selectedVoice]);
@@ -110,17 +119,31 @@ const AIAssistant: React.FC = () => {
     try {
       setIsLoading(true);
       dispatch({ type: 'SET_IS_LOADING', payload: true });
+      
+      // Generate text response
       const response = await generateResponseGenerator({ userInput: input, context });
       dispatch({ type: 'SET_GENERATED_RESPONSE', payload: response });
       setContext(prevContext => [...prevContext, `User: ${input}`, `Assistant: ${response}`]);
       
-      // Synthesize speech
+      // Synthesize speech with new audioApi
       dispatch({ type: 'SET_IS_SYNTHESIZING', payload: true });
-      const selectedVoice = state.selectedVoice as 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' | undefined;
-      const audioUrl = await synthesizeSpeech({ text: response, voice: selectedVoice });
-      dispatch({ type: 'SET_AUDIO_URL', payload: audioUrl });
+      
+      // Clean up previous audio URL if it exists
+      if (state.audioUrl) {
+        audioApi.revokeAudioUrl(state.audioUrl);
+      }
 
-      console.info('Response generated and synthesized', { responseLength: response.length, audioUrl });
+      const audioUrl = await audioApi.synthesizeSpeech({
+        text: response,
+        voice: state.selectedVoice as 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+      });
+      
+      dispatch({ type: 'SET_AUDIO_URL', payload: audioUrl });
+      console.info('Response generated and synthesized', { 
+        responseLength: response.length, 
+        audioUrl,
+        voice: state.selectedVoice 
+      });
     } catch (error) {
       console.error('Error in generating or synthesizing response', { error });
     } finally {
@@ -147,7 +170,10 @@ const AIAssistant: React.FC = () => {
     } else {
       SpeechRecognition.stopListening();
     }
-    console.info(`Chit Chat ${newShowInput ? 'enabled' : 'disabled'}`, { showInput: newShowInput, speechRecognitionEnabled: newShowInput });
+    console.info(`Chit Chat ${newShowInput ? 'enabled' : 'disabled'}`, { 
+      showInput: newShowInput, 
+      speechRecognitionEnabled: newShowInput 
+    });
   };
 
   return (

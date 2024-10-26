@@ -1,9 +1,9 @@
 // src/MonitoringSystem/Loggers/LoggerPersistence.ts
 import { LogEntry } from '../types/logging';
-import { ErrorManager } from '../managers/ErrorManager';
 import { api } from '../../lib/axiosSetup';
-import { MetricCategory, MetricType, MetricUnit } from '../constants/metrics';
 import { CircuitBreaker } from '../utils/CircuitBreaker';
+import { ServiceBus } from '../core/ServiceBus';
+import { SystemError } from '../constants/errors';
 
 interface LogResponse {
   data: LogEntry[];
@@ -17,41 +17,50 @@ export class LoggerPersistence {
   private readonly batchSize = 100;
   private flushInterval: NodeJS.Timeout | null = null;
   private readonly MAX_QUEUE_SIZE = 10000;
+  private readonly RETRY_ATTEMPTS = 3;
+  private readonly RETRY_DELAY = 1000;
 
   private constructor(
     private circuitBreaker: CircuitBreaker,
-    private errorManager: ErrorManager
+    private serviceBus: ServiceBus
   ) {
     this.startFlushInterval();
   }
 
   public static getInstance(
     circuitBreaker: CircuitBreaker,
-    errorManager: ErrorManager
+    serviceBus: ServiceBus
   ): LoggerPersistence {
     if (!LoggerPersistence.instance) {
-      LoggerPersistence.instance = new LoggerPersistence(circuitBreaker, errorManager);
+      LoggerPersistence.instance = new LoggerPersistence(circuitBreaker, serviceBus);
     }
     return LoggerPersistence.instance;
   }
 
   public async persistLog(logEntry: LogEntry): Promise<void> {
     if (this.circuitBreaker.isOpen('logger-persistence')) {
-      // Drop log silently when circuit is open
+      this.serviceBus.emit('log.dropped', {
+        reason: 'circuit-open',
+        logEntry
+      });
       return;
     }
 
     if (this.logQueue.length >= this.MAX_QUEUE_SIZE) {
       this.circuitBreaker.recordError('logger-persistence');
-      throw this.errorManager.createError(
-        'system',
-        'LOG_QUEUE_FULL',
-        'Log queue capacity exceeded',
-        { queueSize: this.logQueue.length }
-      );
+      this.serviceBus.emit('error.occurred', {
+        type: SystemError.LOG_QUEUE_FULL,
+        message: 'Log queue capacity exceeded',
+        metadata: { queueSize: this.logQueue.length }
+      });
+      return;
     }
 
     this.logQueue.push(logEntry);
+    this.serviceBus.emit('log.queued', {
+      queueSize: this.logQueue.length,
+      logEntry
+    });
 
     if (this.logQueue.length >= this.batchSize) {
       await this.flush();
@@ -62,9 +71,15 @@ export class LoggerPersistence {
     if (this.flushInterval) {
       clearInterval(this.flushInterval);
     }
+    
     this.flushInterval = setInterval(() => {
       if (!this.circuitBreaker.isOpen('logger-flush')) {
         void this.flush();
+      } else {
+        this.serviceBus.emit('log.flush.skipped', {
+          reason: 'circuit-open',
+          queueSize: this.logQueue.length
+        });
       }
     }, 10000);
   }
@@ -73,6 +88,10 @@ export class LoggerPersistence {
     if (this.logQueue.length === 0) return;
     
     if (this.circuitBreaker.isOpen('logger-flush')) {
+      this.serviceBus.emit('log.flush.skipped', {
+        reason: 'circuit-open',
+        queueSize: this.logQueue.length
+      });
       return;
     }
 
@@ -80,31 +99,54 @@ export class LoggerPersistence {
     this.logQueue = [];
 
     try {
-      await this.sendLogs(logsToSend);
+      await this.sendWithRetry(logsToSend);
+      this.serviceBus.emit('logs.flushed', {
+        count: logsToSend.length,
+        timestamp: new Date()
+      });
     } catch (error) {
       this.circuitBreaker.recordError('logger-flush');
       this.logQueue.unshift(...logsToSend);
       
-      throw this.errorManager.createError(
-        'system',
-        'LOG_PERSISTENCE_FAILED',
-        'Failed to persist logs',
-        {
+      this.serviceBus.emit('error.occurred', {
+        type: SystemError.LOG_PERSISTENCE_FAILED,
+        message: 'Failed to persist logs',
+        metadata: {
           batchSize: logsToSend.length,
           error
         }
-      );
+      });
+      throw error;
     }
   }
 
-  private async sendLogs(logs: LogEntry[]): Promise<void> {
+  private async sendWithRetry(logs: LogEntry[], attempt = 1): Promise<void> {
     if (this.circuitBreaker.isOpen('logger-api')) {
+      this.serviceBus.emit('log.send.skipped', {
+        reason: 'circuit-open',
+        logsCount: logs.length
+      });
       return;
     }
 
     try {
       await api.post('/api/logs', { logs });
+      this.serviceBus.emit('logs.sent', {
+        count: logs.length,
+        timestamp: new Date()
+      });
     } catch (error) {
+      if (attempt < this.RETRY_ATTEMPTS) {
+        const delay = this.RETRY_DELAY * Math.pow(2, attempt - 1);
+        this.serviceBus.emit('log.send.retry', {
+          attempt,
+          nextDelay: delay,
+          logsCount: logs.length
+        });
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.sendWithRetry(logs, attempt + 1);
+      }
+
       this.circuitBreaker.recordError('logger-api');
       throw error;
     }
@@ -112,6 +154,10 @@ export class LoggerPersistence {
 
   public async getLogs(startDate: Date, endDate: Date): Promise<LogEntry[]> {
     if (this.circuitBreaker.isOpen('logger-retrieval')) {
+      this.serviceBus.emit('log.retrieval.skipped', {
+        reason: 'circuit-open',
+        timeWindow: { startDate, endDate }
+      });
       return [];
     }
 
@@ -119,20 +165,24 @@ export class LoggerPersistence {
       const timeWindow = this.formatTimeWindow(startDate, endDate);
       const response = await api.get<LogResponse>(
         '/api/logs',
-        {
-          params: { timeWindow }
-        }
+        { params: { timeWindow } }
       );
+
+      this.serviceBus.emit('logs.retrieved', {
+        count: response.data.length,
+        timeWindow,
+        timestamp: new Date()
+      });
 
       return response.data;
     } catch (error) {
       this.circuitBreaker.recordError('logger-retrieval');
-      throw this.errorManager.createError(
-        'system',
-        'LOG_RETRIEVAL_FAILED',
-        'Failed to retrieve logs',
-        { startDate, endDate, error }
-      );
+      this.serviceBus.emit('error.occurred', {
+        type: SystemError.LOG_RETRIEVAL_FAILED,
+        message: 'Failed to retrieve logs',
+        metadata: { startDate, endDate, error }
+      });
+      throw error;
     }
   }
 
@@ -149,5 +199,10 @@ export class LoggerPersistence {
       clearInterval(this.flushInterval);
       this.flushInterval = null;
     }
+    
+    this.serviceBus.emit('logs.persistence.destroyed', {
+      queueSize: this.logQueue.length,
+      timestamp: new Date()
+    });
   }
 }

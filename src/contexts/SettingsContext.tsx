@@ -125,7 +125,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     ]);
 
     const fetchedSettings: ExtendedSettingsState = {
-      ...allSettingsResponse.data,
+      ...state,
+      ...allSettingsResponse,
       faq: faqResponse,
       terms: termsResponse,
       privacyPolicy: privacyPolicyResponse,

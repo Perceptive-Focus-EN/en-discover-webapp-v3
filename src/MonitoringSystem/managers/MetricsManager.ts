@@ -1,10 +1,10 @@
 // src/MonitoringSystem/managers/MetricsManager.ts
 import { MetricType, MetricUnit, MetricCategory } from '../constants/metrics';
 import { MetricComponent, MetricEntry, MetricResponse } from '../types/metrics';
-import { ErrorManager } from './ErrorManager';
+import { ServiceBus } from '../core/ServiceBus';
+import { CircuitBreaker } from '../utils/CircuitBreaker';
 import { MetricsAggregator } from '../Metrics/MetricsAggregator';
 import { MetricsPersistence } from '../Metrics/MetricsPersistence';
-import { CircuitBreaker } from '../utils/CircuitBreaker';
 
 export class MetricsManager {
   private metrics: Map<string, MetricEntry> = new Map();
@@ -14,18 +14,36 @@ export class MetricsManager {
 
   private constructor(
     private circuitBreaker: CircuitBreaker,
-    private errorManager: ErrorManager
+    private serviceBus: ServiceBus
   ) {
-    this.aggregator = MetricsAggregator.getInstance();
-    this.persistence = MetricsPersistence.getInstance(circuitBreaker);
+    this.aggregator = MetricsAggregator.getInstance(this.serviceBus);
+    this.persistence = MetricsPersistence.getInstance(
+      this.circuitBreaker,
+      this.serviceBus
+    );
+
+    // Listen for log events that need metrics
+    this.serviceBus.on('log.processed', (logEntry) => {
+      if (logEntry.level === 'error') {
+        this.recordMetric(
+          MetricCategory.SYSTEM,
+          'logs',
+          'error_count',
+          1,
+          MetricType.COUNTER,
+          MetricUnit.COUNT,
+          { category: logEntry.category }
+        );
+      }
+    });
   }
 
   public static getInstance(
     circuitBreaker: CircuitBreaker,
-    errorManager: ErrorManager
+    serviceBus: ServiceBus
   ): MetricsManager {
     if (!MetricsManager.instance) {
-      MetricsManager.instance = new MetricsManager(circuitBreaker, errorManager);
+      MetricsManager.instance = new MetricsManager(circuitBreaker, serviceBus);
     }
     return MetricsManager.instance;
   }
@@ -52,6 +70,7 @@ export class MetricsManager {
         type,
         unit
       };
+      
       const reference = this.generateReference(metricComponent);
       const entry: MetricEntry = {
         ...metricComponent,
@@ -59,10 +78,13 @@ export class MetricsManager {
         timestamp: new Date(),
         metadata
       };
-      this.metrics.set(reference, entry);
       
+      this.metrics.set(reference, entry);
       this.aggregator.aggregate(entry);
       void this.persistence.persistMetric(entry);
+
+      // Emit metric event
+      this.serviceBus.emit('metric.recorded', entry);
       
       return {
         reference,
@@ -72,12 +94,12 @@ export class MetricsManager {
         metadata
       };
     } catch (error) {
-      throw this.errorManager.createError(
-        'system',
-        'METRICS_PROCESSING_FAILED',
-        'Failed to record metric',
-        { category, component, action, value, error }
-      );
+      this.serviceBus.emit('error.occurred', {
+        type: 'system/metric_recording_failed',
+        message: 'Failed to record metric',
+        metadata: { category, component, action, value, error }
+      });
+      throw error;
     }
   }
 
@@ -93,20 +115,25 @@ export class MetricsManager {
     try {
       await this.persistence.flush();
     } catch (error) {
-      throw this.errorManager.createError(
-        'system',
-        'METRICS_FLUSH_FAILED',
-        'Failed to flush metrics',
-        { error }
-      );
+      this.serviceBus.emit('error.occurred', {
+        type: 'system/metrics_flush_failed',
+        message: 'Failed to flush metrics',
+        metadata: { error }
+      });
+      throw error;
     }
   }
 
   public destroy(): void {
-    this.persistence.destroy();
-    this.metrics.clear();
+    try {
+      this.persistence.destroy();
+      this.metrics.clear();
+    } catch (error) {
+      this.serviceBus.emit('error.occurred', {
+        type: 'system/metrics_destroy_failed',
+        message: 'Failed to destroy metrics manager',
+        metadata: { error }
+      });
+    }
   }
 }
-
-// Remove singleton export - let MonitoringManager handle this
-// export const metricsManager = MetricsManager.getInstance();

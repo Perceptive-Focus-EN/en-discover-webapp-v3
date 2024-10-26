@@ -144,8 +144,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateOnboardingStep = async (data: OnboardingStepRequest) => {
     try {
-      const response = await onboardingApi.updateOnboardingStep(data);
-      if (response && response.user) {
+      const response = await onboardingApi.updateOnboardingStep(data) as unknown as { user: ExtendedUserInfo };
+      if (response.user) {
         setUserAndStore(response.user);
         setOnboardingStatus(response.user.onboardingStatus as OnboardingStatusDetails | null);
       } else {

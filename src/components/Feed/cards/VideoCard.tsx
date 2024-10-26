@@ -32,6 +32,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   loop = false,
   ...baseProps
 }) => {
+  const { getVideoUrl } = useFeed(); // Get getVideoUrl from FeedContext
   const [isPlaying, setIsPlaying] = useState(autoplay);
   const [isMuted, setIsMuted] = useState(muted);
   const [isLooping, setIsLooping] = useState(loop);
@@ -39,7 +40,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const [loading, setLoading] = useState(!initialVideoUrl);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { getVideoUrl } = useFeed();
 
   useEffect(() => {
     const fetchVideoUrl = async () => {
@@ -48,11 +48,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         setLoading(false);
       } else if (blobName && processingStatus === 'completed') {
         try {
+          setLoading(true);
           const url = await getVideoUrl(blobName);
           setVideoUrl(url);
-          setLoading(false);
+          setError(null);
         } catch (error) {
           setError('Unable to load video');
+          setVideoUrl(null);
+        } finally {
           setLoading(false);
         }
       } else {

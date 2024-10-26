@@ -47,7 +47,7 @@ const realEmotionMappingsApi = {
         { userId }
       );
 
-      return Array.isArray(response.data.data) ? response.data.data : [];
+      return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
       messageHandler.error('Failed to fetch emotion mappings');
       

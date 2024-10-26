@@ -4,7 +4,6 @@ import { WebSiteManagementClient } from '@azure/arm-appservice';
 import { DefaultAzureCredential } from '@azure/identity';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/MonitoringSystem/Loggers/logger';
 import { AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP } from '@/constants/azureConstants';
 
 async function deleteFunctionHandler(req: NextApiRequest, res: NextApiResponse) {
@@ -21,10 +20,8 @@ async function deleteFunctionHandler(req: NextApiRequest, res: NextApiResponse) 
     // Use the delete method instead of beginDeleteAndWait
     await client.webApps.delete(AZURE_RESOURCE_GROUP, name as string);
     
-    logger.info(`Function app ${name} deletion initiated successfully`);
     res.status(202).json({ message: 'Function app deletion initiated successfully' });
   } catch (error) {
-    logger.error(new Error('Error deleting function app'), { error });
     res.status(500).json({ message: 'Failed to initiate function app deletion' });
   }
 }

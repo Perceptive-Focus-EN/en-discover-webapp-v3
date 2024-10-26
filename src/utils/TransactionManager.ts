@@ -1,8 +1,6 @@
-import { logger } from '../MonitoringSystem/Loggers/logger';
 import { getCosmosClient, closeCosmosClient } from '../config/azureCosmosClient';
 import { Db, ClientSession, Collection } from 'mongodb';
 import { DatabaseError } from '../MonitoringSystem/errors/specific';
-import { ErrorType } from '@/MonitoringSystem/constants/errors';
 
 export class TransactionManager {
   private db: Db | null = null;
@@ -29,22 +27,19 @@ export class TransactionManager {
   ): Promise<T> {
     await this.initClient();
     const client = await getCosmosClient(this.databaseId);
-    const session = client.client!.startSession();
+    if (!client.client) {
+      throw new DatabaseError('Failed to start session: client is undefined');
+    }
+    const session = client.client.startSession();
 
     try {
-      logger.info('Starting database transaction');
       let result: T;
       await session.withTransaction(async () => {
         result = await operations(session, this.collection!);
       });
 
-      logger.info('Transaction committed successfully');
       return result!;
     } catch (error) {
-      logger.error(new Error('Transaction aborted due to error'), ErrorType.TRANSACTION_ABORTED, { 
-        message: (error as Error).message, 
-        stack: (error as Error).stack 
-      });
       throw new DatabaseError((error as Error).message);
     } finally {
       await session.endSession();
@@ -60,16 +55,8 @@ export class TransactionManager {
         return await this.executeTransaction(operations);
       } catch (error) {
         if (attempt === maxRetries) {
-          logger.error(new Error('Transaction failed after maximum retries'), ErrorType.TRANSACTION_ABORTED, {
-            message: (error as Error).message, 
-            stack: (error as Error).stack 
-          });
           throw new DatabaseError(`Transaction failed after ${maxRetries} attempts: ${(error as Error).message}`);
         }
-        logger.warn(`Transaction attempt ${attempt} failed, retrying...`, { 
-          message: (error as Error).message, 
-          stack: (error as Error).stack 
-        });
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
       }
     }

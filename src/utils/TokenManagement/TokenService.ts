@@ -1,7 +1,7 @@
 // src/utils/TokenManagement/TokenService.ts
 import { AuthResponse } from '@/types/Login/interfaces';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
-import { SecurityError } from '@/MonitoringSystem/constants/errors';
+import { SecurityError, ErrorType } from '@/MonitoringSystem/constants/errors';
 import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 import * as clientTokenUtils from './clientTokenUtils';
@@ -54,7 +54,7 @@ export class TokenService {
     } catch (error) {
       monitoringManager.logger.error(
         new Error('Failed to set tokens'),
-        SecurityError.TOKEN_OPERATION_FAILED,
+        SecurityError.TOKEN_OPERATION_FAILED as ErrorType,
         {
           category: LogCategory.SECURITY,
           pattern: LOG_PATTERNS.SECURITY,
@@ -96,7 +96,7 @@ export class TokenService {
     } catch (error) {
       monitoringManager.logger.error(
         new Error('Failed to store user'),
-        SecurityError.TOKEN_OPERATION_FAILED,
+        SecurityError.AUTH_TOKEN_FAILED,
         {
           category: LogCategory.SECURITY,
           pattern: LOG_PATTERNS.SECURITY,
