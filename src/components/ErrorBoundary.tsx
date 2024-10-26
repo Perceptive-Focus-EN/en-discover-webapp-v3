@@ -1,7 +1,6 @@
 // src/components/ErrorBoundary.tsx
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Box, Typography, Button } from '@mui/material';
-import { frontendLogger } from '../MonitoringSystem/managers/FrontendMessageHandler';
 
 interface Props {
   children: ReactNode;
@@ -30,13 +29,6 @@ class ErrorBoundary extends Component<Props, State> {
       error: error,
       errorInfo: errorInfo,
     });
-  
-    frontendLogger.error(
-      'Uncaught error:',
-      'An unexpected error occurred. We\'re looking into it.',
-      { error, errorInfo }
-    );
-    frontendLogger.sendMetrics(); // Send metrics when an error occurs
   }
 
   private handleReload = () => {
@@ -45,12 +37,6 @@ class ErrorBoundary extends Component<Props, State> {
 
   private handleReportError = () => {
     if (this.state.error) {
-      frontendLogger.error(
-        'User reported error:',
-        'Error has been reported. Thank you!',
-        { message: this.state.error.message, stack: this.state.error.stack }
-      );
-      frontendLogger.sendMetrics();
       this.setState({ hasError: true });
     }
   }
