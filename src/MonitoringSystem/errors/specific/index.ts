@@ -3,16 +3,21 @@ import { SystemError, SecurityError, BusinessError, IntegrationError } from '../
 import { HttpStatus } from '../../constants/httpStatus';
 import { AppError } from '../../managers/AppError';
 
+
 export class DatabaseError extends AppError {
   constructor(message: string, metadata?: Record<string, unknown>) {
     super({
       type: SystemError.DATABASE_CONNECTION_FAILED,
       message,
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      metadata
+      metadata,
+      errorReference: 'SYS_DATABASE_CONNECTION_FAILED',
+      tenantId: 'defaultTenant'
     });
   }
 }
+
+
 
 export class AuthenticationError extends AppError {
   constructor(message: string, metadata?: Record<string, unknown>) {
@@ -20,7 +25,9 @@ export class AuthenticationError extends AppError {
       type: SecurityError.AUTH_FAILED,
       message,
       statusCode: HttpStatus.UNAUTHORIZED,
-      metadata
+      metadata,
+      errorReference: 'SEC_AUTH_FAILED',
+      tenantId: 'defaultTenant'
     });
   }
 }
@@ -31,7 +38,9 @@ export class ValidationError extends AppError {
       type: BusinessError.VALIDATION_FAILED,
       message,
       statusCode: HttpStatus.BAD_REQUEST,
-      metadata
+      metadata,
+      errorReference: 'BUS_VALIDATION_FAILED',
+      tenantId: 'defaultTenant'
     });
   }
 }
@@ -42,7 +51,9 @@ export class ApiError extends AppError {
       type: IntegrationError.API_REQUEST_FAILED,
       message,
       statusCode,
-      metadata
+      metadata,
+      errorReference: 'INT_API_REQUEST_FAILED',
+      tenantId: 'defaultTenant'
     });
   }
 }
@@ -53,7 +64,9 @@ export class PaymentError extends AppError {
       type: BusinessError.PAYMENT_PROCESSING_FAILED,
       message,
       statusCode: HttpStatus.BAD_REQUEST,
-      metadata
+      metadata,
+      errorReference: 'BUS_PAYMENT_PROCESSING_FAILED',
+      tenantId: 'defaultTenant'
     });
   }
 }
@@ -64,7 +77,9 @@ export class UnauthorizedError extends AppError {
       type: SecurityError.AUTH_UNAUTHORIZED,
       message,
       statusCode: HttpStatus.UNAUTHORIZED,
-      metadata
+      metadata,
+      errorReference: 'SEC_AUTH_UNAUTHORIZED',
+      tenantId: 'defaultTenant'
     });
   }
 }
