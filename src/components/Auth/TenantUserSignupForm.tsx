@@ -36,7 +36,6 @@ const TenantUserSignupForm: React.FC = () => {
   
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
-  const { error, setError } = useAuth();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }> | SelectChangeEvent<unknown>) => {
     const { name, value } = e.target;
@@ -46,11 +45,9 @@ const TenantUserSignupForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
     try {
-      const newUser = await userApi.createTenantUser(formData);
+      await userApi.createTenantUser(formData);
       setSuccess('User added to tenant successfully.');
-      console.log('New user created:', newUser);
       setFormData({
         firstName: '',
         lastName: '',
@@ -61,10 +58,6 @@ const TenantUserSignupForm: React.FC = () => {
         department: '',
         accountType: UserAccountTypeEnum.MEMBER,
       });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to add user to tenant';
-      setError(errorMessage);
-      console.error('Failed to add user to tenant:', err);
     } finally {
       setLoading(false);
     }
@@ -206,11 +199,6 @@ const TenantUserSignupForm: React.FC = () => {
           </form>
         </Box>
       </Paper>
-      <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError(null)}>
-        <Alert onClose={() => setError(null)} severity="error">
-          {error}
-        </Alert>
-      </Snackbar>
       <Snackbar open={!!success} autoHideDuration={6000} onClose={() => setSuccess(null)}>
         <Alert onClose={() => setSuccess(null)} severity="success">
           {success}
