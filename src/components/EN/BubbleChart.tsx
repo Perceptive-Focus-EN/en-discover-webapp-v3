@@ -490,7 +490,8 @@ type EmotionId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
                     userId: user?.userId || '',
                     sources: [],
                     color: emotions.find(e => e.emotionName === selectedEmotion)?.color || theme.palette.grey[400],
-                    emotionName: selectedEmotion || ''
+                    emotionName: selectedEmotion || '',
+                    volume: 0,
                   }}
                   history={mockMoodHistory.filter(item => item.emotionName === selectedEmotion)}
                   timeRange={currentTimeRange}
