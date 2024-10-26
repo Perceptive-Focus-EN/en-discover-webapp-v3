@@ -1,4 +1,3 @@
-// src/components/Feed/context/FeedContext.tsx
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { PostData, FeedPost } from '../types/Post';
@@ -8,6 +7,7 @@ import { videoApi } from '../../../lib/api_s/uploads/video';
 import { feedApi } from '../../../lib/api_s/feed/index';
 import { postReactionsApi } from '../../../lib/api_s/reactions/postReactions';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
+import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
 
 // Interfaces
 interface Connection {
@@ -77,6 +77,7 @@ interface FeedContextType extends UploadHandlers {
   updateVideoProcessingStatus: (postId: string, status: string) => Promise<void>;
   fetchReactions: (postId: string) => Promise<void>;
   updateReaction: (postId: string, emotionId: string) => Promise<void>;
+  addNewPost: (newPost: PostData) => Promise<void>;
 }
 
 const initialState: FeedState = {
@@ -194,6 +195,20 @@ const FeedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  // Add New Post
+  // In FeedContext.tsx
+const addNewPost = useCallback(async (newPost: PostData) => {
+  const completePost: FeedPost = {
+    ...newPost,
+    id: Date.now().toString(), // Temporary ID until backend sync
+    avatarUrl: user?.avatarUrl || '',
+    accountType: user?.accountType || UserAccountTypeEnum.PERSONAL,
+    reactions: [], // Initialize empty reactions array
+    reactionCounts: [], // Initialize empty reaction counts
+  };
+  dispatch({ type: 'ADD_POST', payload: completePost });
+}, [user]);
+
   return (
     <FeedContext.Provider
       value={{
@@ -211,6 +226,7 @@ const FeedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         updateVideoProcessingStatus: async () => {}, // Placeholder, to be implemented
         fetchReactions: async () => {}, // Placeholder, to be implemented
         updateReaction: async () => {}, // Placeholder, to be implemented
+        addNewPost,
       }}
     >
       {children}

@@ -1,13 +1,10 @@
-// src/components/Feed/cards/BaseCard.tsx
-import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CircularProgress } from '@mui/material';
-import { CardHeader } from '../CardHeader';
-import { CardFooter } from '../CardFooter';
-import { UserTypeBadge } from './PostingUsersBadge';
-import { UserAccountType, UserAccountTypeEnum } from '../../../constants/AccessKey/accounts';
-import { useMoodBoard } from '../../../contexts/MoodBoardContext';
-import { EmotionId, EmotionName } from '../types/Reaction';
-import { PostData } from '../types/Post';
+import { Card, CardContent, CardHeader, CircularProgress } from "@mui/material";
+import { CardFooter } from "../CardFooter";
+import { UserTypeBadge } from "./PostingUsersBadge";
+import { useEffect, useState } from "react";
+import { useMoodBoard } from "@/contexts/MoodBoardContext";
+import { EmotionId, ReactionCount } from "../types/Reaction";
+import { UserAccountType, UserAccountTypeEnum } from "@/constants/AccessKey/accounts";
 
 export interface BaseCardProps {
   id: string;
@@ -18,37 +15,46 @@ export interface BaseCardProps {
   firstName?: string;
   lastName?: string;
   userType: UserAccountType;
+  reactionCounts?: { emotionId: EmotionId; count: number }[]; // Make optional
+  isNewPost?: boolean; // Add this prop
 }
 
-export const BaseCard: React.FC<BaseCardProps & { children: React.ReactNode; cardStyle?: React.CSSProperties; isPreview?: boolean }> = ({
+
+// src/components/Feed/cards/BaseCard.tsx
+export const BaseCard: React.FC<BaseCardProps & { 
+  children: React.ReactNode; 
+  cardStyle?: React.CSSProperties; 
+  isPreview?: boolean 
+}> = ({
   id,
   userId,
   username,
   userAvatar,
   timestamp,
-  firstName,
-  lastName,
+  firstName = '',
+  lastName = '',
   userType,
   children,
   cardStyle,
-  isPreview = false
+  isPreview = false,
+  reactionCounts = [], // Default empty array
+  isNewPost = false
 }) => {
   const { fetchPostWithReactions, updatePostReaction } = useMoodBoard();
-  const [postData, setPostData] = useState<PostData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [localReactionCounts, setLocalReactionCounts] = useState(reactionCounts);
+  const [isLoading, setIsLoading] = useState(!isPreview && !isNewPost);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isPreview) {
+    if (isPreview || isNewPost) {
       setIsLoading(false);
       return;
     }
 
     const loadPostData = async () => {
       try {
-        setIsLoading(true);
         const data = await fetchPostWithReactions(id);
-        setPostData(data);
+        setLocalReactionCounts(data.reactionCounts || []);
       } catch (err) {
         setError('Failed to load post data');
         console.error(err);
@@ -58,14 +64,27 @@ export const BaseCard: React.FC<BaseCardProps & { children: React.ReactNode; car
     };
 
     loadPostData();
-  }, [id, fetchPostWithReactions, isPreview]);
+  }, [id, fetchPostWithReactions, isPreview, isNewPost]);
 
   const handleReactionSelect = async (postId: string, emotionId: EmotionId) => {
     try {
-      const updatedReactions = await updatePostReaction(postId, emotionId);
-      if (postData) {
-        setPostData({ ...postData, reactionCounts: updatedReactions });
+      if (isNewPost) {
+        setLocalReactionCounts((current: ReactionCount[]) => {
+          const existing = current.find((r: ReactionCount) => r.emotionId === emotionId);
+          if (existing) {
+            return current.map((r: ReactionCount) => 
+              r.emotionId === emotionId 
+          ? { ...r, count: r.count + 1 }
+          : r
+            );
+          }
+          return [...current, { emotionId, count: 1 }];
+        });
+        return;
       }
+
+      const updatedReactions = await updatePostReaction(postId, emotionId);
+      setLocalReactionCounts(updatedReactions);
     } catch (err) {
       console.error('Failed to update reaction:', err);
     }
@@ -75,7 +94,7 @@ export const BaseCard: React.FC<BaseCardProps & { children: React.ReactNode; car
     return <CircularProgress />;
   }
 
-  if (error || !postData) {
+  if (error) {
     return <div>Error loading post</div>;
   }
 
@@ -101,7 +120,7 @@ export const BaseCard: React.FC<BaseCardProps & { children: React.ReactNode; car
       </CardContent>
       <CardFooter 
         postId={id}
-        reactions={postData.reactionCounts}
+        reactions={localReactionCounts}
         userTypeBadge={<UserTypeBadge userType={userType as UserAccountTypeEnum} />}
         onReactionSelect={handleReactionSelect}
       />

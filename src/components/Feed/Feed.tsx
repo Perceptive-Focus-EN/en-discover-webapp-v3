@@ -11,6 +11,7 @@ import { FeedPost, PostType, PostContent, TextContent, SurveyContent, VideoConte
 import { ReactionType } from './types/Reaction';
 import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
 import { EmotionId } from './types/Reaction';
+import useReactionOperations from './context/useReactionOperations';
 
 interface FeedProps {
   feedType: 'forYou' | 'following' | 'global';
@@ -159,33 +160,37 @@ const CardComponent: React.FC<FeedPost> = (props) => {
 };
 
 export const Feed: React.FC<FeedProps> = ({ feedType, activeEmotions }) => {
-  const { state, fetchPosts } = useFeed();
+  const { state: { posts }, fetchPosts } = useFeed();
+  const reactionOps = useReactionOperations();
   const [hasMore, setHasMore] = useState(true);
 
   const loadMorePosts = useCallback(async () => {
     try {
       await fetchPosts();
-      if (state.posts.length === 0) {
+      if (posts.length === 0) {
         setHasMore(false);
       }
     } catch (error) {
       console.error('Error fetching posts:', error);
       setHasMore(false);
     }
-  }, [fetchPosts, feedType, activeEmotions, state.posts.length]);
+  }, [fetchPosts, feedType, activeEmotions,posts.length]);
 
   useEffect(() => {
     loadMorePosts();
   }, [loadMorePosts, feedType, activeEmotions]);
 
-  const handleReactionSelect = useCallback((postId: string, reactionType: ReactionType) => {
-    console.log(`Reaction selected for post ${postId}: ${reactionType.emotionName}`);
-    // TODO: Implement reaction update logic
-  }, []);
+    const handleReactionSelect = useCallback(async (postId: string, reactionType: ReactionType) => {
+    try {
+      await reactionOps.updateReaction(postId, reactionType.id);
+    } catch (error) {
+      console.error('Error updating reaction:', error);
+    }
+    }, [reactionOps]);
 
   return (
     <InfiniteScroll
-      dataLength={state.posts.length}
+      dataLength={posts.length}
       next={loadMorePosts}
       hasMore={hasMore}
       loader={
@@ -202,13 +207,13 @@ export const Feed: React.FC<FeedProps> = ({ feedType, activeEmotions }) => {
         </div>
       }
     >
-      {state.posts.map((post, index) => (
+      {posts.map((post, index) => (
         <div key={post.id} style={{ marginBottom: '24px' }}>
           <CardComponent
             {...post}
             onReactionSelect={(reactionType) => handleReactionSelect(post.id, reactionType)}
           />
-          {index < state.posts.length - 1 && <Divider style={{ margin: '16px 0' }} />}
+          {index < posts.length - 1 && <Divider style={{ margin: '16px 0' }} />}
         </div>
       ))}
     </InfiniteScroll>

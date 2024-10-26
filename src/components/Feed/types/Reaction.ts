@@ -73,8 +73,9 @@ export interface SocialReaction extends Reaction {
 }
 
 export interface ReactionCount {
-  emotionType: typeof EmotionType[number];
   count: number;
+  emotionId: EmotionId; // Add the emotionId property
+
 }
 
 export interface ReactionCountResponse {

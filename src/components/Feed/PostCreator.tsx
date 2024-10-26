@@ -29,6 +29,7 @@ import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
 import { PhotoUploader } from './PhotoUploader';
 import { ImageListType } from 'react-images-uploading';
 import { VideoCard } from './cards/VideoCard';
+import { useFeed } from './context/FeedContext';
 
 interface PostCreatorProps {
   onPostCreated?: (newPost: PostData) => Promise<void>;
@@ -63,6 +64,7 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+const { addNewPost } = useFeed();
 
   const handleChange = (panel: PostType) => (event: React.SyntheticEvent, isExpanded: boolean) => {
     setExpanded(isExpanded ? panel : false);
@@ -221,16 +223,20 @@ const PostCreator: React.FC<PostCreatorProps> = ({ onPostCreated }) => {
       tenantInfo: user.tenant ? { name: user.tenant.name, type: user.tenant.type } : undefined,
       type: user.accountType as UserAccountTypeEnum,
       reactionCounts: [],
+      reactions: []
     };
 
-    try {
-      await createNewPost(newPost);
-      if (onPostCreated) {
-        await onPostCreated(newPost);
-      }
-      resetForm();
-    } catch (error) {
-      console.error('Error creating post:', error);
+
+      try {
+    await createNewPost(newPost);
+    await addNewPost(newPost); // Add this line
+    if (onPostCreated) {
+      await onPostCreated(newPost);
+    }
+  } catch (error) {
+    console.error('Error creating post:', error);
+      } finally {
+        resetForm();
     }
   }, [user, postType, preparePostContent, createNewPost, onPostCreated, resetForm]);
 

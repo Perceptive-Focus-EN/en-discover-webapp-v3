@@ -3,6 +3,7 @@
 import { PostType, PostContent, PostData } from './Post';
 import { ImageListType } from 'react-images-uploading';
 import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
+import { Reaction } from './Reaction';
 
 export interface PostCreatorProps {
   onPostCreated?: (newPost: PostData) => Promise<void>;
@@ -34,6 +35,8 @@ export interface PostCreatorState {
   videoUrl: string | null;
   loading: boolean;
   error: string | null;
+  reactions: Reaction[];
+
 }
 
 export interface PostCreatorActions {

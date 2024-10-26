@@ -1,8 +1,7 @@
-import { Reaction, ReactionType } from './Reaction';
+import { EmotionId, Reaction, ReactionType } from './Reaction';
 import { User } from "../../../types/User/interfaces"; // Assuming 'User' is the correct export
 import { TenantInfo } from "../../../types/Tenant/interfaces";
 import { UserAccountType } from '@/constants/AccessKey/accounts';
-import { BaseCardProps } from '../cards/BaseCard';
 
 export interface FriendRelationship {
   _id: string;
@@ -34,11 +33,13 @@ export interface PostData {
   type: UserAccountType;
   timestamp: string;
   tenantId: string;
+  reactions: Reaction[];
   tenantInfo?: Partial<TenantInfo>;
-  reactionCounts: { emotionId: number; count: number }[];
+  reactionCounts: { emotionId: EmotionId; count: number }[];
   processingStatus?: 'queued' | 'processing' | 'completed' | 'failed';
 
 }
+
 
 
 export interface BadgeContent {
