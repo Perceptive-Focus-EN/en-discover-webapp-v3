@@ -1,19 +1,41 @@
-// src/features/posts/api/reactionApi.ts
-import { EmotionId, EmotionName, Reaction, ReactionCount, ReactionCountResponse, ReactionMetrics, ReactionResponse, ReactionSummary} from '@/feature/types/Reaction';
+import { EmotionId, EmotionName, Reaction, ReactionCount, ReactionCountResponse, ReactionMetrics, ReactionResponse, ReactionSummary } from '@/feature/types/Reaction';
 import { clientApi } from '@/lib/api_s/client';
 import { apiRequest } from '@/lib/api_s/client/utils';
 import { PaginatedResponse, PaginationParams } from '@/types/pagination';
+import { transformReactionResponse } from '../utils/transformers/reactionTransformer';
+
+// Define the emotion type mapping
+export const EmotionType = [
+  { id: 1 as EmotionId, emotionName: "EUPHORIC" as EmotionName },
+  { id: 2 as EmotionId, emotionName: "TRANQUIL" as EmotionName },
+  { id: 3 as EmotionId, emotionName: "REACTIVE" as EmotionName },
+  { id: 4 as EmotionId, emotionName: "SORROW" as EmotionName },
+  { id: 5 as EmotionId, emotionName: "FEAR" as EmotionName },
+  { id: 6 as EmotionId, emotionName: "DISGUST" as EmotionName },
+  { id: 7 as EmotionId, emotionName: "SUSPENSE" as EmotionName },
+  { id: 8 as EmotionId, emotionName: "ENERGY" as EmotionName }
+] as const;
+
+export type ReactionType = typeof EmotionType[number];
+
+// Helper function to validate emotion ID
+const isValidEmotionId = (id: number): id is EmotionId => {
+  return EmotionType.some(emotion => emotion.id === id);
+};
 
 export const reactionApi = {
   /**
    * Create a reaction
    */
   create: async (postId: string, emotionId: EmotionId): Promise<Reaction> => {
+    if (!isValidEmotionId(emotionId)) {
+      throw new Error('Invalid emotion ID');
+    }
     const response = await apiRequest.post<ReactionResponse>(
       `/api/posts/${postId}/reactions`,
       { emotionId }
     );
-    return response.data.data;
+    return transformReactionResponse(response.data);
   },
 
   /**
@@ -53,18 +75,22 @@ export const reactionApi = {
     const response = await apiRequest.get<ReactionCountResponse>(
       `/api/posts/${postId}/reactions/counts`
     );
-    return response.data.data;
+    // Ensure the counts match valid emotion IDs
+    return response.data.data.filter(count => isValidEmotionId(count.emotionId));
   },
 
   /**
    * Toggle a reaction
    */
   toggle: async (postId: string, emotionId: EmotionId): Promise<Reaction> => {
+    if (!isValidEmotionId(emotionId)) {
+      throw new Error('Invalid emotion ID');
+    }
     const response = await apiRequest.put<ReactionResponse>(
       `/api/posts/${postId}/reactions/toggle`,
       { emotionId }
     );
-    return response.data.data;
+    return transformReactionResponse(response.data);
   },
 
   /**
@@ -72,10 +98,10 @@ export const reactionApi = {
    */
   getUserReaction: async (postId: string): Promise<Reaction | null> => {
     try {
-      const response = await apiRequest.get<{ data: Reaction }>(
+      const response = await apiRequest.get<ReactionResponse>(
         `/api/posts/${postId}/reactions/me`
       );
-      return response.data.data;
+      return transformReactionResponse(response.data);
     } catch (error) {
       if (error.response?.status === 404) {
         return null;
@@ -147,9 +173,21 @@ export const reactionApi = {
       endDate?: string;
     } = {}
   ): Promise<PaginatedResponse<Reaction>> => {
+    if (params.emotionId && !isValidEmotionId(params.emotionId)) {
+      throw new Error('Invalid emotion ID in params');
+    }
     return clientApi.getPaginated<Reaction>(
       '/api/users/me/reactions',
       params
     );
+  },
+
+  // Helper method to get emotion details
+  getEmotionDetails: (emotionId: EmotionId) => {
+    const emotion = EmotionType.find(e => e.id === emotionId);
+    if (!emotion) {
+      throw new Error(`Invalid emotion ID: ${emotionId}`);
+    }
+    return emotion;
   }
 };

@@ -1,3 +1,5 @@
+// File path: src/components/PostEditor.tsx
+
 import React, { useCallback, useState } from 'react';
 import { 
     TextField, 
@@ -49,7 +51,7 @@ interface PostEditorProps {
     onSuccess?: () => void;
     onCancel?: () => void;
     isDraft?: boolean;
-    onPostCreated?: (newPost: Post) => Promise<void>; // New prop
+    onPostCreated?: (newPost: Post) => Promise<void>;
 }
 
 export const PostEditor: React.FC<PostEditorProps> = ({ 
@@ -62,7 +64,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({
     const { createPost, isLoading, error } = usePost();
     const [formState, setFormState] = useState({
         type: initialData?.type || 'TEXT' as PostType,
-        content: initialData?.content || createInitialContent('TEXT'),
+        content: initialData?.content || createInitialContent(initialData?.type || 'TEXT'),
         visibility: initialData?.visibility || 'public' as Visibility,
         isProcessing: false
     });
@@ -140,18 +142,18 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                             ...prev.content,
                             photos: [
                                 ...(prev.content as PhotoContent).photos,
-                                ...uploads.map(u => u.url)
+                                ...(uploads ? uploads.filter(u => u?.url).map(u => u.url) : [])
                             ]
                         } as PhotoContent
                     };
                 } else if (prev.type === 'VIDEO') {
-                    const upload = uploads[0];
+                    const upload = uploads && uploads[0];
                     return {
                         ...prev,
                         content: {
                             ...prev.content,
-                            videoUrl: upload.url,
-                            thumbnailUrl: upload.thumbnail,
+                            videoUrl: upload?.url || '', // Ensure safe access
+                            thumbnailUrl: upload?.thumbnail || '',
                             processingStatus: 'processing'
                         } as VideoContent
                     };
@@ -166,7 +168,6 @@ export const PostEditor: React.FC<PostEditorProps> = ({
         }
     }, []);
 
-        // Handle post submission
     const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -176,291 +177,90 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                 visibility: formState.visibility
             };
 
-            const newPost = await createPost(postData); // Create the new post
+            const newPost = await createPost(postData);
             if (newPost && onPostCreated) {
-                await onPostCreated(newPost); // Call the onPostCreated callback
+                await onPostCreated(newPost);
             }
-            onSuccess?.(); // Call the onSuccess callback
+            onSuccess?.();
         } catch (err) {
             console.error('Post submission failed:', err);
         }
     }, [formState, createPost, onSuccess, onPostCreated]);
 
-
     const renderContentInput = () => {
         switch (formState.type) {
             case 'TEXT':
                 return (
-                    <Stack spacing={2}>
-                        <TextField
-                            multiline
-                            rows={4}
-                            value={(formState.content as TextContent).text}
-                            onChange={(e) => handleContentUpdate(e.target.value)}
-                            placeholder="Write your text post..."
-                            fullWidth
-                            variant="outlined"
-                        />
-                        <Box sx={{ display: 'flex', gap: 2 }}>
-                            <TextField
-                                type="color"
-                                label="Background Color"
-                                value={(formState.content as TextContent).backgroundColor}
-                                onChange={(e) => setFormState(prev => ({
-                                    ...prev,
-                                    content: {
-                                        ...(prev.content as TextContent),
-                                        backgroundColor: e.target.value
-                                    }
-                                }))}
-                                size="small"
-                            />
-                            <TextField
-                                type="color"
-                                label="Text Color"
-                                value={(formState.content as TextContent).textColor}
-                                onChange={(e) => setFormState(prev => ({
-                                    ...prev,
-                                    content: {
-                                        ...(prev.content as TextContent),
-                                        textColor: e.target.value
-                                    }
-                                }))}
-                                size="small"
-                            />
-                        </Box>
-                    </Stack>
+                    <TextField
+                        label="Text"
+                        value={(formState.content as TextContent).text}
+                        onChange={(e) => handleContentUpdate(e.target.value)}
+                        fullWidth
+                        multiline
+                    />
                 );
-
             case 'PHOTO':
                 return (
-                    <Stack spacing={2}>
-                        <TextField
-                            value={(formState.content as PhotoContent).caption || ''}
-                            onChange={(e) => handleContentUpdate(e.target.value)}
-                            placeholder="Add a caption to your photos..."
-                            fullWidth
-                        />
-                        <MediaUploader
-                            type="photo"
-                            files={(formState.content as PhotoContent).photos.map(url => new File([], url))}
-                            onAdd={handleMediaUpdate}
-                            onRemove={(index) => {
-                                setFormState(prev => ({
+                    <MediaUploader
+                        type={formState.type.toLowerCase() as 'photo' | 'video'}
+                        files={[]} // Pass an empty array or the correct type if available
+                        onUpload={handleMediaUpdate}
+                        onRemove={(index) => {
+                            setFormState(prev => {
+                                const photos = [...(prev.content as PhotoContent).photos];
+                                photos.splice(index, 1);
+                                return {
                                     ...prev,
                                     content: {
-                                        ...(prev.content as PhotoContent),
-                                        photos: (prev.content as PhotoContent).photos.filter((_, i) => i !== index)
-                                    }
-                                }));
-                            }}
-                            maxFiles={10}
-                        />
-                        <Select
-                            value={(formState.content as PhotoContent).layout || 'grid'}
-                            onChange={(e) => setFormState(prev => ({
-                                ...prev,
-                                content: {
-                                    ...(prev.content as PhotoContent),
-                                    layout: e.target.value as 'grid' | 'carousel' | 'masonry'
-                                }
-                            }))}
-                            size="small"
-                        >
-                            <MenuItem value="grid">Grid Layout</MenuItem>
-                            <MenuItem value="carousel">Carousel Layout</MenuItem>
-                            <MenuItem value="masonry">Masonry Layout</MenuItem>
-                        </Select>
-                    </Stack>
+                                        ...prev.content,
+                                        photos
+                                    } as PhotoContent
+                                };
+                            });
+                        }}
+                        maxFiles={5}
+                    />
                 );
-
             case 'VIDEO':
                 return (
-                    <Stack spacing={2}>
-                        <TextField
-                            value={(formState.content as VideoContent).caption || ''}
-                            onChange={(e) => handleContentUpdate(e.target.value)}
-                            placeholder="Add a caption to your video..."
-                            fullWidth
-                        />
-                        <MediaUploader
-                            type="video"
-                            files={(formState.content as VideoContent).videoUrl ? [new File([], (formState.content as VideoContent).videoUrl)] : []}
-                            onAdd={handleMediaUpdate}
-                            onRemove={() => {
-                                setFormState(prev => ({
+                    <MediaUploader
+                        type={formState.type.toLowerCase() as 'photo' | 'video'}
+                        files={[]} // Pass an empty array or the correct type if available
+                        onUpload={handleMediaUpdate}
+                        onRemove={(index) => {
+                            setFormState(prev => {
+                                const photos = [...(prev.content as PhotoContent).photos];
+                                photos.splice(index, 1);
+                                return {
                                     ...prev,
                                     content: {
-                                        ...(prev.content as VideoContent),
-                                        videoUrl: '',
-                                        thumbnailUrl: ''
-                                    }
-                                }));
-                            }}
-                            maxFiles={1}
-                        />
-                        <Box sx={{ display: 'flex', gap: 2 }}>
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={(formState.content as VideoContent).autoplay}
-                                        onChange={(e) => setFormState(prev => ({
-                                            ...prev,
-                                            content: {
-                                                ...(prev.content as VideoContent),
-                                                autoplay: e.target.checked
-                                            }
-                                        }))}
-                                    />
-                                }
-                                label="Autoplay"
-                            />
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={(formState.content as VideoContent).muted}
-                                        onChange={(e) => setFormState(prev => ({
-                                            ...prev,
-                                            content: {
-                                                ...(prev.content as VideoContent),
-                                                muted: e.target.checked
-                                            }
-                                        }))}
-                                    />
-                                }
-                                label="Muted"
-                            />
-                        </Box>
-                    </Stack>
+                                        ...prev.content,
+                                        photos
+                                    } as PhotoContent
+                                };
+                            });
+                        }}
+                        maxFiles={1}
+                    />
                 );
-
             case 'MOOD':
                 return (
-                    <Stack spacing={2}>
-                        <TextField
-                            value={(formState.content as MoodContent).mood}
-                            onChange={(e) => handleContentUpdate(e.target.value)}
-                            placeholder="How are you feeling?"
-                            fullWidth
-                        />
-                        <Box sx={{ display: 'flex', gap: 2 }}>
-                            <TextField
-                                type="color"
-                                label="Mood Color"
-                                value={(formState.content as MoodContent).color}
-                                onChange={(e) => setFormState(prev => ({
-                                    ...prev,
-                                    content: {
-                                        ...(prev.content as MoodContent),
-                                        color: e.target.value
-                                    }
-                                }))}
-                                size="small"
-                            />
-                            <TextField
-                                type="number"
-                                label="Intensity"
-                                value={(formState.content as MoodContent).intensity || 1}
-                                onChange={(e) => setFormState(prev => ({
-                                    ...prev,
-                                    content: {
-                                        ...(prev.content as MoodContent),
-                                        intensity: Math.max(1, Math.min(10, parseInt(e.target.value)))
-                                    }
-                                }))}
-                                inputProps={{ min: 1, max: 10 }}
-                                size="small"
-                            />
-                        </Box>
-                        <TextField
-                            value={(formState.content as MoodContent).caption || ''}
-                            onChange={(e) => handleContentUpdate(e.target.value)}
-                            placeholder="Add more context to your mood..."
-                            fullWidth
-                            multiline
-                            rows={2}
-                        />
-                    </Stack>
+                    <TextField
+                        label="Mood"
+                        value={(formState.content as MoodContent).mood}
+                        onChange={(e) => handleContentUpdate(e.target.value)}
+                        fullWidth
+                    />
                 );
-
             case 'SURVEY':
                 return (
-                    <Stack spacing={2}>
-                        <TextField
-                            value={(formState.content as SurveyContent).question}
-                            onChange={(e) => handleContentUpdate(e.target.value)}
-                            placeholder="What would you like to ask?"
-                            fullWidth
-                        />
-                        {(formState.content as SurveyContent).options.map((option, index) => (
-                            <Box key={index} sx={{ display: 'flex', gap: 1 }}>
-                                <TextField
-                                    value={option.text}
-                                    onChange={(e) => {
-                                        const newOptions = [...(formState.content as SurveyContent).options];
-                                        newOptions[index] = { ...option, text: e.target.value };
-                                        setFormState(prev => ({
-                                            ...prev,
-                                            content: {
-                                                ...(prev.content as SurveyContent),
-                                                options: newOptions
-                                            }
-                                        }));
-                                    }}
-                                    placeholder={`Option ${index + 1}`}
-                                    fullWidth
-                                />
-                                <IconButton
-                                    onClick={() => {
-                                        setFormState(prev => ({
-                                            ...prev,
-                                            content: {
-                                                ...(prev.content as SurveyContent),
-                                                options: (prev.content as SurveyContent).options.filter((_, i) => i !== index)
-                                            }
-                                        }));
-                                    }}
-                                >
-                                    <Delete />
-                                </IconButton>
-                            </Box>
-                        ))}
-                        <Button
-                            onClick={() => {
-                                setFormState(prev => ({
-                                    ...prev,
-                                    content: {
-                                        ...(prev.content as SurveyContent),
-                                        options: [
-                                            ...(prev.content as SurveyContent).options,
-                                            { text: '', color: '#000000' }
-                                        ]
-                                    }
-                                }));
-                            }}
-                            variant="outlined"
-                            size="small"
-                        >
-                            Add Option
-                        </Button>
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={(formState.content as SurveyContent).allowMultipleChoices}
-                                    onChange={(e) => setFormState(prev => ({
-                                        ...prev,
-                                        content: {
-                                            ...(prev.content as SurveyContent),
-                                            allowMultipleChoices: e.target.checked
-                                        }
-                                    }))}
-                                />
-                            }
-                            label="Allow Multiple Choices"
-                        />
-                    </Stack>
+                    <TextField
+                        label="Survey Question"
+                        value={(formState.content as SurveyContent).question}
+                        onChange={(e) => handleContentUpdate(e.target.value)}
+                        fullWidth
+                    />
                 );
-
             default:
                 return null;
         }

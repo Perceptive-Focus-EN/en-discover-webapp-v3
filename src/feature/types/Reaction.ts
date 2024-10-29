@@ -56,17 +56,34 @@ createdAt: string;
 export interface ReactionSummary {
   type: EmotionName;
   count: number;
+  color: string;
   hasReacted: boolean;
   recentUsers: Array<{ id: string; name: string; avatarUrl?: string }>;
 }
 
 // src/features/posts/api/reactionApi.ts
 export interface ReactionResponse {
-  data: Reaction;
-  message: string;
+  data: {
+    id: string;
+    postId: string;
+    userId: string;
+    tenantId: string;
+    emotionId: EmotionId;
+    name: EmotionName;
+    color: string;
+    count: number;
+    createdAt: string;
+    user?: {
+      id: string;
+      name: {
+        firstName: string;
+        lastName: string;
+      }
+      avatarUrl?: string;
+    };
+  };
+  message?: string;
 }
-
-
 
 // hypothetical:
   // {

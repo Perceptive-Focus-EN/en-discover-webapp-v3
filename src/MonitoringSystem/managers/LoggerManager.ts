@@ -1,4 +1,5 @@
 // src/MonitoringSystem/managers/LoggerManager.ts
+
 import { 
   SystemContext, 
   LogEntry, 
@@ -126,8 +127,51 @@ export class LoggerManager implements ILogger {
     );
   }
 
+  private shouldProcessLog(logEntry: LogEntry): boolean {
+    // Always process errors and warnings
+    if (logEntry.level === LogLevel.ERROR || logEntry.level === LogLevel.WARN) {
+      return true;
+    }
+
+    // Process specific important events
+    const metadata = logEntry.metadata || {};
+    const isImportantEvent = metadata.isImportant === true;
+    const isSecurityEvent = logEntry.category === LogCategory.SECURITY;
+    const isPerformanceIssue = 
+      logEntry.category === LogCategory.PERFORMANCE && 
+      metadata.threshold === 'exceeded';
+
+    if (isImportantEvent || isSecurityEvent || isPerformanceIssue) {
+      return true;
+    }
+
+    // In development, log everything if debug logging is enabled
+    if (process.env.NODE_ENV !== 'production' && process.env.DEBUG_LOGGING === 'true') {
+      return true;
+    }
+
+    // In production, filter out DEBUG and INFO logs unless specifically marked as important
+    return false;
+  }
+
   private processLogEntry(logEntry: LogEntry): void {
     try {
+      // Add filtering check
+      if (!this.shouldProcessLog(logEntry)) {
+        // Optionally emit a debug event for filtered logs
+        this.serviceBus.emit('log.filtered', {
+          level: logEntry.level,
+          category: logEntry.category
+        });
+        return;
+      }
+
+      // Validate log entry
+      if (!logEntry.message || !logEntry.timestamp || !logEntry.level) {
+        this.serviceBus.emit('log.invalid', { logEntry });
+        return;
+      }
+
       this.aggregator.aggregate(logEntry);
       void this.persistence.persistLog(logEntry);
       

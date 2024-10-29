@@ -1,12 +1,14 @@
 // src/features/posts/components/factory/PostCardFactory.tsx
-import React, { useState } from 'react';
+
+import React, { useState, useCallback } from 'react';
 import { MoodContent, PhotoContent, Post, PostType, SurveyContent, TextContent, VideoContent } from '../../api/types';
 import { TextPostCard } from '../cards/TextPostCard';
 import { PhotoPostCard } from '../cards/PhotoPostCard';
 import { VideoPostCard } from '../cards/VideoPostCard';
 import { MoodPostCard } from '../cards/MoodPostCard';
 import { SurveyPostCard } from '../cards/SurveyPostCard';
-import { ReactionBar } from '../Reactions/ReactionBar';
+// Updated import
+import  MoodBubbleLikeButton  from '../../../MoodBubbleLikeButton';
 import { Badge, Button, Collapse, Divider, IconButton, Paper, Tooltip } from '@mui/material';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import { motion } from 'framer-motion';
@@ -15,6 +17,11 @@ import { CommentList } from '../../Comments/CommentList';
 import { BookmarkIcon } from 'lucide-react';
 import { ShareButton } from '../Share/ShareMenu';
 import { useTheme } from '@mui/material/styles';
+
+// Import reaction API
+import { reactionApi } from '../../api/reactionApi';
+import { messageHandler } from '../../../../MonitoringSystem/managers/FrontendMessageHandler';
+import { Reaction } from '@/feature/types/Reaction';
 
 interface PostCardFactoryProps {
   post: Post;
@@ -34,16 +41,37 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
   isBookmarked = false
 }) => {
   const [showComments, setShowComments] = useState(false);
+  const [localPost, setLocalPost] = useState(post);
   const theme = useTheme();
 
+  // Handle reaction change
+  const handleReactionChange = useCallback(async () => {
+    try {
+      // Fetch updated post data after reaction change
+      const [updatedSummary, updatedMetrics] = await Promise.all([
+        reactionApi.getSummary(post.id),
+        reactionApi.getMetrics(post.id)
+      ]);
+
+      setLocalPost(prev => ({
+        ...prev,
+        reactions: updatedSummary as unknown as Reaction[],
+        metrics: updatedMetrics
+      }));
+    } catch (err) {
+      console.error('Failed to update post reactions:', err);
+      messageHandler.error('Failed to update reactions');
+    }
+  }, [post.id]);
+
   const baseProps = {
-    id: post.id,
-    authorId: post.authorId,
-    username: post.username,
-    userAvatar: post.userAvatar,
-    createdAt: post.createdAt,
-    updatedAt: post.updatedAt,
-    visibility: post.visibility,
+    id: localPost.id,
+    authorId: localPost.authorId,
+    username: localPost.username,
+    userAvatar: localPost.userAvatar,
+    createdAt: localPost.createdAt,
+    updatedAt: localPost.updatedAt,
+    visibility: localPost.visibility,
     onDelete,
     onEdit
   };
@@ -55,54 +83,48 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
           <TextPostCard
             {...baseProps}
             type="TEXT"
-            content={post.content as TextContent}
+            content={localPost.content as TextContent}
           />
         );
-      
       case 'PHOTO':
         return (
           <PhotoPostCard
             {...baseProps}
             type="PHOTO"
-            content={post.content as PhotoContent}
-            media={post.media}
+            content={localPost.content as PhotoContent}
+            media={localPost.media}
           />
         );
-      
       case 'VIDEO':
         return (
           <VideoPostCard
             {...baseProps}
             type="VIDEO"
-            content={post.content as VideoContent}
-            media={post.media}
+            content={localPost.content as VideoContent}
+            media={localPost.media}
           />
         );
-
       case 'MOOD':
         return (
-        <MoodPostCard
+          <MoodPostCard
             {...baseProps}
             type="MOOD"
-            content={post.content as MoodContent}
+            content={localPost.content as MoodContent}
           />
         );
-
       case 'SURVEY':
         return (
-        <SurveyPostCard
+          <SurveyPostCard
             {...baseProps}
             type="SURVEY"
-            content={post.content as SurveyContent}
+            content={localPost.content as SurveyContent}
           />
         );
-      
       default:
         return null;
     }
   };
 
-    
   return (
     <motion.div
       layout
@@ -130,16 +152,16 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
         {/* Engagement Section */}
         <div className="px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            <ReactionBar 
-              postId={post.id} 
-              initialReactions={post.reactions}
+            {/* Replaced ReactionBar with MoodBubbleLikeButton */}
+            <MoodBubbleLikeButton 
+              postId={localPost.id} 
+              reactions={localPost.reactions}
+              onEmotionSelect={handleReactionChange}
             />
-            
-        <div className="flex items-center space-x-2">
-                          <ShareButton
-                              post={post}
-                          />
-              
+
+            <div className="flex items-center space-x-2">
+              <ShareButton post={localPost} />
+
               <Tooltip title={isBookmarked ? "Remove Bookmark" : "Bookmark"}>
                 <IconButton 
                   size="small" 
@@ -163,7 +185,7 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
               size="small"
               startIcon={
                 <Badge 
-                  badgeContent={post.commentCount} 
+                  badgeContent={localPost.commentCount} 
                   color="primary"
                   max={99}
                 >
@@ -185,7 +207,7 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
           {/* Comments Section with Animation */}
           <Collapse in={showComments}>
             <div className="mt-3">
-              <CommentList postId={post.id} />
+              <CommentList postId={localPost.id} />
             </div>
           </Collapse>
         </div>
@@ -194,7 +216,7 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
   );
 };
 
-// Export with Error Boundary
+// ErrorBoundary Wrapper for PostCardFactory
 export const PostCard: React.FC<PostCardFactoryProps> = (props) => {
   return (
     <ErrorBoundary
@@ -212,7 +234,7 @@ export const PostCard: React.FC<PostCardFactoryProps> = (props) => {
   );
 };
 
-// Simple Error Boundary Component
+// ErrorBoundary Component
 class ErrorBoundary extends React.Component<{
   children: React.ReactNode;
   fallback: React.ReactNode;

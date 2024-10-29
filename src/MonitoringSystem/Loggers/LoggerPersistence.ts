@@ -1,6 +1,6 @@
 // src/MonitoringSystem/Loggers/LoggerPersistence.ts
 import { LogEntry } from '../types/logging';
-import { api } from '../../lib/axiosSetup';
+import { loggerHttpClient } from '../utils/loggerHttpClient';
 import { CircuitBreaker } from '../utils/CircuitBreaker';
 import { ServiceBus } from '../core/ServiceBus';
 import { SystemError } from '../constants/errors';
@@ -120,7 +120,7 @@ export class LoggerPersistence {
     }
   }
 
-  private async sendWithRetry(logs: LogEntry[], attempt = 1): Promise<void> {
+private async sendWithRetry(logs: LogEntry[], attempt = 1): Promise<void> {
     if (this.circuitBreaker.isOpen('logger-api')) {
       this.serviceBus.emit('log.send.skipped', {
         reason: 'circuit-open',
@@ -130,7 +130,7 @@ export class LoggerPersistence {
     }
 
     try {
-      await api.post('/api/logs', { logs });
+    await loggerHttpClient.post('/api/logs', { logs });
       this.serviceBus.emit('logs.sent', {
         count: logs.length,
         timestamp: new Date()
@@ -163,18 +163,18 @@ export class LoggerPersistence {
 
     try {
       const timeWindow = this.formatTimeWindow(startDate, endDate);
-      const response = await api.get<LogResponse>(
+      const response = await loggerHttpClient.get<LogResponse>(
         '/api/logs',
         { params: { timeWindow } }
       );
 
       this.serviceBus.emit('logs.retrieved', {
-        count: response.data.length,
+        count: response.data.data.length,
         timeWindow,
         timestamp: new Date()
       });
 
-      return response.data;
+      return response.data.data;
     } catch (error) {
       this.circuitBreaker.recordError('logger-retrieval');
       this.serviceBus.emit('error.occurred', {

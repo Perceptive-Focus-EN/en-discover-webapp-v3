@@ -1,44 +1,51 @@
-// src/components/Feed/MoodBubbleLikeButton.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import { useMoodBoard } from '../contexts/MoodBoardContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import EmotionSelectionDrawer from './EmotionSelectionDrawer';
-import { EmotionId } from './types/Reaction';
+import { EmotionId, Reaction } from '@/feature/types/Reaction';
+import { useReactions } from '@/feature/posts/hooks/useReactions';
 
 interface MoodBubbleLikeButtonProps {
   postId: string;
-  reactions: { emotionId: number; count: number }[];
-  onReactionSelect: (emotionId: EmotionId) => void;
   useDynamicSizing?: boolean;
+  reactions: Reaction[];
+  onEmotionSelect: (reaction: Reaction) => void;
 }
 
 const MoodBubbleLikeButton: React.FC<MoodBubbleLikeButtonProps> = ({
   postId,
-  reactions,
-  onReactionSelect,
   useDynamicSizing = false,
+  reactions,
+  onEmotionSelect
 }) => {
-  const { emotions, getEmotionMappings, isLoading, error } = useMoodBoard();
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const { user } = useAuth();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const {
+    reactions: formattedReactions,
+    toggleReaction,
+    isLoading,
+    emotionTypes,
+    canReact
+  } = useReactions(postId);
 
-  const handleOpenDrawer = () => setIsDrawerOpen(true);
+  const handleOpenDrawer = () => {
+    if (!user) {
+      // You might want to show a login prompt here
+      return;
+    }
+    setIsDrawerOpen(true);
+  };
+
   const handleCloseDrawer = () => setIsDrawerOpen(false);
 
-  const handleEmotionSelect = (emotionId: EmotionId) => {
-    onReactionSelect(emotionId);
+  const handleEmotionSelect = async (emotionId: EmotionId) => {
+    await toggleReaction(emotionId);
     handleCloseDrawer();
   };
 
-  useEffect(() => {
-    if (user) {
-      getEmotionMappings(user.userId);
-    }
-  }, [user, getEmotionMappings]);
 
-  const totalReactions = reactions.reduce((sum, reaction) => sum + reaction.count, 0);
+  const totalReactions = formattedReactions.reduce((sum, reaction) => sum + reaction.count, 0);
 
   const calculateBubbleSize = (count: number) => {
     if (!useDynamicSizing) return { xs: '20px', sm: '24px' };
@@ -53,6 +60,7 @@ const MoodBubbleLikeButton: React.FC<MoodBubbleLikeButtonProps> = ({
     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
       <Button
         onClick={handleOpenDrawer}
+        disabled={isLoading || !canReact}
         sx={{
           minWidth: { xs: '120px', sm: '140px' },
           height: { xs: '36px', sm: '40px' },
@@ -65,6 +73,10 @@ const MoodBubbleLikeButton: React.FC<MoodBubbleLikeButtonProps> = ({
           justifyContent: 'flex-start',
           gap: '8px',
           '&:hover': { backgroundColor: 'white' },
+          '&.Mui-disabled': {
+            backgroundColor: 'white',
+            opacity: 0.7
+          }
         }}
       >
         {totalReactions === 0 ? (
@@ -98,13 +110,13 @@ const MoodBubbleLikeButton: React.FC<MoodBubbleLikeButtonProps> = ({
                 textAlign: 'left',
               }}
             >
-              Give first reaction
+              {canReact ? 'Give first reaction' : 'Login to react'}
             </Typography>
           </>
         ) : (
-          reactions.map((reaction, index) => {
+          formattedReactions.map((reaction, index) => {
             const bubbleSize = calculateBubbleSize(reaction.count);
-            const emotion = emotions.find(e => e.id === reaction.emotionId);
+            const emotionType = emotionTypes.find(e => e.id === reaction.emotionId);
             return (
               <Box
                 key={reaction.emotionId}
@@ -112,9 +124,9 @@ const MoodBubbleLikeButton: React.FC<MoodBubbleLikeButtonProps> = ({
                   width: bubbleSize,
                   height: bubbleSize,
                   borderRadius: '50%',
-                  backgroundColor: emotion?.color || '#ccc',
+                  backgroundColor: reaction.color || '#ccc',
                   marginLeft: index !== 0 ? '-8px' : '0',
-                  zIndex: reactions.length - index,
+                  zIndex: formattedReactions.length - index,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -122,6 +134,13 @@ const MoodBubbleLikeButton: React.FC<MoodBubbleLikeButtonProps> = ({
                   color: 'white',
                   fontWeight: 'bold',
                   transition: 'all 0.3s ease',
+                  cursor: canReact ? 'pointer' : 'default',
+                  border: `2px solid ${reaction.color || '#ccc'}`,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  '&:hover': canReact ? {
+                    transform: 'scale(1.1)',
+                    zIndex: formattedReactions.length + 1
+                  } : {}
                 }}
               >
                 {reaction.count}
@@ -135,9 +154,12 @@ const MoodBubbleLikeButton: React.FC<MoodBubbleLikeButtonProps> = ({
         onClose={handleCloseDrawer}
         onOpen={handleOpenDrawer}
         onEmotionSelect={handleEmotionSelect}
-        emotions={emotions}
+        emotions={emotionTypes.map(emotion => ({
+          ...emotion,
+          color: formattedReactions.find(r => r.emotionId === emotion.id)?.color || '#ccc'
+        }))}
         isLoading={isLoading}
-        error={error}
+        error={null}
       />
     </Box>
   );

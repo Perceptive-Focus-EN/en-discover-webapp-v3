@@ -1,12 +1,16 @@
-// src/lib/axiosSetup.ts
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import authManager from '../utils/TokenManagement/authManager';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 
 interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
   circuitId?: string;
+  metadata?: {
+    startTime: number;
+    [key: string]: any;
+  };
 }
 
 const axiosInstance: AxiosInstance = axios.create({
@@ -25,8 +29,11 @@ axiosInstance.interceptors.request.use(
       if (token) {
         config.headers['Authorization'] = `Bearer ${token}`;
       }
-      // Add circuitId to all requests
+      // Add circuitId and metadata
       config.circuitId = `circuit_${Date.now()}`;
+      config.metadata = {
+        startTime: Date.now(),
+      };
       return config;
     } catch (error) {
       messageHandler.error('Unable to process request. Please try again.');
@@ -42,11 +49,31 @@ axiosInstance.interceptors.request.use(
 // Response Interceptor
 axiosInstance.interceptors.response.use(
   (response) => {
-    // Safely check for circuitId
-    if (response.config && (response.config as CustomAxiosRequestConfig).circuitId) {
-      monitoringManager.recordCircuitSuccess(
-        (response.config as CustomAxiosRequestConfig).circuitId!
+    const config = response.config as CustomAxiosRequestConfig;
+    const startTime = config.metadata?.startTime || Date.now();
+    const duration = Date.now() - startTime;
+
+    // Record success metric instead of log
+    if (response.status === 200) {
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.PERFORMANCE,
+        'api_request',
+        'duration',
+        duration,
+        MetricType.HISTOGRAM,
+        MetricUnit.MILLISECONDS,
+        {
+          endpoint: config.url,
+          method: config.method,
+          circuitId: config.circuitId,
+          status: response.status
+        }
       );
+    }
+
+    // Maintain circuit breaker functionality without logging
+    if (config.circuitId) {
+      monitoringManager.recordCircuitSuccess(config.circuitId);
     }
 
     if (response.data?.message) {
@@ -55,8 +82,8 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   async (error: AxiosError<{ error?: { message: string; type: string; reference?: string } }>) => {
-    // Safe type casting with default values
     const originalRequest = error.config as CustomAxiosRequestConfig || {};
+    const startTime = originalRequest.metadata?.startTime || Date.now();
     
     // Safe circuit breaker handling
     if (originalRequest?.circuitId) {
@@ -65,7 +92,12 @@ axiosInstance.interceptors.response.use(
           'system',
           'circuit_open',
           'Circuit breaker is open for the request',
-          { circuitId: originalRequest.circuitId }
+          { 
+            circuitId: originalRequest.circuitId,
+            duration: Date.now() - startTime,
+            endpoint: originalRequest.url,
+            method: originalRequest.method
+          }
         );
       } catch (circuitError) {
         console.error('Circuit breaker error:', circuitError);

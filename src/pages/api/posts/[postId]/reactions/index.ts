@@ -175,6 +175,7 @@ async function handleCreateReaction(
   });
 }
 
+
 async function handleToggleReaction(
   postId: string,
   userId: string,
@@ -193,6 +194,7 @@ async function handleToggleReaction(
 
   const { db } = await getCosmosClient();
   
+  // Find existing reaction
   const existingReaction = await db.collection(COLLECTIONS.REACTIONS).findOne({
     postId: new ObjectId(postId),
     userId,
@@ -200,8 +202,8 @@ async function handleToggleReaction(
   });
 
   if (existingReaction) {
+    // If same emotion, remove it
     if (existingReaction.emotionId === emotionId) {
-      // Soft delete the reaction
       await db.collection(COLLECTIONS.REACTIONS).updateOne(
         { _id: existingReaction._id },
         { 
@@ -215,9 +217,26 @@ async function handleToggleReaction(
         message: 'Reaction removed successfully'
       });
     }
+    // If different emotion, update it
+    else {
+      const updatedReaction = await db.collection(COLLECTIONS.REACTIONS).findOneAndUpdate(
+        { _id: existingReaction._id },
+        { 
+          $set: {
+            emotionId,
+            updatedAt: new Date()
+          }
+        },
+        { returnDocument: 'after' }
+      );
+      return res.status(200).json({
+        data: updatedReaction?.value,
+        message: 'Reaction updated successfully'
+      });
+    }
   }
 
-  // Create new reaction or update existing one
+  // Create new reaction
   return handleCreateReaction(postId, userId, req, res);
 }
 

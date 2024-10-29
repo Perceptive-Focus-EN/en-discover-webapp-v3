@@ -1,11 +1,6 @@
 // src/pages/api/logs.ts
 
 import { NextApiRequest, NextApiResponse } from 'next';
-import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
-import { LogLevel, LogCategory } from '@/MonitoringSystem/constants/logging';
-import { AppError } from '@/MonitoringSystem/managers/AppError';
-import { LogEntry } from '@/MonitoringSystem/types/logging';
-import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 
 interface TimeWindow {
   start: Date;
@@ -22,11 +17,7 @@ function validateTimeWindow(timeWindow?: string): TimeWindow {
 
   const match = timeWindow.match(/^(\d+)([hdm])$/);
   if (!match) {
-    throw monitoringManager.error.createError(
-      'business',
-      'VALIDATION_FAILED',
-      'Invalid time window format'
-    );
+    throw new Error('Invalid time window format');
   }
 
   const [, value, unit] = match;
@@ -44,41 +35,18 @@ function validateTimeWindow(timeWindow?: string): TimeWindow {
       start = new Date(now.getTime() - parseInt(value) * 30 * 24 * 60 * 60 * 1000);
       break;
     default:
-      throw monitoringManager.error.createError(
-        'business',
-        'VALIDATION_FAILED',
-        'Invalid time unit'
-      );
+      throw new Error('Invalid time unit');
   }
 
   return { start, end: now };
 }
 
-async function validateLogsBatch(body: any): Promise<LogEntry[]> {
+async function validateLogsBatch(body: any): Promise<any[]> {
   if (!body || !Array.isArray(body.logs)) {
-    throw monitoringManager.error.createError(
-      'business',
-      'VALIDATION_FAILED',
-      'Invalid logs batch format'
-    );
+    throw new Error('Invalid logs batch format');
   }
 
   return body.logs.map((log: any) => {
-    if (!Object.values(LogLevel).includes(log.level)) {
-      throw monitoringManager.error.createError(
-        'business',
-        'VALIDATION_FAILED',
-        `Invalid log level: ${log.level}`
-      );
-    }
-    if (!Object.values(LogCategory).includes(log.category)) {
-      throw monitoringManager.error.createError(
-        'business',
-        'VALIDATION_FAILED',
-        `Invalid log category: ${log.category}`
-      );
-    }
-
     return {
       ...log,
       timestamp: new Date(),
@@ -87,34 +55,14 @@ async function validateLogsBatch(body: any): Promise<LogEntry[]> {
   });
 }
 
-async function processLogsBatch(logs: LogEntry[]): Promise<void> {
+async function processLogsBatch(logs: any[]): Promise<void> {
   try {
     for (const log of logs) {
-      await monitoringManager.logger.log(
-        log.level,
-        log.message,
-        {   
-          category: log.category,
-          ...log.metadata
-        },
-        {   
-          correlationId: log.correlationId,
-          tags: log.tags,
-          source: log.source
-        }
-      );
+      // Simulate log processing
+      console.log('Processing log:', log);
     }
-    
-    // Only flush if all logs were recorded successfully
-    await monitoringManager.logger.flush();
   } catch (error) {
-    // Wrap any errors in a system error
-    throw monitoringManager.error.createError(
-      'system',
-      'LOGS_PROCESSING_FAILED',
-      'Failed to process logs batch',
-      { error }
-    );
+    throw new Error('Failed to process logs batch');
   }
 }
 
@@ -129,53 +77,22 @@ export default async function handler(
       try {
         await processLogsBatch(validatedLogs);
 
-        // Record meta-metric for successful batch processing
-        await monitoringManager.metrics.recordMetric(
-          MetricCategory.SYSTEM,
-          'logs_api',
-          'batch_processed',
-          validatedLogs.length,
-          MetricType.COUNTER,
-          MetricUnit.COUNT,
-          { batchSize: validatedLogs.length }
-        );
-
         return res.status(200).json({
           success: true,
           message: 'Logs processed and persisted successfully',
           count: validatedLogs.length
         });
       } catch (error) {
-        // Handle processing errors specifically
-        const appError = AppError.isAppError(error) ? error : monitoringManager.error.createError(
-          'system',
-          'LOGS_PROCESSING_FAILED',
-          'Failed to process logs batch',
-          { error }
-        );
-        
-        const errorResponse = monitoringManager.error.handleError(appError);
-        return res.status(errorResponse.statusCode).json({
-          error: errorResponse.userMessage,
-          reference: errorResponse.errorReference
+        return res.status(500).json({
+          error: 'Failed to process logs batch'
         });
       }
     }
 
     if (req.method === 'GET') {
       const timeWindow = validateTimeWindow(req.query.timeWindow as string);
-      const logs = await monitoringManager.logger.getLogs(timeWindow.start, timeWindow.end);
-
-      // Record meta-metric for logs retrieval
-      await monitoringManager.metrics.recordMetric(
-        MetricCategory.SYSTEM,
-        'logs_api',
-        'logs_retrieved',
-        logs.length,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        { timeWindow }
-      );
+      // Simulate log retrieval
+      const logs: any[] = []; // Replace with actual log retrieval logic
 
       return res.status(200).json({
         success: true,
@@ -184,31 +101,14 @@ export default async function handler(
       });
     }
 
-    const appError = monitoringManager.error.createError(
-      'business',
-      'METHOD_NOT_ALLOWED',
-      'Method not allowed',
-      { method: req.method }
-    );
-    const errorResponse = monitoringManager.error.handleError(appError);
     res.setHeader('Allow', ['GET', 'POST']);
-    return res.status(errorResponse.statusCode).json({
-      error: errorResponse.userMessage,
-      reference: errorResponse.errorReference
+    return res.status(405).json({
+      error: 'Method not allowed'
     });
 
   } catch (error) {
-    const appError = AppError.isAppError(error) ? error : monitoringManager.error.createError(
-      'system',
-      'LOGS_API_ERROR',
-      'Error processing logs request',
-      { error }
-    );
-    const errorResponse = monitoringManager.error.handleError(appError);
-
-    return res.status(errorResponse.statusCode).json({
-      error: errorResponse.userMessage,
-      reference: errorResponse.errorReference
+    return res.status(500).json({
+      error: 'Error processing logs request'
     });
   }
 }

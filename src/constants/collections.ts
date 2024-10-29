@@ -18,7 +18,9 @@ export const COLLECTIONS = {
     MOODENTRY: 'moodEntry',
     TOKEN_BLACKLIST: 'tokenBlacklist',
     REACTIONS: 'reactions',
-    
+
+    COMMENTS: 'comments',
+
     MOOD_HISTORY: 'moodHistory',
     DRAFTS: 'drafts',
     DRAFT_HISTORY: 'draftHistory',

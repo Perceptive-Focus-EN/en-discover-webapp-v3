@@ -1,4 +1,3 @@
-// src/features/posts/hooks/usePostEngagement.ts
 import { useState, useCallback, useEffect } from 'react';
 import { Post, Visibility } from '../api/types';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
@@ -26,22 +25,26 @@ export const usePostEngagement = ({
 }: UsePostEngagementProps) => {
   const [isBookmarked, setIsBookmarked] = useState(initialBookmarkState);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [metrics, setMetrics] = useState<EngagementMetrics>({
-    shareCount: post.metadata?.shareCount || 0,
-    bookmarkCount: post.metadata?.bookmarkCount || 0,
-    reactionCount: post.reactions.length
+  
+  // Safe initialization of metrics with null checks
+  const getInitialMetrics = (post: Post): EngagementMetrics => ({
+    shareCount: post?.metadata?.shareCount || 0,
+    bookmarkCount: post?.metadata?.bookmarkCount || 0,
+    reactionCount: Array.isArray(post?.reactions) ? post.reactions.length : 0
   });
 
-  // Update metrics when post changes
+  const [metrics, setMetrics] = useState<EngagementMetrics>(() => 
+    getInitialMetrics(post)
+  );
+
+  // Update metrics when post changes with safe access
   useEffect(() => {
-    setMetrics({
-      shareCount: post.metadata?.shareCount || 0,
-      bookmarkCount: post.metadata?.bookmarkCount || 0,
-      reactionCount: post.reactions.length
-    });
+    setMetrics(getInitialMetrics(post));
   }, [post]);
 
   const handleShare = useCallback(async (platform: string) => {
+    if (!post?.id) return;
+    
     setIsProcessing(true);
     try {
       await onShare?.(platform, post.id);
@@ -56,10 +59,10 @@ export const usePostEngagement = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [post.id, onShare]);
+  }, [post?.id, onShare]);
 
   const handleBookmark = useCallback(async () => {
-    if (isProcessing) return;
+    if (isProcessing || !post?.id) return;
     
     setIsProcessing(true);
     try {
@@ -78,10 +81,10 @@ export const usePostEngagement = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [post.id, onBookmark, isBookmarked, isProcessing]);
+  }, [post?.id, onBookmark, isBookmarked, isProcessing]);
 
   const handleVisibilityChange = useCallback(async (visibility: Visibility) => {
-    if (isProcessing) return;
+    if (isProcessing || !post?.id) return;
 
     setIsProcessing(true);
     try {
@@ -93,7 +96,7 @@ export const usePostEngagement = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [post.id, onVisibilityChange, isProcessing]);
+  }, [post?.id, onVisibilityChange, isProcessing]);
 
   return {
     // States
@@ -106,12 +109,12 @@ export const usePostEngagement = ({
     handleBookmark,
     handleVisibilityChange,
 
-    // Post data
-    visibility: post.visibility,
-    type: post.type,
-    authorId: post.authorId,
-    createdAt: post.createdAt,
-    updatedAt: post.updatedAt,
-    isEdited: post.isEdited
+    // Post data with safe access
+    visibility: post?.visibility,
+    type: post?.type,
+    authorId: post?.authorId,
+    createdAt: post?.createdAt,
+    updatedAt: post?.updatedAt,
+    isEdited: post?.isEdited
   };
 };

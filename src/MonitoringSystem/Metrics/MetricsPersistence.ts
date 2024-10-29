@@ -1,5 +1,5 @@
 // src/MonitoringSystem/Metrics/MetricsPersistence.ts
-import { api } from '../../lib/axiosSetup';
+import { metricsHttpClient } from '../utils/metricsHttpClient';
 import { MetricEntry } from '../types/metrics';
 import { CircuitBreaker } from '../utils/CircuitBreaker';
 import { ServiceBus } from '../core/ServiceBus';
@@ -138,7 +138,7 @@ export class MetricsPersistence {
 
     try {
       const compressedMetrics = this.compressMetrics(metrics);
-      await api.post<MetricsResponse>(
+      await metricsHttpClient.post<MetricsResponse>(
         '/api/metrics',
         { metrics: compressedMetrics }
       );

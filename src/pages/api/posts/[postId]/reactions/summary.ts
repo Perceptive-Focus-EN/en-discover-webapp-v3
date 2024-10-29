@@ -1,4 +1,5 @@
 // src/pages/api/posts/[postId]/reactions/summary.ts
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import { verifyAccessToken } from '@/utils/TokenManagement/serverTokenUtils';
 import { getCosmosClient } from '@/config/azureCosmosClient';
@@ -7,6 +8,7 @@ import { EmotionName, ReactionSummary } from '@/feature/types/Reaction';
 import { ObjectId } from 'mongodb';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const startTime = Date.now();
@@ -45,61 +47,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const reactionsCollection = db.collection(COLLECTIONS.REACTIONS);
     const usersCollection = db.collection(COLLECTIONS.USERS);
 
-    // Aggregate reactions
+    // Aggregation pipeline
     const aggregationPipeline = [
       { $match: { postId: new ObjectId(postId as string) } },
       {
         $group: {
           _id: '$emotionName',
           count: { $sum: 1 },
-          recentUserIds: { $topN: { n: 3, sortBy: { createdAt: -1 }, output: '$userId' } }
+          recentUsers: { $push: { userId: '$userId', createdAt: '$createdAt' } }
         }
       },
-      {
-        $lookup: {
-          from: COLLECTIONS.USERS,
-          localField: 'recentUserIds',
-          foreignField: '_id',
-          as: 'recentUsers'
+      { $sort: { count: -1 } },
+      { $project: {
+          _id: 1,
+          count: 1,
+          recentUsers: { $slice: ['$recentUsers', 5] } // Limit recent users to top 5
         }
       }
     ];
 
     const reactionGroups = await reactionsCollection.aggregate(aggregationPipeline).toArray();
 
-    // Check if user has reacted
+    // Fetch recent user details
+    const recentUserIds = reactionGroups.flatMap(group => group.recentUsers.map((user: { userId: any; }) => user.userId));
+    const userDocs = await usersCollection.find({ _id: { $in: recentUserIds.map(id => new ObjectId(id)) } }).toArray();
+
+    // Map user details to reaction groups
+    const summary: ReactionSummary[] = reactionGroups.map(group => {
+      const recentUsers = group.recentUsers
+        .map((user: { userId: string; }) => userDocs.find(doc => doc._id.toString() === user.userId))
+        .filter(Boolean)
+        .map((user: { _id: { toString: () => any; }; firstName: any; lastName: any; avatarUrl: any; }) => ({
+          id: user._id.toString(),
+          name: `${user.firstName} ${user.lastName}`,
+          avatar: user.avatarUrl
+        }));
+
+      return {
+        type: group._id as EmotionName,
+        count: group.count,
+        color: '', // Default, updated later
+        hasReacted: false, // Default, updated later
+        recentUsers
+      };
+    });
+
+    // Check if the user has reacted
     const userReactions = await reactionsCollection.find({
       postId: new ObjectId(postId as string),
       userId: decodedToken.userId
     }).toArray();
 
-    interface RecentUser {
-        id: string;
-        name: string;
-        avatar: string;
-    }
-
-    interface ReactionGroup {
-        _id: EmotionName;
-        count: number;
-        recentUsers: {
-            _id: ObjectId;
-            firstName: string;
-            lastName: string;
-            avatarUrl: string;
-        }[];
-    }
-
-    const summary: ReactionSummary[] = reactionGroups.map((group: ReactionGroup) => ({
-        type: group._id as EmotionName,
-        count: group.count,
-        hasReacted: userReactions.some(r => r.emotionName === group._id),
-        recentUsers: group.recentUsers.map((user): RecentUser => ({
-            id: user._id.toString(),
-            name: `${user.firstName} ${user.lastName}`,
-            avatar: user.avatarUrl
-        }))
-    }));
+    summary.forEach((reaction) => {
+      reaction.hasReacted = userReactions.some(r => r.emotionName === reaction.type);
+    });
 
     // Record metrics
     monitoringManager.metrics.recordMetric(

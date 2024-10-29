@@ -1,6 +1,6 @@
 // src/features/types/Post.ts
 import { UserAccountType } from "@/constants/AccessKey/accounts";
-import { EmotionId, Reaction } from "../../types/Reaction";
+import { EmotionId, EmotionName, Reaction } from "../../types/Reaction";
 
 // Core Post Types
 export type PostType = 'TEXT' | 'PHOTO' | 'VIDEO' | 'MOOD' | 'SURVEY';
@@ -24,6 +24,19 @@ export interface Post {
     content: PostContent;
     media?: Media;
     reactions: Reaction[];
+    reactionMetrics?: {
+      totalCount: number;
+      distribution: Record<EmotionName, number>;
+      recentReactions: Array<{
+      emotionName: EmotionName;
+        user: {
+          id: string;
+          name: string;
+          avatar?: string;
+        };
+          timestamp: string;
+      }>;
+    };
     commentCount: number;
     authorId: string;
     timestamp: string;
@@ -34,7 +47,16 @@ export interface Post {
     visibility: Visibility;
     isEdited?: boolean;
     lastEditedAt?: string;
-    metadata?: Record<string, any>;
+metadata?: {
+    shareCount?: number;
+    bookmarkCount?: number;
+    originalPostId?: string;
+    version?: number;
+    autoSaveHistory?: {
+        version: number;
+        timestamp: string;
+    }[];
+} & Record<string, any>;
 }
 
 // Post Content Types
