@@ -2,7 +2,7 @@
 import { api } from '../../axiosSetup';
 import { API_ENDPOINTS } from '../../../constants/endpointsConstants';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { FeedPost, PostData } from '@/components/Feed/types/Post';
+import { FeedPost, BasePost } from '@/feature/types/Post';
 
 interface FetchPostsParams {
   page: number;
@@ -63,7 +63,7 @@ export const feedApi = {
     }
   },
 
-  createPost: async (postData: PostData): Promise<FeedPost> => {
+  createPost: async (postData: BasePost): Promise<FeedPost> => {
     try {
       const response = await api.post<FeedPost>(
         '/api/posts/create',
@@ -83,7 +83,7 @@ export const feedApi = {
     }
   },
 
-  updatePost: async (postId: string, updateData: Partial<PostData>): Promise<FeedPost> => {
+  updatePost: async (postId: string, updateData: Partial<BasePost>): Promise<FeedPost> => {
     try {
       const response = await api.put<FeedPost>(
         `/api/posts/${postId}`,

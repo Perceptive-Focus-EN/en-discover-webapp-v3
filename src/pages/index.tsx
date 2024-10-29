@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { MoodEntry } from '@/components/EN/types/moodHistory';
 import { Emotion } from '@/components/EN/types/emotions';
 import { emotionMappingsApi } from '@/lib/api_s/reactions/emotionMappings';
-import { EmotionName } from '@/components/Feed/types/Reaction';
+import { EmotionName } from '@/feature/types/Reaction';
 import { TimeRange } from '@/components/EN/types/moodHistory';
 import { VolumeLevelId } from '@/components/EN/constants/volume';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';

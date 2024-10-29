@@ -9,6 +9,7 @@ import { AppError } from '@/MonitoringSystem/managers/AppError';
 async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
   const startTime = Date.now();
 
+  // Validate HTTP method
   if (req.method !== 'GET') {
     const appError = monitoringManager.error.createError(
       'business',
@@ -25,6 +26,7 @@ async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
 
   const { postId } = req.query;
 
+  // Validate post ID
   if (!postId || typeof postId !== 'string') {
     const appError = monitoringManager.error.createError(
       'business',
@@ -78,7 +80,7 @@ async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
       { $project: { reactions: 0 } }
     ]).next();
 
-    // Record query performance
+    // Record query performance metrics
     monitoringManager.metrics.recordMetric(
       MetricCategory.PERFORMANCE,
       'post',
@@ -92,6 +94,7 @@ async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
       }
     );
 
+    // Check if post exists
     if (!post) {
       const appError = monitoringManager.error.createError(
         'business',
@@ -106,7 +109,7 @@ async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
-    // Record success metric
+    // Record successful fetch metrics
     monitoringManager.metrics.recordMetric(
       MetricCategory.BUSINESS,
       'post',
@@ -121,6 +124,7 @@ async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
       }
     );
 
+    // Return the post data
     return res.status(200).json(post);
 
   } catch (error) {
@@ -132,6 +136,7 @@ async function getPostHandler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
+    // Handle unexpected errors
     const appError = monitoringManager.error.createError(
       'system',
       'POST_FETCH_FAILED',

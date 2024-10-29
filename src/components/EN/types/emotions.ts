@@ -1,7 +1,7 @@
 // types/emotions.ts
 
 import { ColorPalette } from "./colorPalette";
-import { EmotionId, EmotionName } from '../../Feed/types/Reaction';
+import { EmotionId, EmotionName } from '../../../feature/types/Reaction';
 import { SOURCE_CATEGORIES, SourceCategoryId } from '../constants/sources';
 import { VOLUME_LEVELS, VolumeLevelId } from '../constants/volume';
 

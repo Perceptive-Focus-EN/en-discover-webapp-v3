@@ -4,7 +4,7 @@ import { useTheme } from '@mui/material/styles';
 import { format, parseISO, getYear, isValid, startOfWeek, addDays, getDaysInMonth } from 'date-fns';
 import { Emotion } from './types/emotions';
 import { MoodHistoryItem, TimeRange } from './types/moodHistory';
-import { EmotionName, EmotionId } from '../Feed/types/Reaction';
+import { EmotionName, EmotionId } from '../../feature/types/Reaction';
 import { VOLUME_LEVELS, VolumeLevelId, VolumeLevelName } from './constants/volume';
 import { SOURCE_CATEGORIES, SourceCategoryId } from './constants/sources';
 import { convertSourceIdsToNames } from './types/moodHistory';

@@ -1,5 +1,5 @@
 // src/components/EN/mockEmotions.ts
-import { EmotionName, EmotionId } from '../Feed/types/Reaction';
+import { EmotionName, EmotionId } from '../../feature/types/Reaction';
 import { VOLUME_LEVELS, VolumeLevelId } from './constants/volume';
 import { SOURCE_CATEGORIES } from './constants/sources';
 // import mockUserId from '../../pages/api/mockEmotionColorMappings';

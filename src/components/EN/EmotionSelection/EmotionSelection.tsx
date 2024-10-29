@@ -12,7 +12,7 @@ import EmotionBall from './EmotionBall';
 import EmotionBubble from './EmotionBubble';
 import { ColorPalette, ValidHexColor } from '../types/colorPalette';
 import { useAuth } from '../../../contexts/AuthContext';
-import { ReactionType, EmotionName, EmotionId } from '../../Feed/types/Reaction';
+import { ReactionType, EmotionName, EmotionId } from '../../../feature/types/Reaction';
 import { Emotion } from '../types/emotions';
 import { emotionMappingsApi } from '../../../lib/api_s/reactions/emotionMappings';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';

@@ -7,7 +7,7 @@ import { Emotion } from './types/emotions';
 import { SOURCE_CATEGORIES, SourceCategoryId, SourceCategoryName } from './constants/sources';
 import { VOLUME_LEVELS, VolumeLevelId, VolumeLevelName } from './constants/volume';
 import { MoodHistoryItem, TimeRange, convertSourceIdsToNames } from './types/moodHistory';
-import { EmotionName, EmotionId, EmotionType } from '../Feed/types/Reaction';
+import { EmotionName, EmotionId, EmotionType } from '../../feature/types/Reaction';
 
 interface MoodHistoryChartProps {
   emotion: Emotion;

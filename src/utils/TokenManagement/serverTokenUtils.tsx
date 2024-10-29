@@ -6,7 +6,7 @@ import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 
 // Constants
-const TOKEN_CONSTANTS = {
+export const TOKEN_CONSTANTS = {
   REFRESH_PREFIX: 'refresh:',
   REFRESH_EXPIRY: 7 * 24 * 60 * 60, // 7 days in seconds
   BLACKLIST_PREFIX: 'blacklist:',
@@ -16,19 +16,19 @@ const TOKEN_CONSTANTS = {
 } as const;
 
 // Type definitions
-interface DecodedToken {
+export interface DecodedToken {
   userId: string;
   email: string;
   exp?: number;
 }
 
-interface EmailVerificationPayload {
+export interface EmailVerificationPayload {
   userId: string;
   email: string;
   verificationToken: string;
 }
 
-interface TokenData {
+export interface TokenData {
   [key: string]: any;
   tb?: string;
 }

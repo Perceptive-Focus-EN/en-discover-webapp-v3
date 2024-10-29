@@ -33,7 +33,7 @@ export class AuthenticationError extends AppError {
 }
 
 export class ValidationError extends AppError {
-  constructor(message: string, metadata?: Record<string, unknown>) {
+  constructor( field: keyof PostCreatorState, message: string, metadata?: Record<string, unknown>) {
     super({
       type: BusinessError.VALIDATION_FAILED,
       message,

@@ -20,7 +20,8 @@ export const COLLECTIONS = {
     REACTIONS: 'reactions',
     
     MOOD_HISTORY: 'moodHistory',
-    
+    DRAFTS: 'drafts',
+    DRAFT_HISTORY: 'draftHistory',
     CONVERSATIONS: 'conversations',
     
     SOCIAL_CONNECTIONS: 'socialConnections',

@@ -125,5 +125,8 @@ export const api = {
     axiosInstance.put<T>(url, data, config).then(response => response.data),
   
   delete: <T>(url: string, config = {}) => 
-    axiosInstance.delete<T>(url, config).then(response => response.data)
+    axiosInstance.delete<T>(url, config).then(response => response.data),
+    
+  patch: <T>(url: string, data = {}, config = {}) => 
+    axiosInstance.patch<T>(url, data, config).then(response => response.data)
 };

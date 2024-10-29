@@ -3,7 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getMockData, saveMockData } from './index';
 import mockEmotions from '../../../components/EN/mockEmotions';
-import { EmotionName } from '../../../components/Feed/types/Reaction';
+import { EmotionName } from '../../../feature/types/Reaction';
 
 export interface Emotion {
   id: number;

@@ -5,7 +5,7 @@ import { useDrop } from 'react-dnd';
 import { Typography, Paper, useTheme } from '@mui/material';
 import { ValidHexColor } from '../types/colorPalette';
 import { createGradient } from '../../../utils/colorUtils';
-import { EmotionId, EmotionName } from '../../Feed/types/Reaction';
+import { EmotionId, EmotionName } from '../../../feature/types/Reaction';
 import { Emotion } from '../types/emotions';
 
 type ColorType = ValidHexColor | ValidHexColor[];

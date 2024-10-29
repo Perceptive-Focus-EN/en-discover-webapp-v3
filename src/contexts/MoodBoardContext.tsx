@@ -6,10 +6,12 @@ import { MoodHistoryItem, MoodHistoryQuery, TimeRange, MoodEntry } from '../comp
 import { emotionMappingsApi } from '../lib/api_s/reactions/emotionMappings';
 import { Emotion } from '../components/EN/types/emotions';
 import { postReactionsApi} from '../lib/api_s/reactions/postReactions';
-import { EmotionId, Reaction } from '@/components/Feed/types/Reaction';
-import { PostData } from '../components/Feed/types/Post';
+import { EmotionId, Reaction } from '@/feature/types/Reaction';
+import { PostData, TextContent } from '../feature/types/Post';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { PostWithReactions } from '../feature/types/Post';
+import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
 
 interface MoodBoardContextType {
   moodHistory: MoodHistoryItem[];
@@ -252,38 +254,38 @@ const getEmotionMappings = useCallback(async (userId?: string) => {
   }, []);
 
   const fetchPostReactionsData = useCallback(async (postId: string) => {
-    const startTime = Date.now();
-    try {
-      const postWithReactions = await postReactionsApi.fetchPostWithReactions(postId);
-      const reactions = postWithReactions.reactions;
+  const startTime = Date.now();
+  try {
+    const postWithReactions = await postReactionsApi.fetchPostWithReactions(postId);
+    const reactions = postWithReactions.post.reactions; // Fixed: accessing reactions through post property
   
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.PERFORMANCE,
-        'post_reactions',
-        'fetch_duration',
-        Date.now() - startTime,
-        MetricType.HISTOGRAM,
-        MetricUnit.MILLISECONDS,
-        { postId }
-      );
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.PERFORMANCE,
+      'post_reactions',
+      'fetch_duration',
+      Date.now() - startTime,
+      MetricType.HISTOGRAM,
+      MetricUnit.MILLISECONDS,
+      { postId }
+    );
   
-      return reactions;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch post reactions';
-      setError(errorMessage);
+    return reactions;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Failed to fetch post reactions';
+    setError(errorMessage);
   
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.SYSTEM,
-        'post_reactions',
-        'fetch_error',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        { error: errorMessage, postId }
-      );
-      throw err;
-    }
-  }, []);
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'post_reactions',
+      'fetch_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      { error: errorMessage, postId }
+    );
+    throw err;
+  }
+}, []);
 
   const updatePostReactionData = useCallback(async (postId: string, emotionId: EmotionId) => {
     const startTime = Date.now();
@@ -318,39 +320,72 @@ const getEmotionMappings = useCallback(async (userId?: string) => {
     }
   }, []);
 
-  const fetchPostWithReactionsData = useCallback(async (postId: string) => {
-    const startTime = Date.now();
-    try {
-      const post = await  postReactionsApi.fetchPostWithReactions(postId);
+  const fetchPostWithReactionsData = useCallback(async (postId: string): Promise<PostData> => {
+  const startTime = Date.now();
+  try {
+    const response = await postReactionsApi.fetchPostWithReactions(postId);
+    
+    // Transform PostWithReactions into PostData with required fields
+    const postData: PostData = {
+      postType: 'TEXT', // Default post type - you might want to determine this from content
+      content: {
+        text: response.post.content,
+        backgroundColor: '#ffffff', // Default values - adjust as needed
+        textColor: '#000000',
+        fontSize: 'medium',
+        alignment: 'left',
+        fontWeight: 'normal',
+        padding: 'medium',
+        maxLines: 0
+      } as TextContent,
+      userId: '', // These should come from your user context or API
+      username: '',
+      firstName: '',
+      lastName: '',
+      timestamp: new Date().toISOString(),
+      tenantId: '', // Should come from tenant context
+      reactions: response.post.reactions,
+      reactionCounts: response.post.reactions.map(reaction => ({
+        emotionId: reaction.emotionId,
+        count: reaction.count
+      })),
+      blobName: undefined, // Optional
+      videoUrl: undefined, // Optional
+      userAvatar: undefined, // Optional
+      tenantInfo: undefined, // Optional
+      processingStatus: undefined // Optional
+      ,
+      type: UserAccountTypeEnum.PERSONAL
+    };
 
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.PERFORMANCE,
-        'post_with_reactions',
-        'fetch_duration',
-        Date.now() - startTime,
-        MetricType.HISTOGRAM,
-        MetricUnit.MILLISECONDS,
-        { postId }
-      );
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.PERFORMANCE,
+      'post_with_reactions',
+      'fetch_duration',
+      Date.now() - startTime,
+      MetricType.HISTOGRAM,
+      MetricUnit.MILLISECONDS,
+      { postId }
+    );
 
-      return post;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch post with reactions';
-      setError(errorMessage);
+    return postData;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Failed to fetch post with reactions';
+    setError(errorMessage);
 
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.SYSTEM,
-        'post_with_reactions',
-        'fetch_error',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        { error: errorMessage, postId }
-      );
-      throw err;
-    }
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SYSTEM,
+      'post_with_reactions',
+      'fetch_error',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      { error: errorMessage, postId }
+    );
+    throw err;
+  }
   }, []);
-
+  
   const value = {
     moodHistory,
     emotions,

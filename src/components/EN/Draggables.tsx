@@ -3,7 +3,7 @@ import { useSpring, animated } from 'react-spring';
 import { Box, Tooltip, Typography } from '@mui/material';
 import { SimulationNodeDatum } from 'd3-force';
 import { Emotion } from './types/emotions';
-import { EmotionName, EmotionId } from '../Feed/types/Reaction'
+import { EmotionName, EmotionId } from '../../feature/types/Reaction'
 import { VOLUME_LEVELS, VolumeLevelId } from './constants/volume';
 import { SOURCE_CATEGORIES, SourceCategoryId } from './constants/sources';
 

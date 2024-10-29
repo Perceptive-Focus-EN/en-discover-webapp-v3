@@ -6,7 +6,6 @@ import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging'
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 import * as clientTokenUtils from './clientTokenUtils';
 
-
 interface TokenServiceConfig {
   apiBaseUrl: string;
   refreshEndpoint: string;

@@ -3,7 +3,7 @@ import { NextPage } from 'next';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { CircularProgress } from '@mui/material';
-import { EmotionName } from '@/components/Feed/types/Reaction';
+import { EmotionName } from '@/feature/types/Reaction';
 import { TimeRange } from '@/components/EN/types/moodHistory';
 import { VolumeLevelId } from '@/components/EN/constants/volume';
 import { Emotion } from '@/components/EN/mockData/emotionHistory'; // Updated import path

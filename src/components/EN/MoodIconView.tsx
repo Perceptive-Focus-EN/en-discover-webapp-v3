@@ -4,7 +4,7 @@ import { format, parseISO, getYear, isValid } from 'date-fns';
 import { VOLUME_LEVELS, VolumeLevelId, VolumeLevelName } from './constants/volume';
 import { SOURCE_CATEGORIES, SourceCategoryId } from './constants/sources';
 import { MoodHistoryItem, TimeRange, convertSourceIdsToNames } from './types/moodHistory';
-import { EmotionName, EmotionId } from '../Feed/types/Reaction';
+import { EmotionName, EmotionId } from '../../feature/types/Reaction';
 import { Emotion } from './types/emotions';
 
 interface MoodIconViewProps {

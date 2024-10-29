@@ -3,7 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
-import { EmotionName } from '../../../components/Feed/types/Reaction';
+import { EmotionName } from '../../../feature/types/Reaction';
 
 export interface Emotion {
   id: number;

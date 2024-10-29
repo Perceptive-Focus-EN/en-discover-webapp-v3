@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../../../config/azureCosmosClient';
 import { verifyAccessToken } from '../../../../../utils/TokenManagement/serverTokenUtils';
 import { COLLECTIONS } from '../../../../../constants/collections';
-import { EmotionId } from '../../../../../components/Feed/types/Reaction';
+import { EmotionId } from '../../../../../feature/types/Reaction';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 import { AppError } from '@/MonitoringSystem/managers/AppError';

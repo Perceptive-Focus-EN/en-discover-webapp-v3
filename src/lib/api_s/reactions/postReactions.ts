@@ -1,7 +1,7 @@
 // src/lib/api_s/reactions/postReactions.ts
 import { api } from '../../axiosSetup';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { Reaction, EmotionId } from '../../../components/Feed/types/Reaction';
+import { Reaction, EmotionId } from '../../../feature/types/Reaction';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 

@@ -1,7 +1,7 @@
 // src/components/EN/EmotionFilter.tsx
 import React from 'react';
 import { Box, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent } from '@mui/material';
-import { EmotionName } from '../Feed/types/Reaction';
+import { EmotionName } from '../../feature/types/Reaction';
 import { TimeRange } from './types/moodHistory';
 import { VOLUME_LEVELS, VolumeLevelId } from './constants/volume';
 import { SOURCE_CATEGORIES } from './constants/sources';

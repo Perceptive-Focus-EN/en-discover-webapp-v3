@@ -14,11 +14,10 @@ import Layout from '../components/Layout';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { NotificationProvider } from '../components/Notifications/contexts/NotificationContext';
-import { FeedProvider } from '../components/Feed/context/FeedContext';
+import { PostProvider } from '../feature/context/PostContext'; // New import
 import { MoodBoardProvider } from '../contexts/MoodBoardContext';
 import { GlobalStateProvider } from '../contexts/GlobalStateContext';
-import { AIAssistantProvider } from '../contexts/AIAssistantContext'; // Add this import
-import MockFeedItem from '../components/Feed/MockFeedItem';
+import { AIAssistantProvider } from '../contexts/AIAssistantContext';
 
 interface ThemeModeContextType {
   mode: 'light' | 'dark';
@@ -39,7 +38,8 @@ function AppContent({ Component, pageProps }: AppProps) {
     if (savedMode) {
       setMode(savedMode);
     } else {
-      const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const systemPrefersDark = window.matchMedia && 
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
       setMode(systemPrefersDark ? 'dark' : 'light');
     }
   }, []);
@@ -80,17 +80,17 @@ function ProviderWrapper({ children }: { children: React.ReactNode }) {
         <SettingsProvider>
           <AIAssistantProvider>
             <MoodBoardProvider>
-              <OnboardingProvider>
-                <NotificationProvider>
-                  <FeedProvider>
+              <PostProvider> {/* Added PostProvider */}
+                <OnboardingProvider>
+                  <NotificationProvider>
                     <SnackbarProvider>
                       <DndProvider backend={HTML5Backend}>
                         {children}
                       </DndProvider>
                     </SnackbarProvider>
-                  </FeedProvider>
-                </NotificationProvider>
-              </OnboardingProvider>
+                  </NotificationProvider>
+                </OnboardingProvider>
+              </PostProvider>
             </MoodBoardProvider>
           </AIAssistantProvider>
         </SettingsProvider>

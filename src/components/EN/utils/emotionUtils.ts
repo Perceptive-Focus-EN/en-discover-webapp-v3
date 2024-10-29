@@ -1,6 +1,6 @@
 // src/utils/emotionUtils.ts
 
-import { EmotionId } from '../../Feed/types/Reaction';
+import { EmotionId } from '../../../feature/types/Reaction';
 
 export enum EmotionName {
   ANGER = 'ANGER',

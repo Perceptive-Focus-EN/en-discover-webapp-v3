@@ -231,5 +231,20 @@ export const SystemMessages = {
     warn: 'Service queue approaching capacity',
     info: 'Service queue status checked'
   },
-  
+  [SystemError.SERVICE_QUEUE_FULL]: {
+    error: 'Service queue is full',
+    warn: 'Service queue approaching capacity',
+    info: 'Service queue status checked'
+  },
+  [SystemError.SERVICE_QUEUE_PROCESSING_FAILED]: {
+    error: 'Failed to process service queue',
+    warn: 'Service queue processing issues detected',
+    info: 'Service queue processing attempted'
+  },
+  [SystemError.QUEUE_VIDEO_FAILED]: {
+    error: 'Failed to queue video',
+    warn: 'Video processing queue issues detected',
+    info: 'Video processing queue attempted'
+  },
+
 } as const;

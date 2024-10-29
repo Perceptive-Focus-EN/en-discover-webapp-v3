@@ -29,7 +29,7 @@ import EmotionSelection from '@/components/EN/EmotionSelection/EmotionSelection'
 import ChartOptions from '@/components/EN/ChartOptions';
 import BubbleChart from '@/components/EN/BubbleChart';
 import { MoodEntry } from '@/components/EN/types/moodHistory';
-import { EmotionName } from '@/components/Feed/types/Reaction';
+import { EmotionName } from '@/feature/types/Reaction';
 import { TimeRange } from '@/components/EN/types/moodHistory';
 import { VolumeLevelId } from '@/components/EN/constants/volume';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
