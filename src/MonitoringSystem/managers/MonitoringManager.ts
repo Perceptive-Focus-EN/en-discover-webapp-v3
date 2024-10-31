@@ -1,4 +1,5 @@
 // src/MonitoringSystem/managers/MonitoringManager.ts
+
 import { ServiceBus } from '../core/ServiceBus';
 import { CircuitBreaker } from '../utils/CircuitBreaker';
 import { ErrorManager } from './ErrorManager';
@@ -8,6 +9,18 @@ import { MetricCategory, MetricType, MetricUnit } from '../constants/metrics';
 import { LogLevel } from '../constants/logging';
 import { SystemContext } from '../types/logging';
 import { ErrorType, SystemError } from '../constants/errors';
+
+// Add specific metric types for monitoring dashboard
+interface DashboardMetrics {
+  type: 'SYSTEM_HEALTH' | 'API_PERFORMANCE';
+  timestamp: number;
+  value: number;
+  metadata: {
+    component: string;
+    category: string;
+    aggregationType?: 'average' | 'sum' | 'latest';
+  };
+}
 
 class MonitoringManager {
   private static instance: MonitoringManager;
@@ -39,8 +52,9 @@ class MonitoringManager {
       this.serviceBus
     );
 
-    // 3. Setup event handlers
+    // 3. Setup event handlers and system metrics
     this.setupEventHandlers();
+    this.setupSystemMetrics(); // Add system metrics setup
   }
 
   private getSystemContext(): SystemContext {
@@ -51,6 +65,116 @@ class MonitoringManager {
       version: process.env.SYSTEM_VERSION,
       region: process.env.SYSTEM_REGION
     };
+  }
+
+  public static getInstance(): MonitoringManager {
+    if (!MonitoringManager.instance) {
+      MonitoringManager.instance = new MonitoringManager();
+    }
+    return MonitoringManager.instance;
+  }
+
+  // New method to set up system metrics event handling
+  private setupSystemMetrics(): void {
+    this.serviceBus.on('metric.recorded', (metric) => {
+      if (metric.metadata?.isDashboardMetric) {
+        this.processDashboardMetric(metric);
+      }
+    });
+  }
+
+  // Method to process dashboard metrics
+  private processDashboardMetric(metric: any): void {
+    const timestamp = Date.now();
+
+    if (metric.type === 'SYSTEM_HEALTH') {
+      // Update system health metrics with latest values
+      this.metrics.recordMetric(
+        MetricCategory.SYSTEM,
+        metric.metadata.component,
+        'health_status',
+        metric.value,
+        MetricType.GAUGE,
+        MetricUnit.COUNT,
+        {
+          ...metric.metadata,
+          timestamp,
+          isDashboardMetric: true,
+          isProcessed: true
+        }
+      );
+    } else if (metric.type === 'API_PERFORMANCE') {
+      // Process API performance metrics
+      if (metric.metadata.aggregationType === 'average') {
+        // Calculate running average for response times
+        const currentMetrics = this.metrics.getAllMetrics().filter(m =>
+          m.component === metric.metadata.component &&
+          m.metadata?.isProcessed
+        );
+
+        const avgValue = currentMetrics.length > 0
+          ? (currentMetrics.reduce((sum, m) => sum + m.value, 0) + metric.value) / (currentMetrics.length + 1)
+          : metric.value;
+
+        this.metrics.recordMetric(
+          MetricCategory.PERFORMANCE,
+          metric.metadata.component,
+          'response_time',
+          avgValue,
+          MetricType.GAUGE,
+          MetricUnit.MILLISECONDS,
+          {
+            ...metric.metadata,
+            timestamp,
+            isDashboardMetric: true,
+            isProcessed: true
+          }
+        );
+      } else if (metric.metadata.aggregationType === 'sum') {
+        // Accumulate error counts
+        this.metrics.recordMetric(
+          MetricCategory.PERFORMANCE,
+          metric.metadata.component,
+          'error_count',
+          metric.value,
+          MetricType.COUNTER,
+          MetricUnit.COUNT,
+          {
+            ...metric.metadata,
+            timestamp,
+            isDashboardMetric: true,
+            isProcessed: true
+          }
+        );
+      }
+    }
+  }
+
+  // Update recordDashboardMetric to include processing
+  public recordDashboardMetric(metric: DashboardMetrics): void {
+    // First, record the raw metric
+    this.metrics.recordMetric(
+      metric.type === 'SYSTEM_HEALTH' ? MetricCategory.SYSTEM : MetricCategory.PERFORMANCE,
+      metric.metadata.component,
+      metric.metadata.category,
+      metric.value,
+      metric.metadata.aggregationType === 'sum' ? MetricType.COUNTER : MetricType.GAUGE,
+      MetricUnit.COUNT,
+      {
+        ...metric.metadata,
+        isDashboardMetric: true,
+        timestamp: metric.timestamp
+      }
+    );
+
+    // Then, process it
+    this.processDashboardMetric({
+      ...metric,
+      metadata: {
+        ...metric.metadata,
+        timestamp: metric.timestamp
+      }
+    });
   }
 
   private setupEventHandlers(): void {
@@ -116,13 +240,6 @@ class MonitoringManager {
     });
   }
 
-  public static getInstance(): MonitoringManager {
-    if (!MonitoringManager.instance) {
-      MonitoringManager.instance = new MonitoringManager();
-    }
-    return MonitoringManager.instance;
-  }
-
   public async flush(): Promise<void> {
     try {
       await Promise.all([
@@ -159,7 +276,7 @@ class MonitoringManager {
     }
   }
 
-   public recordCircuitSuccess(circuitId: string): void {
+  public recordCircuitSuccess(circuitId: string): void {
     this.circuitBreaker.recordSuccess(circuitId);
   }
 }

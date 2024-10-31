@@ -1,4 +1,3 @@
-// pages/api/auth/logout.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '../../../constants/collections';
@@ -30,6 +29,7 @@ export default async function logoutHandler(
   const requestId = crypto.randomUUID();
 
   try {
+    // Record logout attempt
     monitoringManager.metrics.recordMetric(
       MetricCategory.BUSINESS,
       'auth',
@@ -43,48 +43,73 @@ export default async function logoutHandler(
       }
     );
 
-    monitoringManager.logger.info('Logout attempt initiated', {
-      category: LogCategory.BUSINESS,
-      pattern: LOG_PATTERNS.BUSINESS,
-      metadata: {
-        requestId,
-        path: req.url,
-        method: req.method
-      }
-    });
-
+    // Method check
     if (req.method !== 'POST') {
-      throw monitoringManager.error.createError(
+      const error = monitoringManager.error.createError(
         'business',
         BusinessError.VALIDATION_FAILED,
         'Method not allowed',
         { method: req.method }
       );
+      const errorResponse = monitoringManager.error.handleError(error);
+      return res.status(errorResponse.statusCode).json({
+        error: errorResponse.userMessage,
+        reference: errorResponse.errorReference
+      });
     }
+
+    // Clear auth cookies regardless of token presence
+    res.setHeader('Set-Cookie', [
+      'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict',
+      'refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict'
+    ]);
 
     const token = req.headers.authorization?.split(' ')[1];
+    
+    // If no token present, consider it a successful logout
     if (!token) {
-      throw monitoringManager.error.createError(
-        'security',
-        SecurityError.AUTH_UNAUTHORIZED,
-        'No token provided'
-      );
+      monitoringManager.logger.info('Logout successful - No token present', {
+        category: LogCategory.BUSINESS,
+        pattern: LOG_PATTERNS.BUSINESS,
+        metadata: {
+          requestId,
+          duration: Date.now() - startTime
+        }
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Logged out successfully'
+      });
     }
 
-    const decodedToken = verifyAccessToken(token);
-    if (!decodedToken) {
-      throw monitoringManager.error.createError(
-        'security',
-        SecurityError.AUTH_TOKEN_INVALID,
-        'Invalid token'
-      );
+    // Verify token if present
+    let decodedToken;
+    try {
+      decodedToken = verifyAccessToken(token);
+    } catch (error) {
+      // If token is invalid, still consider it a successful logout
+      monitoringManager.logger.info('Logout successful - Invalid token', {
+        category: LogCategory.SECURITY,
+        pattern: LOG_PATTERNS.SECURITY,
+        metadata: {
+          requestId,
+          error: error instanceof Error ? error.message : 'Token verification failed'
+        }
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Logged out successfully'
+      });
     }
 
+    // If we have a valid token, proceed with cleanup
     const { db } = await getCosmosClient();
     const tokenBlacklistCollection = db.collection(COLLECTIONS.TOKEN_BLACKLIST);
     const usersCollection = db.collection(COLLECTIONS.USERS);
 
-    // Add token to blacklist with additional metadata
+    // Add token to blacklist
     const blacklistEntry = {
       token,
       userId: decodedToken.userId,
@@ -97,39 +122,23 @@ export default async function logoutHandler(
       }
     };
 
-    await tokenBlacklistCollection.insertOne(blacklistEntry);
-
-    monitoringManager.logger.info('Token blacklisted', {
-      category: LogCategory.SECURITY,
-      pattern: LOG_PATTERNS.SECURITY,
-      metadata: {
-        userId: decodedToken.userId,
-        tokenExp: new Date(decodedToken.exp * 1000),
-        requestId
-      }
-    });
-
-    // Update user's session state
-    const updateResult = await usersCollection.updateOne(
-      { userId: decodedToken.userId },
-      {
-        $set: {
-          lastLogout: new Date().toISOString(),
-          isOnline: false,
-          sessionId: null,
-          refreshToken: null
+    await Promise.all([
+      // Blacklist token
+      tokenBlacklistCollection.insertOne(blacklistEntry),
+      
+      // Update user session state
+      usersCollection.updateOne(
+        { userId: decodedToken.userId },
+        {
+          $set: {
+            lastLogout: new Date().toISOString(),
+            isOnline: false,
+            sessionId: null,
+            refreshToken: null
+          }
         }
-      }
-    );
-
-    if (updateResult.modifiedCount === 0) {
-      throw monitoringManager.error.createError(
-        'business',
-        BusinessError.USER_UPDATE_FAILED,
-        'Failed to update user session state',
-        { userId: decodedToken.userId }
-      );
-    }
+      )
+    ]);
 
     monitoringManager.metrics.recordMetric(
       MetricCategory.BUSINESS,
@@ -145,7 +154,7 @@ export default async function logoutHandler(
       }
     );
 
-    monitoringManager.logger.info('Logout successful', {
+    monitoringManager.logger.info('Logout successful with cleanup', {
       category: LogCategory.BUSINESS,
       pattern: LOG_PATTERNS.BUSINESS,
       metadata: {
@@ -175,6 +184,12 @@ export default async function logoutHandler(
       }
     );
 
+    // Even if there's an error in the cleanup process, we want to ensure the user is logged out
+    res.setHeader('Set-Cookie', [
+      'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict',
+      'refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict'
+    ]);
+
     const appError = monitoringManager.error.createError(
       'system',
       SystemError.SERVER_INTERNAL_ERROR,
@@ -187,9 +202,10 @@ export default async function logoutHandler(
     );
     const errorResponse = monitoringManager.error.handleError(appError);
 
-    return res.status(errorResponse.statusCode).json({
-      error: errorResponse.userMessage,
-      reference: errorResponse.errorReference
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
+      warning: 'Some cleanup operations may have failed'
     });
   }
 }

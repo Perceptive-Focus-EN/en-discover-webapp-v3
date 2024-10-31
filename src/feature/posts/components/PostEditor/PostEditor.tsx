@@ -168,24 +168,36 @@ export const PostEditor: React.FC<PostEditorProps> = ({
         }
     }, []);
 
-    const handleSubmit = useCallback(async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            const postData = {
-                type: formState.type,
-                content: formState.content,
-                visibility: formState.visibility
-            };
+    // In PostEditor.tsx
+const handleSubmit = useCallback(async (e: React.FormEvent) => {
+  e.preventDefault();
+  try {
+    const postData = {
+      type: formState.type,
+      content: formState.content,
+      visibility: formState.visibility,
+      reactions: [], // Initialize empty reactions array
+      reactionMetrics: {
+        totalReactions: 0,
+        averageEngagementRate: 0,
+        peakReactionTime: new Date(),
+        reactionDistribution: {},
+        reactionVelocity: 0,
+        recentReactions: []
+      }
+    };
 
-            const newPost = await createPost(postData);
-            if (newPost && onPostCreated) {
-                await onPostCreated(newPost);
-            }
-            onSuccess?.();
-        } catch (err) {
-            console.error('Post submission failed:', err);
-        }
-    }, [formState, createPost, onSuccess, onPostCreated]);
+    const newPost = await createPost(postData);
+    if (newPost && onPostCreated) {
+      await onPostCreated(newPost);
+    }
+    onSuccess?.();
+    messageHandler.success('Post created successfully');
+  } catch (err) {
+    console.error('Post submission failed:', err);
+    messageHandler.error('Failed to create post');
+  }
+}, [formState, createPost, onSuccess, onPostCreated]);
 
     const renderContentInput = () => {
         switch (formState.type) {

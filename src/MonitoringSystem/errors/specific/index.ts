@@ -32,19 +32,19 @@ export class AuthenticationError extends AppError {
   }
 }
 
-export class ValidationError extends AppError {
-  constructor( field: keyof PostCreatorState, message: string, metadata?: Record<string, unknown>) {
-    super({
-      type: BusinessError.VALIDATION_FAILED,
-      message,
-      statusCode: HttpStatus.BAD_REQUEST,
-      metadata,
-      errorReference: 'BUS_VALIDATION_FAILED',
-      tenantId: 'defaultTenant'
-    });
-  }
-}
-
+// export class ValidationError extends AppError {
+  // constructor( field: keyof PostCreatorState, message: string, metadata?: Record<string, unknown>) {
+    // super({
+      // type: BusinessError.VALIDATION_FAILED,
+      // message,
+      // statusCode: HttpStatus.BAD_REQUEST,
+      // metadata,
+      // errorReference: 'BUS_VALIDATION_FAILED',
+      // tenantId: 'defaultTenant'
+    // });
+  // }
+// }
+// 
 export class ApiError extends AppError {
   constructor(message: string, statusCode: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR, metadata?: Record<string, unknown>) {
     super({

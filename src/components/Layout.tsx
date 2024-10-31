@@ -15,7 +15,7 @@ import { useRouter } from 'next/router';
 import AIAssistant from './AIAssistant';
 import Image from 'next/image';
 import { useAIAssistant } from '@/contexts/AIAssistantContext';
-import MessagingDrawer from './Messaging/MessagingDrawer'; // New import
+import MessagingDrawer from './Messaging/MessagingDrawer';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -29,21 +29,39 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [currentAccount, setCurrentAccount] = useState<ExtendedUserInfo | null>(null);
   const { state, toggleAIAssistant } = useAIAssistant();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
-
-  // New state for messaging drawer
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Public routes that don't need auth
+  const publicRoutes = ['/login', '/register', '/forgot-password'];
+  const isPublicRoute = publicRoutes.includes(router.pathname);
 
   useEffect(() => {
     if (!loading) {
-      if (!user) {
-        router.push('/login');
+      setIsAuthChecked(true);
+      
+      // Prevent redirect loops
+      if (isRedirecting) return;
+
+      // Handle authentication routing
+      if (!user && !isPublicRoute) {
+        setIsRedirecting(true);
+        router.push('/login').finally(() => {
+          setIsRedirecting(false);
+        });
       } else if (user?.currentTenantId) {
         updateCurrentAccount(user.currentTenantId);
       }
     }
-  }, [user, loading, router]);
+  }, [user, loading, router.pathname, isPublicRoute]);
 
-  const updateCurrentAccount = (tenantId: string) => {
+  // Reset redirecting state when route changes
+  useEffect(() => {
+    setIsRedirecting(false);
+  }, [router.pathname]);
+
+  const updateCurrentAccount = useCallback((tenantId: string) => {
     const currentTenant = user?.tenantAssociations.find(
       (assoc) => assoc.tenantId === tenantId
     );
@@ -55,7 +73,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         role: user.role || 'defaultRole',
       });
     }
-  };
+  }, [user]);
 
   const handleAccountChange = async (tenantId: string) => {
     try {
@@ -67,12 +85,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   };
 
-  // New function to handle messaging drawer toggle
   const handleMessagingToggle = useCallback((open: boolean) => {
     setIsMessagingOpen(open);
   }, []);
 
-  if (loading) {
+  // Don't render anything until auth is checked
+  if (!isAuthChecked || loading) {
     return (
       <Box
         display="flex"
@@ -80,11 +98,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         alignItems="center"
         minHeight="100vh"
         bgcolor="background.default"
-        className="animate-fade-in"
       >
         <CircularProgress />
       </Box>
     );
+  }
+
+  // Don't show layout for public routes
+  if (isPublicRoute) {
+    return <>{children}</>;
+  }
+
+  // Don't render protected content until user is authenticated
+  if (!user) {
+    return null;
   }
 
   return (
@@ -101,127 +128,127 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       }}
       className="animate-fade-in"
     >
-      {/* Fixed Header */}
-      <Box
-        sx={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: theme.zIndex.appBar,
-          transition: 'all 0.3s ease-in-out',
-        }}
-        className="animate-fade-in-down"
-      >
-        <Header
-          currentAccount={currentAccount}
-          onAccountChange={handleAccountChange}
-          user={user}
-          onMessagingToggle={handleMessagingToggle} // Pass the toggle handler to Header
-        />
-      </Box>
-
-      {/* Main Content */}
-      <Box
-        component="main"
-        sx={{
-          flex: 1,
-          py: { xs: 4, md: 6 },
-          px: { xs: 2, sm: 3, md: 4 },
-          pb: { xs: 10, sm: 11 },
-          overflowY: 'auto',
-          display: 'block',
-          mt: user && currentAccount ? '64px' : 0,
-          mb: '56px',
-          transition: 'all 0.3s ease-in-out',
-        }}
-        className="animate-fade-in-up"
-      >
-        {children}
-      </Box>
-
-      {/* Footer */}
-      {user && currentAccount && (
-        <Box
-          sx={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: theme.zIndex.appBar,
-          }}
-          className="animate-fade-in-up"
-        >
-          <Footer currentAccount={currentAccount} />
-        </Box>
-      )}
-
-      {/* AI Assistant Toggle (Mobile Only) */}
-      {!isDesktop && (
-        <Fab
-          color="primary"
-          aria-label="AI Assistant"
-          sx={{
-            position: 'fixed',
-            bottom: { xs: 70, sm: 70 },
-            right: 20,
-            zIndex: theme.zIndex.fab + 1,
-            width: 60,
-            height: 60,
-            borderRadius: '50%',
-            overflow: 'hidden',
-            p: 0,
-          }}
-          onClick={toggleAIAssistant}
-        >
-          <Image
-            src="/EN_LightMode.png"
-            alt="EN Logo"
-            width={60}
-            height={60}
-            style={{ objectFit: 'cover' }}
-          />
-        </Fab>
-      )}
-
-      {/* AI Assistant Backdrop & Component */}
-      {state.isActive && (
+      {user && (
         <>
+          {/* Fixed Header */}
           <Box
             sx={{
               position: 'fixed',
               top: 0,
               left: 0,
               right: 0,
-              bottom: 0,
-              bgcolor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: theme.zIndex.modal - 1,
+              zIndex: theme.zIndex.appBar,
+              transition: 'all 0.3s ease-in-out',
             }}
-            onClick={toggleAIAssistant}
-          />
+            className="animate-fade-in-down"
+          >
+            <Header
+              currentAccount={currentAccount}
+              onAccountChange={handleAccountChange}
+              user={user}
+              onMessagingToggle={handleMessagingToggle}
+            />
+          </Box>
+
+          {/* Main Content */}
+          <Box
+            component="main"
+            sx={{
+              flex: 1,
+              py: { xs: 4, md: 6 },
+              px: { xs: 2, sm: 3, md: 4 },
+              pb: { xs: 10, sm: 11 },
+              overflowY: 'auto',
+              display: 'block',
+              mt: '64px',
+              mb: '56px',
+              transition: 'all 0.3s ease-in-out',
+            }}
+            className="animate-fade-in-up"
+          >
+            {children}
+          </Box>
+
+          {/* Footer */}
           <Box
             sx={{
               position: 'fixed',
-              top: '80px',
-              right: 20,
-              zIndex: theme.zIndex.modal,
-              p: 2,
-              maxWidth: '90vw',
-              maxHeight: 'calc(100vh - 100px)',
-              overflow: 'auto',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: theme.zIndex.appBar,
             }}
+            className="animate-fade-in-up"
           >
-            <AIAssistant />
+            {currentAccount && <Footer currentAccount={currentAccount} />}
           </Box>
-        </>
-      )}
 
-      {/* Messaging Drawer at Layout level */}
-      {user && (
-        <MessagingDrawer 
-          open={isMessagingOpen} 
-          onClose={() => setIsMessagingOpen(false)} 
-        />
+          {/* AI Assistant Toggle (Mobile Only) */}
+          {!isDesktop && (
+            <Fab
+              color="primary"
+              aria-label="AI Assistant"
+              sx={{
+                position: 'fixed',
+                bottom: { xs: 70, sm: 70 },
+                right: 20,
+                zIndex: theme.zIndex.fab + 1,
+                width: 60,
+                height: 60,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                p: 0,
+              }}
+              onClick={toggleAIAssistant}
+            >
+              <Image
+                src="/EN_LightMode.png"
+                alt="EN Logo"
+                width={60}
+                height={60}
+                style={{ objectFit: 'cover' }}
+              />
+            </Fab>
+          )}
+
+          {/* AI Assistant Backdrop & Component */}
+          {state.isActive && (
+            <>
+              <Box
+                sx={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  bgcolor: 'rgba(0, 0, 0, 0.5)',
+                  zIndex: theme.zIndex.modal - 1,
+                }}
+                onClick={toggleAIAssistant}
+              />
+              <Box
+                sx={{
+                  position: 'fixed',
+                  top: '80px',
+                  right: 20,
+                  zIndex: theme.zIndex.modal,
+                  p: 2,
+                  maxWidth: '90vw',
+                  maxHeight: 'calc(100vh - 100px)',
+                  overflow: 'auto',
+                }}
+              >
+                <AIAssistant />
+              </Box>
+            </>
+          )}
+
+          {/* Messaging Drawer */}
+          <MessagingDrawer 
+            open={isMessagingOpen} 
+            onClose={() => setIsMessagingOpen(false)} 
+          />
+        </>
       )}
     </Box>
   );

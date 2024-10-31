@@ -13,6 +13,21 @@ export const EmotionIdMap: Record<EmotionName, EmotionId> = {
   ENERGY: 8
 };
 
+
+export const EmotionType = [
+  { id: 1 as EmotionId, emotionName: "EUPHORIC" as EmotionName },
+  { id: 2 as EmotionId, emotionName: "TRANQUIL" as EmotionName },
+  { id: 3 as EmotionId, emotionName: "REACTIVE" as EmotionName },
+  { id: 4 as EmotionId, emotionName: "SORROW" as EmotionName },
+  { id: 5 as EmotionId, emotionName: "FEAR" as EmotionName },
+  { id: 6 as EmotionId, emotionName: "DISGUST" as EmotionName },
+  { id: 7 as EmotionId, emotionName: "SUSPENSE" as EmotionName },
+  { id: 8 as EmotionId, emotionName: "ENERGY" as EmotionName }
+] as const;
+
+export type ReactionType = typeof EmotionType[number];
+
+
 // New interface for advanced metrics
 export interface ReactionMetrics {
   totalReactions: number;
@@ -20,7 +35,37 @@ export interface ReactionMetrics {
   peakReactionTime: Date;
   reactionDistribution: Record<EmotionName, number>;
   reactionVelocity ?: number;  // New metric
+  recentReactions: Array<{
+  emotionName: EmotionName;
+  user: {
+      id: string;
+      name: string;
+      avatarUrl?: string;
+    };
+    timestamp: string;
+  }>;
 }
+
+export interface PostReaction {
+  id: string;
+  postId: string;
+  userId: string;
+  tenantId: string;
+  emotionId: EmotionId;
+  emotionName: EmotionName;
+  color: string;
+  count: ReactionCount
+  user?: {
+    id: string;
+    name: {
+        firstName: string;
+        lastName: string;
+    }
+    avatarUrl?: string;
+  };
+createdAt: string;
+}
+
 
 export interface ReactionCount {
   count: number;
@@ -33,25 +78,7 @@ export interface ReactionCountResponse {
   data: ReactionCount[];
 }
 
-export interface Reaction {
-  id: string;
-  postId: string;
-  userId: string;
-  tenantId: string;
-  emotionId: EmotionId;
-  name: EmotionName;
-  color: string;
-  count: number;
-  user?: {
-    id: string;
-    name: {
-        firstName: string;
-        lastName: string;
-    }
-    avatarUrl?: string;
-  };
-createdAt: string;
-}
+
 
 export interface ReactionSummary {
   type: EmotionName;

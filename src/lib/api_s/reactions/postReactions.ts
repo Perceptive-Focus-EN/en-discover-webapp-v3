@@ -1,12 +1,12 @@
 // src/lib/api_s/reactions/postReactions.ts
 import { api } from '../../axiosSetup';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { Reaction, EmotionId } from '../../../feature/types/Reaction';
+import { PostReaction, EmotionId } from '../../../feature/types/Reaction';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 
 interface ReactionResponse {
-  reactions: Reaction[];
+  reactions: PostReaction[];
   success: boolean;
   message: string;
 }
@@ -15,12 +15,12 @@ interface PostWithReactions {
   post: {
     id: string;
     content: string;
-    reactions: Reaction[];
+    reactions: PostReaction[];
   };
 }
 
 export const postReactionsApi = {
-  fetch: async (postId: string): Promise<Reaction[]> => {
+  fetch: async (postId: string): Promise<PostReaction[]> => {
     try {
       const response = await api.get<ReactionResponse>(
         `/api/posts/${postId}/reactions`
@@ -66,7 +66,7 @@ export const postReactionsApi = {
     }
   },
 
-  update: async (postId: string, emotionId: EmotionId): Promise<Reaction[]> => {
+  update: async (postId: string, emotionId: EmotionId): Promise<PostReaction[]> => {
     try {
       const response = await api.post<ReactionResponse>(
         `/api/posts/${postId}/reactions`,

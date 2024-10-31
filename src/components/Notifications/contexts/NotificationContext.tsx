@@ -2,11 +2,14 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { notificationsApi } from '@/lib/api_s/notifications';
 import { Notification } from '@/components/Notifications/types/notification';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/router';
 
 interface NotificationContextType {
   unreadCount: number;
   notifications: Notification[];
   newNotifications: Notification[];
+  isPolling: boolean;
   loadNotifications: () => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -25,18 +28,24 @@ export const useNotification = () => {
 };
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const [isPolling, setIsPolling] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [newNotifications, setNewNotifications] = useState<Notification[]>([]);
 
-  useEffect(() => {
-    loadUnreadCount();
-    const interval = setInterval(loadUnreadCount, 60000); // Refresh every minute
-    
-    return () => clearInterval(interval);
-  }, []);
+  // Public routes that don't need notifications
+  const publicRoutes = ['/login', '/register', '/forgot-password'];
+  const isPublicRoute = publicRoutes.includes(router.pathname);
 
   const loadUnreadCount = async () => {
+    // Don't fetch if not authenticated or on public route
+    if (!user || isPublicRoute || loading) {
+      setUnreadCount(0);
+      return;
+    }
+
     try {
       const count = await notificationsApi.getUnreadCount();
       setUnreadCount(count);
@@ -46,7 +55,39 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+
+    const startPolling = () => {
+      if (user && !isPublicRoute && !loading) {
+        setIsPolling(true);
+        loadUnreadCount();
+        pollInterval = setInterval(loadUnreadCount, 30000); // Poll every 30 seconds
+      } else {
+        setIsPolling(false);
+        setUnreadCount(0);
+        setNotifications([]);
+        setNewNotifications([]);
+      }
+    };
+
+    startPolling();
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      setIsPolling(false);
+    };
+  }, [user, isPublicRoute, loading, router.pathname]);
+
   const loadNotifications = async () => {
+    if (!user || isPublicRoute || loading) {
+      setNotifications([]);
+      setNewNotifications([]);
+      return;
+    }
+
     try {
       const fetchedNotifications = await notificationsApi.fetch();
       setNotifications(fetchedNotifications);
@@ -58,13 +99,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const markAsRead = async (notificationId: string) => {
+    if (!user) return;
+
     try {
       await notificationsApi.markAsRead(notificationId);
       setNotifications(notifications.map(n =>
         n.id === notificationId ? { ...n, read: true } : n
       ));
       setNewNotifications(newNotifications.filter(n => n.id !== notificationId));
-      await loadUnreadCount(); // Refresh unread count
+      await loadUnreadCount();
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
       messageHandler.error('Failed to mark notification as read');
@@ -72,6 +115,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const markAllAsRead = async () => {
+    if (!user) return;
+
     try {
       await notificationsApi.markAllAsRead();
       setNotifications(notifications.map(n => ({ ...n, read: true })));
@@ -84,9 +129,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const subscribe = async (topic: string) => {
+    if (!user) return;
+
     try {
       await notificationsApi.subscribe(topic);
-      await loadNotifications(); // Refresh notifications after subscribing
+      await loadNotifications();
     } catch (error) {
       console.error('Failed to subscribe to notifications:', error);
       messageHandler.error('Failed to subscribe to notifications');
@@ -94,9 +141,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const unsubscribe = async (topic: string) => {
+    if (!user) return;
+
     try {
       await notificationsApi.unsubscribe(topic);
-      await loadNotifications(); // Refresh notifications after unsubscribing
+      await loadNotifications();
     } catch (error) {
       console.error('Failed to unsubscribe from notifications:', error);
       messageHandler.error('Failed to unsubscribe from notifications');
@@ -108,6 +157,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       unreadCount,
       notifications,
       newNotifications,
+      isPolling,
       loadNotifications,
       markAsRead,
       markAllAsRead,

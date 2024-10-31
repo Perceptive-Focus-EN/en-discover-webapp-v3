@@ -478,25 +478,18 @@ type EmotionId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
                 </Box>
               </Box>
               {viewMode === 'chart' ? (
-                <MoodHistoryChart
+              <MoodHistoryChart
                   emotion={emotions.find(e => e.emotionName === selectedEmotion) || emotions[0]}
-                  history={mockMoodHistory.filter(item => item.emotionName === selectedEmotion)}
+                  history={moodHistory.filter(entry => entry.emotionName === selectedEmotion)}  // Use filtered emotions directly
                   timeRange={currentTimeRange}
                 />
-              ) : (
-                <MoodIconView
-                  emotion={{
-                    id: emotions.find(e => e.emotionName === selectedEmotion)?.id as EmotionId,
-                    userId: user?.userId || '',
-                    sources: [],
-                    color: emotions.find(e => e.emotionName === selectedEmotion)?.color || theme.palette.grey[400],
-                    emotionName: selectedEmotion || '',
-                    volume: 0,
-                  }}
-                  history={mockMoodHistory.filter(item => item.emotionName === selectedEmotion)}
-                  timeRange={currentTimeRange}
-                />
-              )}
+                ) : (
+              <MoodIconView
+                emotion={emotions.find(e => e.emotionName === selectedEmotion) || emotions[0]}
+                history={moodHistory.filter(entry => entry.emotionName === selectedEmotion)}  // Use filtered emotions directly
+                timeRange={currentTimeRange}
+              />
+            )}
             </>
           )}
         </Paper>

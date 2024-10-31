@@ -3,7 +3,6 @@
 import { getCosmosClient } from '../config/azureCosmosClient';
 import { COLLECTIONS } from '../constants/collections';
 import { ObjectId } from 'mongodb';
-import { logger } from '../MonitoringSystem/Loggers/logger';
 import { DatabaseError } from '../MonitoringSystem/errors/specific';
 
 export interface Notification {

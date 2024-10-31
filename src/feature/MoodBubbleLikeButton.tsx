@@ -1,165 +1,163 @@
-import React, { useState } from 'react';
-import { Box, Button, Typography } from '@mui/material';
+// src/feature/MoodBubbleLikeButton.tsx
+import React, { useState, useCallback, useEffect } from 'react';
+import { Box, Button, Typography, Tooltip, CircularProgress } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useAuth } from '@/contexts/AuthContext';
 import EmotionSelectionDrawer from './EmotionSelectionDrawer';
-import { EmotionId, Reaction } from '@/feature/types/Reaction';
-import { useReactions } from '@/feature/posts/hooks/useReactions';
+import { EmotionId, PostReaction, ReactionSummary } from './types/Reaction';
+import { emotionMappingsApi } from '@/lib/api_s/reactions/emotionMappings';
+import { api } from '@/lib/axiosSetup';
 
 interface MoodBubbleLikeButtonProps {
   postId: string;
-  useDynamicSizing?: boolean;
-  reactions: Reaction[];
-  onEmotionSelect: (reaction: Reaction) => void;
+  reactionSummary?: ReactionSummary[];
+  onReactionSelect: (emotionId: EmotionId) => void;
 }
 
 const MoodBubbleLikeButton: React.FC<MoodBubbleLikeButtonProps> = ({
   postId,
-  useDynamicSizing = false,
-  reactions,
-  onEmotionSelect
+  reactionSummary = [],
+  onReactionSelect,
 }) => {
   const { user } = useAuth();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const {
-    reactions: formattedReactions,
-    toggleReaction,
-    isLoading,
-    emotionTypes,
-    canReact
-  } = useReactions(postId);
+  const [emotionMappings, setEmotionMappings] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [localReactionSummary, setLocalReactionSummary] = useState(reactionSummary);
 
-  const handleOpenDrawer = () => {
-    if (!user) {
-      // You might want to show a login prompt here
-      return;
+  // Fetch emotion mappings
+  const fetchEmotionMappings = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      const fetchedEmotions = await emotionMappingsApi.getEmotionMappings(user.userId);
+      setEmotionMappings(fetchedEmotions);
+    } catch (error) {
+      console.error('Failed to fetch emotion mappings:', error);
+      setError('Failed to fetch emotion mappings');
+    } finally {
+      setIsLoading(false);
     }
-    setIsDrawerOpen(true);
-  };
+  }, [user]);
 
-  const handleCloseDrawer = () => setIsDrawerOpen(false);
+  // Fetch reactions for the post
+  const fetchReactions = useCallback(async () => {
+    if (!postId) return;
+
+    try {
+      setIsLoading(true);
+      const response = await api.get<{ reactions: PostReaction[] }>(`/api/posts/${postId}/reactions`);
+      
+      // Transform the response into ReactionSummary format
+      const summary: ReactionSummary[] = response.reactions.map((reaction: PostReaction) => ({
+        type: reaction.emotionName,
+        count: Number(reaction.count) || 0,
+        color: reaction.color,
+        hasReacted: reaction.userId === user?.userId,
+        recentUsers: reaction.user ? [{
+          id: reaction.user.id,
+          name: `${reaction.user.name.firstName} ${reaction.user.name.lastName}`,
+          avatarUrl: reaction.user.avatarUrl
+        }] : []
+      }));
+
+      setLocalReactionSummary(summary);
+    } catch (error) {
+      console.error('Failed to fetch reactions:', error);
+      setError('Failed to fetch reactions');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [postId, user]);
+
+  useEffect(() => {
+    fetchEmotionMappings();
+  }, [fetchEmotionMappings]);
+
+  useEffect(() => {
+    fetchReactions();
+  }, [fetchReactions]);
 
   const handleEmotionSelect = async (emotionId: EmotionId) => {
-    await toggleReaction(emotionId);
-    handleCloseDrawer();
-  };
-
-
-  const totalReactions = formattedReactions.reduce((sum, reaction) => sum + reaction.count, 0);
-
-  const calculateBubbleSize = (count: number) => {
-    if (!useDynamicSizing) return { xs: '20px', sm: '24px' };
-    const minSize = 16;
-    const maxSize = 32;
-    const ratio = totalReactions > 0 ? count / totalReactions : 0;
-    const size = Math.max(minSize, Math.min(maxSize, minSize + (maxSize - minSize) * ratio));
-    return { xs: `${size * 0.8}px`, sm: `${size}px` };
+    try {
+      await onReactionSelect(emotionId);
+      setIsDrawerOpen(false);
+      // Fetch updated reactions after successful selection
+      await fetchReactions();
+    } catch (error) {
+      setError('Failed to update reaction');
+    }
   };
 
   return (
     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
       <Button
-        onClick={handleOpenDrawer}
-        disabled={isLoading || !canReact}
+        onClick={() => setIsDrawerOpen(true)}
+        disabled={isLoading || !user}
         sx={{
-          minWidth: { xs: '120px', sm: '140px' },
-          height: { xs: '36px', sm: '40px' },
+          minWidth: '120px',
+          height: '40px',
           padding: '6px 12px',
           backgroundColor: 'white',
           borderRadius: '24px',
           boxShadow: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-start',
-          gap: '8px',
-          '&:hover': { backgroundColor: 'white' },
-          '&.Mui-disabled': {
-            backgroundColor: 'white',
-            opacity: 0.7
-          }
         }}
       >
-        {totalReactions === 0 ? (
+        {isLoading ? (
+          <CircularProgress size={24} />
+        ) : localReactionSummary.length === 0 ? (
           <>
-            <Box
-              sx={{
-                width: { xs: '20px', sm: '24px' },
-                height: { xs: '20px', sm: '24px' },
-                flexShrink: 0,
-                backgroundColor: 'white',
-                borderRadius: '50%',
-                border: '1px solid',
-                borderColor: 'primary.main',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <AddIcon sx={{ fontSize: { xs: '14px', sm: '16px' }, color: 'primary.main' }} />
-            </Box>
-            <Typography
-              sx={{
-                color: 'text.secondary',
-                fontSize: { xs: '11px', sm: '12px' },
-                fontFamily: 'Nunito, sans-serif',
-                lineHeight: '1.2',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                flexGrow: 1,
-                textAlign: 'left',
-              }}
-            >
-              {canReact ? 'Give first reaction' : 'Login to react'}
+            <AddIcon />
+            <Typography sx={{ ml: 1 }}>
+              {user ? 'React' : 'Login to react'}
             </Typography>
           </>
         ) : (
-          formattedReactions.map((reaction, index) => {
-            const bubbleSize = calculateBubbleSize(reaction.count);
-            const emotionType = emotionTypes.find(e => e.id === reaction.emotionId);
-            return (
+          localReactionSummary.map((reaction, index) => (
+            <Tooltip 
+              key={reaction.type} 
+              title={
+                <Box>
+                  <Typography>{reaction.type}</Typography>
+                  {reaction.recentUsers.length > 0 && (
+                    <Typography variant="caption" display="block">
+                      {reaction.recentUsers.map(u => u.name).join(', ')}
+                    </Typography>
+                  )}
+                </Box>
+              }
+            >
               <Box
-                key={reaction.emotionId}
                 sx={{
-                  width: bubbleSize,
-                  height: bubbleSize,
+                  width: 24,
+                  height: 24,
                   borderRadius: '50%',
-                  backgroundColor: reaction.color || '#ccc',
-                  marginLeft: index !== 0 ? '-8px' : '0',
-                  zIndex: formattedReactions.length - index,
+                  backgroundColor: reaction.color,
+                  marginLeft: index > 0 ? -1 : 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '10px',
                   color: 'white',
-                  fontWeight: 'bold',
-                  transition: 'all 0.3s ease',
-                  cursor: canReact ? 'pointer' : 'default',
-                  border: `2px solid ${reaction.color || '#ccc'}`,
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  '&:hover': canReact ? {
-                    transform: 'scale(1.1)',
-                    zIndex: formattedReactions.length + 1
-                  } : {}
+                  fontSize: '12px',
+                  border: reaction.hasReacted ? '2px solid white' : 'none',
                 }}
               >
                 {reaction.count}
               </Box>
-            );
-          })
+            </Tooltip>
+          ))
         )}
       </Button>
+
       <EmotionSelectionDrawer
         isOpen={isDrawerOpen}
-        onClose={handleCloseDrawer}
-        onOpen={handleOpenDrawer}
+        onClose={() => setIsDrawerOpen(false)}
         onEmotionSelect={handleEmotionSelect}
-        emotions={emotionTypes.map(emotion => ({
-          ...emotion,
-          color: formattedReactions.find(r => r.emotionId === emotion.id)?.color || '#ccc'
-        }))}
+        emotions={emotionMappings}
         isLoading={isLoading}
-        error={null}
+        error={error}
       />
     </Box>
   );

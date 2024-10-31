@@ -175,39 +175,56 @@ export const authManager = {
   },
 
   async logout(): Promise<void> {
-    const startTime = Date.now();
-    try {
-      await this.revokeTokens();
-      await fetchWithAuth(API_ENDPOINTS.LOGOUT_USER, { method: 'POST' });
-      
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.SECURITY,
-        'auth',
-        'logout_success',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        { duration: Date.now() - startTime }
-      );
-    } catch (error) {
-      monitoringManager.logger.error(
-        new Error('Logout failed'),
-        SecurityError.AUTH_LOGOUT_FAILED,
-        {
-          category: LogCategory.SECURITY,
-          pattern: LOG_PATTERNS.SECURITY,
-          metadata: {
-            error,
-            duration: Date.now() - startTime
-          }
-        }
-      );
-    } finally {
-      tokenService.clearTokens();
-      tokenService.clearStoredUser();
-    }
-  },
+  const startTime = Date.now();
+  try {
+    // Get the current token before clearing
+    const currentToken = tokenService.getAccessToken();
+    
+    // Clear tokens first to prevent further authenticated requests
+    tokenService.clearTokens();
+    tokenService.clearStoredUser();
 
+    // Only try to revoke if we had a token
+    if (currentToken) {
+      try {
+        // Make the logout request with the stored token
+        await fetch(`${BASE_URL}${API_ENDPOINTS.LOGOUT_USER}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      } catch (error) {
+        // Log but don't throw - we still want to clear local state
+        console.error('Logout request failed:', error);
+      }
+    }
+
+    monitoringManager.metrics.recordMetric(
+      MetricCategory.SECURITY,
+      'auth',
+      'logout_success',
+      1,
+      MetricType.COUNTER,
+      MetricUnit.COUNT,
+      { duration: Date.now() - startTime }
+    );
+  } catch (error) {
+    monitoringManager.logger.error(
+      new Error('Logout failed'),
+      SecurityError.AUTH_LOGOUT_FAILED,
+      {
+        category: LogCategory.SECURITY,
+        pattern: LOG_PATTERNS.SECURITY,
+        metadata: {
+          error,
+          duration: Date.now() - startTime
+        }
+      }
+    );
+  }
+},
   // Auth Status
   isAuthenticated(): boolean {
     const accessToken = tokenService.getAccessToken();

@@ -33,7 +33,7 @@ import { EmotionName } from '@/feature/types/Reaction';
 import { TimeRange } from '@/components/EN/types/moodHistory';
 import { VolumeLevelId } from '@/components/EN/constants/volume';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { mockEmotionHistory } from './mockData/emotionHistory';
+// import { mockEmotionHistory } from './mockData/emotionHistory';
 
 export interface MoodBoardRef {
   fetchUserEmotions: () => Promise<void>;
@@ -139,8 +139,8 @@ const MoodBoard = forwardRef<MoodBoardRef, MoodBoardProps>(({
           <BubbleBarChart
             {...props}
                 timeRange={timeRange} // Only need to pass timeRange separately
-                history={mockEmotionHistory} // Add mock history here
-                // history={filteredEmotions}
+                // history={mockEmotionHistory} // Add mock history here
+                history={filteredEmotions}
           />
         );
       case 'Balance':

@@ -7,12 +7,15 @@ import {
   useMediaQuery,
   Alert,
   Button,
+  Divider,
+  Paper,
+  Fade,
 } from '@mui/material';
 import EmotionBall from './EmotionBall';
 import EmotionBubble from './EmotionBubble';
 import { ColorPalette, ValidHexColor } from '../types/colorPalette';
 import { useAuth } from '../../../contexts/AuthContext';
-import { ReactionType, EmotionName, EmotionId } from '../../../feature/types/Reaction';
+import { EmotionName, EmotionId } from '../../../feature/types/Reaction';
 import { Emotion } from '../types/emotions';
 import { emotionMappingsApi } from '../../../lib/api_s/reactions/emotionMappings';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
@@ -160,52 +163,144 @@ const EmotionSelection: React.FC<EmotionSelectionProps> = ({
     );
   }
 
-  return (
-    <>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: isDesktop ? '1fr 1fr' : '1fr',
-          gap: theme.spacing(3),
-          '& > div': {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 80px))',
-            gap: theme.spacing(3),
+    return (
+    <Fade in={!loading}>
+      <Box sx={{ 
+        maxWidth: '1200px', 
+        margin: '0 auto',
+        p: { xs: 2, md: 4 }
+      }}>
+        <Paper elevation={3} sx={{ 
+          p: { xs: 2, md: 4 },
+          backgroundColor: theme.palette.background.paper,
+          borderRadius: 2
+        }}>
+          <Typography variant="h5" gutterBottom sx={{ mb: 4 }}>
+            Customize Your Emotions
+          </Typography>
+          
+          {isDesktop ? (
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: '1fr auto 1fr',
+              gap: 4,
+              alignItems: 'start'
+            }}>
+              {/* Emotions Section */}
+              <Box>
+                <Typography variant="subtitle1" gutterBottom sx={{ mb: 3 }}>
+                  Your Emotions
+                </Typography>
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                  gap: 3,
+                  justifyContent: 'center',
+                }}>
+                  {emotions.map((emotion) => (
+                    <EmotionBall
+                      key={String(emotion.id)}
+                      emotion={emotion}
+                      onDrop={handleDrop}
+                      onRemove={handleRemove}
+                    />
+                  ))}
+                </Box>
+              </Box>
+
+              {/* Divider */}
+              <Divider orientation="vertical" flexItem />
+
+              {/* Color Palette Section */}
+              <Box>
+                <Typography variant="subtitle1" gutterBottom sx={{ mb: 3 }}>
+                  Available Colors
+                </Typography>
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                  gap: 3,
+                  justifyContent: 'center',
+                }}>
+                  {Object.entries(availableBubbles).map(([key, color]) => (
+                    <EmotionBubble 
+                      key={key} 
+                      id={key} 
+                      color={color}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            </Box>
+          ) : (
+            // Mobile layout remains the same
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: '1fr',
+              gap: 3,
+            }}>
+              <Box>
+                {emotions.map((emotion) => (
+                  <EmotionBall
+                    key={String(emotion.id)}
+                    emotion={emotion}
+                    onDrop={handleDrop}
+                    onRemove={handleRemove}
+                  />
+                ))}
+              </Box>
+              <Divider />
+              <Box>
+                {Object.entries(availableBubbles).map(([key, color]) => (
+                  <EmotionBubble key={key} id={key} color={color} />
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {/* Action Section */}
+          <Box sx={{ 
+            mt: 4, 
+            display: 'flex', 
             justifyContent: 'center',
-          },
-        }}
-      >
-        <Box>
-          {emotions.map((emotion) => (
-            <EmotionBall
-              key={String(emotion.id)}
-              emotion={emotion}
-              onDrop={handleDrop}
-              onRemove={handleRemove}
-            />
-          ))}
-        </Box>
-        <Box>
-          {Object.entries(availableBubbles).map(([key, color]) => (
-            <EmotionBubble key={key} id={key} color={color} />
-          ))}
-        </Box>
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 2
+          }}>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={handleSubmit} 
+              disabled={loading}
+              size="large"
+              sx={{
+                minWidth: 200,
+                py: 1.5
+              }}
+            >
+              {loading ? (
+                <CircularProgress size={24} color="inherit" />
+              ) : (
+                'Save and Continue'
+              )}
+            </Button>
+
+            {isOffline && (
+              <Alert 
+                severity="info" 
+                sx={{ 
+                  width: '100%',
+                  maxWidth: 400,
+                  mt: 2 
+                }}
+              >
+                You are currently offline. Changes will be saved when connection is restored.
+              </Alert>
+            )}
+          </Box>
+        </Paper>
       </Box>
-      <Button 
-        variant="contained" 
-        color="primary" 
-        onClick={handleSubmit} 
-        sx={{ mt: 3 }}
-        disabled={loading}
-      >
-        Save and Continue
-      </Button>
-      {isOffline && (
-        <Alert severity="info" sx={{ mt: 2 }}>
-          You are currently offline. Changes will be saved when connection is restored.
-        </Alert>
-      )}
-    </>
+    </Fade>
   );
 };
 

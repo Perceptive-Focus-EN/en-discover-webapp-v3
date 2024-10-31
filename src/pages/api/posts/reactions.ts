@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { verifyAccessToken } from '../../../../utils/TokenManagement/serverTokenUtils';
-import { getCosmosClient } from '../../../../config/azureCosmosClient';
-import { COLLECTIONS } from '../../../../constants/collections';
-import { Reaction, EmotionId } from '../../../../feature/types/Reaction';
+import { verifyAccessToken } from '../../../utils/TokenManagement/serverTokenUtils';
+import { getCosmosClient } from '../../../config/azureCosmosClient';
+import { COLLECTIONS } from '../../../constants/collections';
+import { PostReaction, EmotionId } from '../../../feature/types/Reaction';
 import { ObjectId } from 'mongodb';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
@@ -33,7 +33,7 @@ async function getPostReactions(postId: string, reactionsCollection: any, moodbo
 
   const emotionMappings: EmotionMappings = await moodboardCollection.findOne({}, { projection: { emotions: 1 } });
 
-  const reactions: Reaction[] = aggregatedReactions.map((reaction: { _id: EmotionId, count: number }) => {
+  const reactions: PostReaction[] = aggregatedReactions.map((reaction: { _id: EmotionId, count: number }) => {
     const emotion = emotionMappings.emotions.find(e => e.id === reaction._id);
     return {
       id: reaction._id.toString(),

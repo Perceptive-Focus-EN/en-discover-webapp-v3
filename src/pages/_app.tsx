@@ -1,3 +1,4 @@
+
 // src/pages/_app.tsx
 import 'regenerator-runtime/runtime';
 import type { AppProps } from 'next/app';
@@ -14,10 +15,13 @@ import Layout from '../components/Layout';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { NotificationProvider } from '../components/Notifications/contexts/NotificationContext';
-import { PostProvider } from '../feature/context/PostContext'; // New import
+import { PostProvider } from '../feature/context/PostContext';
 import { MoodBoardProvider } from '../contexts/MoodBoardContext';
 import { GlobalStateProvider } from '../contexts/GlobalStateContext';
 import { AIAssistantProvider } from '../contexts/AIAssistantContext';
+import { SystemMetricsCollector } from '@/MonitoringSystem/utils/SystemMetricsCollector';
+import { RouteGuard } from '@/components/RouteGuard';
+
 
 interface ThemeModeContextType {
   mode: 'light' | 'dark';
@@ -44,6 +48,15 @@ function AppContent({ Component, pageProps }: AppProps) {
     }
   }, []);
 
+  useEffect(() => {
+    // Initialize SystemMetricsCollector if it's not already initialized
+    const metricsCollector = SystemMetricsCollector.getInstance();
+    return () => {
+      // Cleanup to prevent memory leaks
+      metricsCollector.destroy();
+    };
+  }, []); // Ensure this runs only once
+
   const toggleThemeMode = () => {
     setMode((prevMode) => {
       const newMode = prevMode === 'light' ? 'dark' : 'light';
@@ -61,12 +74,14 @@ function AppContent({ Component, pageProps }: AppProps) {
     },
   });
 
-  return (
+    return (
     <ThemeModeContext.Provider value={{ mode, toggleThemeMode }}>
       <ThemeProvider theme={muiTheme}>
         <CssBaseline />
         <Layout>
-          <Component {...pageProps} />
+          <RouteGuard>
+            <Component {...pageProps} />
+          </RouteGuard>
         </Layout>
       </ThemeProvider>
     </ThemeModeContext.Provider>
@@ -80,7 +95,7 @@ function ProviderWrapper({ children }: { children: React.ReactNode }) {
         <SettingsProvider>
           <AIAssistantProvider>
             <MoodBoardProvider>
-              <PostProvider> {/* Added PostProvider */}
+              <PostProvider>
                 <OnboardingProvider>
                   <NotificationProvider>
                     <SnackbarProvider>

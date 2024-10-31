@@ -5,12 +5,11 @@ import { moodboardApi, getStartDate, SaveMoodEntryPayload } from '../lib/api_s/m
 import { MoodHistoryItem, MoodHistoryQuery, TimeRange, MoodEntry } from '../components/EN/types/moodHistory';
 import { emotionMappingsApi } from '../lib/api_s/reactions/emotionMappings';
 import { Emotion } from '../components/EN/types/emotions';
-import { postReactionsApi} from '../lib/api_s/reactions/postReactions';
-import { EmotionId, Reaction } from '@/feature/types/Reaction';
-import { PostData, TextContent } from '../feature/types/Post';
+import { postReactionsApi } from '../lib/api_s/reactions/postReactions';
+import { Post, TextContent } from '../feature/posts/api/types';
+import { EmotionId, PostReaction } from '@/feature/types/Reaction';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { PostWithReactions } from '../feature/types/Post';
 import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
 
 interface MoodBoardContextType {
@@ -24,9 +23,9 @@ interface MoodBoardContextType {
   getEmotionMappings: (userId: string) => Promise<Emotion[]>;
   saveEmotionMappings: (userId: string, emotions: Emotion[]) => Promise<void>;
   updateEmotionMapping: (userId: string, emotion: Emotion) => Promise<void>;
-  fetchPostReactions: (postId: string) => Promise<Reaction[]>;
-  updatePostReaction: (postId: string, emotionId: EmotionId) => Promise<Reaction[]>;
-  fetchPostWithReactions: (postId: string) => Promise<PostData>;
+  fetchPostReactions: (postId: string) => Promise<PostReaction[]>;
+  updatePostReaction: (postId: string, emotionId: EmotionId) => Promise<PostReaction[]>;
+  fetchPostWithReactions: (postId: string) => Promise<Post>;
   clearError: () => void;
 }
 
@@ -326,8 +325,7 @@ const getEmotionMappings = useCallback(async (userId?: string) => {
     const response = await postReactionsApi.fetchPostWithReactions(postId);
     
     // Transform PostWithReactions into PostData with required fields
-    const postData: PostData = {
-      postType: 'TEXT', // Default post type - you might want to determine this from content
+    const postData: Post = {
       content: {
         text: response.post.content,
         backgroundColor: '#ffffff', // Default values - adjust as needed
@@ -339,9 +337,7 @@ const getEmotionMappings = useCallback(async (userId?: string) => {
         maxLines: 0
       } as TextContent,
       userId: '', // These should come from your user context or API
-      username: '',
-      firstName: '',
-      lastName: '',
+      username: ['', ''],
       timestamp: new Date().toISOString(),
       tenantId: '', // Should come from tenant context
       reactions: response.post.reactions,
@@ -355,7 +351,7 @@ const getEmotionMappings = useCallback(async (userId?: string) => {
       tenantInfo: undefined, // Optional
       processingStatus: undefined // Optional
       ,
-      type: UserAccountTypeEnum.PERSONAL
+      type: 'TEXT',
     };
 
     monitoringManager.metrics.recordMetric(

@@ -163,16 +163,13 @@ export const API_ENDPOINTS = {
   GET_INVOICE: '/api/stripe/invoice',
   UPDATE_INVOICE: '/api/stripe/invoice/update',
 
-  // Notification endpoints
-  CREATE_NOTIFICATION: '/api/notifications/create',
-  GET_NOTIFICATION: '/api/notifications',
+
 
   // Notificaitons for EN social media app
-  NOTIFICATIONS_UNREAD_COUNT: '/api/notifications/unread-count',
-  NOTIFICATIONS_FETCH: '/api/notifications/fetch',
-  NOTIFICATIONS_MARK_AS_READ: '/api/notifications/mark-as-read',
-  NOTIFICATIONS_MARK_ALL_AS_READ: '/api/notifications/mark-all-as-read',
-
+  // NOTIFICATIONS_UNREAD_COUNT: '/api/notifications/unread-count',
+  // NOTIFICATIONS_FETCH: '/api/notifications/fetch',
+  // NOTIFICATIONS_MARK_AS_READ: '/api/notifications/mark-as-read',
+  // NOTIFICATIONS_MARK_ALL_AS_READ: '/api/notifications/mark-all-as-read',
 
   // Settings endpoints
   GET_SETTINGS: '/api/settings',
@@ -202,8 +199,22 @@ export const API_ENDPOINTS = {
   UPLOAD_DOCUMENT: '/api/upload/document',
 
 
+    // Notification endpoints
+  CREATE_NOTIFICATION: '/api/notifications/create',
+
+  NOTIFICATIONS_FETCH: '/api/notifications/fetch',
+
+  NOTIFICATIONS_UNREAD_COUNT: '/api/notifications/unread-count',
+
+  NOTIFICATIONS_MARK_AS_READ: '/api/notifications/mark-as-read',
+
+  NOTIFICATIONS_MARK_ALL_AS_READ: '/api/notifications/mark-all-as-read',
+
   NOTIFICATIONS_SUBSCRIBE: '/api/notifications/subscribe',
+
   NOTIFICATIONS_UNSUBSCRIBE: '/api/notifications/unsubscribe',
+
+
   NOTIFICATIONS_GET_SUBSCRIPTIONS: '/api/notifications/subscriptions',
   NOTIFICATIONS_GET_SUBSCRIBERS: '/api/notifications/subscribers',
   NOTIFICATIONS_GET_SUBSCRIBER: '/api/notifications/subscribers/${subscriberId}',

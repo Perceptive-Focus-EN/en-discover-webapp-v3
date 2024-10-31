@@ -7,8 +7,7 @@ import { PhotoPostCard } from '../cards/PhotoPostCard';
 import { VideoPostCard } from '../cards/VideoPostCard';
 import { MoodPostCard } from '../cards/MoodPostCard';
 import { SurveyPostCard } from '../cards/SurveyPostCard';
-// Updated import
-import  MoodBubbleLikeButton  from '../../../MoodBubbleLikeButton';
+import MoodBubbleLikeButton from '../../../MoodBubbleLikeButton';
 import { Badge, Button, Collapse, Divider, IconButton, Paper, Tooltip } from '@mui/material';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import { motion } from 'framer-motion';
@@ -17,11 +16,9 @@ import { CommentList } from '../../Comments/CommentList';
 import { BookmarkIcon } from 'lucide-react';
 import { ShareButton } from '../Share/ShareMenu';
 import { useTheme } from '@mui/material/styles';
-
-// Import reaction API
 import { reactionApi } from '../../api/reactionApi';
 import { messageHandler } from '../../../../MonitoringSystem/managers/FrontendMessageHandler';
-import { Reaction } from '@/feature/types/Reaction';
+import { EmotionId, PostReaction, ReactionSummary, ReactionMetrics } from '@/feature/types/Reaction';
 
 interface PostCardFactoryProps {
   post: Post;
@@ -47,7 +44,6 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
   // Handle reaction change
   const handleReactionChange = useCallback(async () => {
     try {
-      // Fetch updated post data after reaction change
       const [updatedSummary, updatedMetrics] = await Promise.all([
         reactionApi.getSummary(post.id),
         reactionApi.getMetrics(post.id)
@@ -55,7 +51,7 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
 
       setLocalPost(prev => ({
         ...prev,
-        reactions: updatedSummary as unknown as Reaction[],
+        reactions: updatedSummary as unknown as PostReaction[],
         metrics: updatedMetrics
       }));
     } catch (err) {
@@ -79,47 +75,15 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
   const renderPostCard = () => {
     switch (post.type) {
       case 'TEXT':
-        return (
-          <TextPostCard
-            {...baseProps}
-            type="TEXT"
-            content={localPost.content as TextContent}
-          />
-        );
+        return <TextPostCard {...baseProps} type="TEXT" content={localPost.content as TextContent} />;
       case 'PHOTO':
-        return (
-          <PhotoPostCard
-            {...baseProps}
-            type="PHOTO"
-            content={localPost.content as PhotoContent}
-            media={localPost.media}
-          />
-        );
+        return <PhotoPostCard {...baseProps} type="PHOTO" content={localPost.content as PhotoContent} media={localPost.media} />;
       case 'VIDEO':
-        return (
-          <VideoPostCard
-            {...baseProps}
-            type="VIDEO"
-            content={localPost.content as VideoContent}
-            media={localPost.media}
-          />
-        );
+        return <VideoPostCard {...baseProps} type="VIDEO" content={localPost.content as VideoContent} media={localPost.media} />;
       case 'MOOD':
-        return (
-          <MoodPostCard
-            {...baseProps}
-            type="MOOD"
-            content={localPost.content as MoodContent}
-          />
-        );
+        return <MoodPostCard {...baseProps} type="MOOD" content={localPost.content as MoodContent} />;
       case 'SURVEY':
-        return (
-          <SurveyPostCard
-            {...baseProps}
-            type="SURVEY"
-            content={localPost.content as SurveyContent}
-          />
-        );
+        return <SurveyPostCard {...baseProps} type="SURVEY" content={localPost.content as SurveyContent} />;
       default:
         return null;
     }
@@ -140,10 +104,8 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
           borderRadius: 2,
           bgcolor: 'background.paper',
           '&:hover': {
-            bgcolor: theme.palette.mode === 'light' 
-              ? 'grey.50' 
-              : 'grey.900'
-          }
+            bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
+          },
         }}
       >
         {/* Post Content */}
@@ -152,11 +114,13 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
         {/* Engagement Section */}
         <div className="px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            {/* Replaced ReactionBar with MoodBubbleLikeButton */}
-            <MoodBubbleLikeButton 
-              postId={localPost.id} 
-              reactions={localPost.reactions}
-              onEmotionSelect={handleReactionChange}
+            {/* Replace ReactionBar with MoodBubbleLikeButton */}
+            <MoodBubbleLikeButton
+              postId={localPost.id}
+              postReactions={localPost.reactions as PostReaction[]}
+              reactionMetrics={localPost.reactionMetrics as unknown as ReactionMetrics}
+              onReactionSelect={handleReactionChange}
+              useDynamicSizing={true}
             />
 
             <div className="flex items-center space-x-2">
@@ -193,12 +157,7 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
                 </Badge>
               }
               onClick={() => setShowComments(!showComments)}
-              sx={{
-                textTransform: 'none',
-                '&:hover': {
-                  backgroundColor: 'action.hover'
-                }
-              }}
+              sx={{ textTransform: 'none', '&:hover': { backgroundColor: 'action.hover' } }}
             >
               {showComments ? 'Hide Comments' : 'Show Comments'}
             </Button>
@@ -217,28 +176,19 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
 };
 
 // ErrorBoundary Wrapper for PostCardFactory
-export const PostCard: React.FC<PostCardFactoryProps> = (props) => {
-  return (
-    <ErrorBoundary
-      fallback={
-        <Paper 
-          elevation={1}
-          className="p-4 text-red-500 text-center"
-        >
-          Failed to load post
-        </Paper>
-      }
-    >
-      <PostCardFactory {...props} />
-    </ErrorBoundary>
-  );
-};
+export const PostCard: React.FC<PostCardFactoryProps> = (props) => (
+  <ErrorBoundary
+    fallback={
+      <Paper elevation={1} className="p-4 text-red-500 text-center">
+        Failed to load post
+      </Paper>
+    }
+  >
+    <PostCardFactory {...props} />
+  </ErrorBoundary>
+);
 
-// ErrorBoundary Component
-class ErrorBoundary extends React.Component<{
-  children: React.ReactNode;
-  fallback: React.ReactNode;
-}> {
+class ErrorBoundary extends React.Component<{ children: React.ReactNode; fallback: React.ReactNode }> {
   state = { hasError: false };
 
   static getDerivedStateFromError() {

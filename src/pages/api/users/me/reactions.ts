@@ -3,7 +3,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { verifyAccessToken } from '@/utils/TokenManagement/serverTokenUtils';
 import { getCosmosClient } from '@/config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
-import { Reaction } from '@/feature/types/Reaction';
+import { PostReaction } from '@/feature/types/Reaction';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 

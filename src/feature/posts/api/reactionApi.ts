@@ -1,4 +1,4 @@
-import { EmotionId, EmotionName, Reaction, ReactionCount, ReactionCountResponse, ReactionMetrics, ReactionResponse, ReactionSummary } from '@/feature/types/Reaction';
+import { EmotionId, EmotionName, PostReaction, ReactionCount, ReactionCountResponse, ReactionMetrics, ReactionResponse, ReactionSummary } from '@/feature/types/Reaction';
 import { clientApi } from '@/lib/api_s/client';
 import { apiRequest } from '@/lib/api_s/client/utils';
 import { PaginatedResponse, PaginationParams } from '@/types/pagination';
@@ -27,10 +27,8 @@ export const reactionApi = {
   /**
    * Create a reaction
    */
-  create: async (postId: string, emotionId: EmotionId): Promise<Reaction> => {
-    if (!isValidEmotionId(emotionId)) {
-      throw new Error('Invalid emotion ID');
-    }
+
+  create: async (postId: string, emotionId: EmotionId): Promise<PostReaction> => {
     const response = await apiRequest.post<ReactionResponse>(
       `/api/posts/${postId}/reactions`,
       { emotionId }
@@ -51,8 +49,8 @@ export const reactionApi = {
   list: async (
     postId: string,
     params: PaginationParams = {}
-  ): Promise<PaginatedResponse<Reaction>> => {
-    return clientApi.getPaginated<Reaction>(
+  ): Promise<PaginatedResponse<PostReaction>> => {
+    return clientApi.getPaginated<PostReaction>(
       `/api/posts/${postId}/reactions`,
       params
     );
@@ -82,10 +80,8 @@ export const reactionApi = {
   /**
    * Toggle a reaction
    */
-  toggle: async (postId: string, emotionId: EmotionId): Promise<Reaction> => {
-    if (!isValidEmotionId(emotionId)) {
-      throw new Error('Invalid emotion ID');
-    }
+
+    toggle: async (postId: string, emotionId: EmotionId): Promise<PostReaction> => {
     const response = await apiRequest.put<ReactionResponse>(
       `/api/posts/${postId}/reactions/toggle`,
       { emotionId }
@@ -96,7 +92,7 @@ export const reactionApi = {
   /**
    * Get user's reaction to a post
    */
-  getUserReaction: async (postId: string): Promise<Reaction | null> => {
+  getUserReaction: async (postId: string): Promise<PostReaction | null> => {
     try {
       const response = await apiRequest.get<ReactionResponse>(
         `/api/posts/${postId}/reactions/me`
@@ -172,11 +168,11 @@ export const reactionApi = {
       startDate?: string;
       endDate?: string;
     } = {}
-  ): Promise<PaginatedResponse<Reaction>> => {
+  ): Promise<PaginatedResponse<PostReaction>> => {
     if (params.emotionId && !isValidEmotionId(params.emotionId)) {
       throw new Error('Invalid emotion ID in params');
     }
-    return clientApi.getPaginated<Reaction>(
+    return clientApi.getPaginated<PostReaction>(
       '/api/users/me/reactions',
       params
     );

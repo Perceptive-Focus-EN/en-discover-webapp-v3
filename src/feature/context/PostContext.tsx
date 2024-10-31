@@ -1,4 +1,3 @@
-// src/features/posts/context/PostContext.tsx
 import React, { createContext, useReducer, useCallback } from 'react';
 import { CreatePostDTO, Post, UpdatePostDTO } from '../posts/api/types';
 import { postApi } from '../posts/api/postApi';
@@ -8,7 +7,7 @@ import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandl
 // Debug constant to control logs
 const DEBUG = process.env.NODE_ENV === 'development';
 
-// More robust type guard for Post validation
+// Type guard for Post validation
 function isValidPost(post: any): post is Post {
   return (
     post &&
@@ -32,7 +31,6 @@ function isValidPost(post: any): post is Post {
   );
 }
 
-// Updated PostState interface to use PaginationMetadata
 export interface PostState {
   posts: Record<string, Post>;
   loading: boolean;
@@ -50,7 +48,6 @@ export interface PostState {
   };
 }
 
-// Initial state with additional pagination properties
 const initialState: PostState = {
   posts: {},
   loading: false,
@@ -64,7 +61,6 @@ const initialState: PostState = {
   filters: {},
 };
 
-// Updated PostAction types to use PaginationMetadata
 export type PostAction =
   | { type: 'SET_POSTS'; payload: { posts: Post[]; pagination: PaginationMetadata } }
   | { type: 'ADD_POSTS'; payload: Post[] }
@@ -77,7 +73,6 @@ export type PostAction =
   | { type: 'RESET_POSTS' }
   | { type: 'SET_HAS_MORE'; payload: boolean };
 
-// Updated postReducer function
 function postReducer(state: PostState, action: PostAction): PostState {
   switch (action.type) {
     case 'SET_POSTS': {
@@ -150,7 +145,7 @@ function postReducer(state: PostState, action: PostAction): PostState {
     case 'RESET_POSTS':
       return {
         ...initialState,
-        filters: state.filters, // Preserve filters on reset
+        filters: state.filters,
       };
     default:
       return state;
@@ -196,12 +191,10 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
 
-      // Validate response format and posts
       if (!response?.data || !Array.isArray(response.data)) {
         throw new Error('Invalid response format from server');
       }
 
-      // Use the type guard to filter valid posts
       const validPosts = response.data.filter(isValidPost);
       if (DEBUG && validPosts.length !== response.data.length) {
         console.warn('Some posts were invalid and filtered out', {
@@ -239,17 +232,27 @@ export const PostProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [state.currentPage, state.hasMore, state.itemsPerPage, state.filters]);
 
   const createPost = useCallback(async (data: CreatePostDTO): Promise<Post> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
     try {
       const response = await postApi.create(data);
       if (!isValidPost(response)) {
         throw new Error('Invalid response from server: missing or incorrect post data');
       }
+
+      // Initialize reactions and metrics
+      response.reactions = [
+      ];
+
+
+
       dispatch({ type: 'ADD_POST', payload: response });
       return response;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create post';
       dispatch({ type: 'SET_ERROR', payload: message });
       throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, []);
 

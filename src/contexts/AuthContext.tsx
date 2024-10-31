@@ -79,17 +79,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    setLoading(true);
-    try {
-      await authManager.logout();
-      setUserAndStore(null);
-      setOnboardingStatus(null);
-      router.push('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-    } finally {
-      setLoading(false);
-    }
+  setLoading(true);
+  try {
+    // Clear auth state first
+    setUserAndStore(null);
+    setOnboardingStatus(null);
+
+    // Then attempt API logout
+    await authManager.logout();
+  } catch (error) {
+    console.error('Logout failed:', error);
+  } finally {
+    setLoading(false);
+    // Don't redirect here - let the component handle it
+  }
   };
 
   const signup = async (data: SignupRequest) => {

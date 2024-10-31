@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Reaction, EmotionId, ReactionSummary, ReactionMetrics } from '@/feature/types/Reaction';
+import { PostReaction, EmotionId, ReactionSummary, ReactionMetrics } from '@/feature/types/Reaction';
 import { reactionApi, EmotionType } from '../api/reactionApi';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,7 +14,7 @@ interface FormattedReaction {
 export const useReactions = (postId: string) => {
   const { user } = useAuth();
   const [summary, setSummary] = useState<ReactionSummary[]>([]);
-  const [userReaction, setUserReaction] = useState<Reaction | null>(null);
+  const [userReaction, setUserReaction] = useState<PostReaction | null>(null);
   const [metrics, setMetrics] = useState<ReactionMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formattedReactions, setFormattedReactions] = useState<FormattedReaction[]>([]);
@@ -100,7 +100,7 @@ export const useReactions = (postId: string) => {
     
     // Optimistic update
     setUserReaction(prevReaction => 
-      prevReaction?.emotionId === emotionId ? null : { emotionId } as Reaction
+      prevReaction?.emotionId === emotionId ? null : { emotionId } as PostReaction
     );
 
     try {
