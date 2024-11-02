@@ -1,4 +1,3 @@
-// src/features/posts/components/cards/PhotoPostCard.tsx
 import React, { useState } from 'react';
 import { BaseCard } from './BaseCard';
 import { PhotoContent, PostType } from '../../api/types';
@@ -42,6 +41,16 @@ export const PhotoPostCard: React.FC<PhotoPostCardProps> = ({
     }
   };
 
+  if (!photos.length) {
+    return (
+      <BaseCard {...baseProps}>
+        <Typography variant="body2" align="center" sx={{ p: 2 }}>
+          No photos available.
+        </Typography>
+      </BaseCard>
+    );
+  }
+
   return (
     <BaseCard {...baseProps}>
       <Box sx={{ position: 'relative' }}>
@@ -52,13 +61,14 @@ export const PhotoPostCard: React.FC<PhotoPostCardProps> = ({
           style={{
             width: '100%',
             display: 'flex',
-            overflow: 'hidden'
+            overflow: 'hidden',
           }}
         >
           {photos.map((photo, index) => (
             <Box
               key={index}
               component="img"
+              loading="lazy"
               sx={{
                 width: '100%',
                 display: 'block',
@@ -67,7 +77,8 @@ export const PhotoPostCard: React.FC<PhotoPostCardProps> = ({
                 objectFit: 'contain',
                 backgroundColor: 'black',
                 flexShrink: 0,
-                transform: `translateX(-${activeStep * 100}%)`
+                transition: 'transform 0.5s ease',
+                transform: `translateX(-${activeStep * 100}%)`,
               }}
               src={photo}
               alt={`Photo ${index + 1}`}
@@ -87,7 +98,7 @@ export const PhotoPostCard: React.FC<PhotoPostCardProps> = ({
                 top: '50%',
                 transform: 'translateY(-50%)',
                 bgcolor: 'background.paper',
-                '&:hover': { bgcolor: 'background.paper' }
+                '&:hover': { bgcolor: 'background.paper' },
               }}
             >
               <KeyboardArrowLeft />
@@ -102,7 +113,7 @@ export const PhotoPostCard: React.FC<PhotoPostCardProps> = ({
                 top: '50%',
                 transform: 'translateY(-50%)',
                 bgcolor: 'background.paper',
-                '&:hover': { bgcolor: 'background.paper' }
+                '&:hover': { bgcolor: 'background.paper' },
               }}
             >
               <KeyboardArrowRight />
@@ -113,6 +124,7 @@ export const PhotoPostCard: React.FC<PhotoPostCardProps> = ({
         {content.caption && (
           <Typography
             variant="body2"
+            aria-live="polite"
             sx={{
               p: 2,
               textAlign: content.alignment || 'left',
@@ -120,8 +132,8 @@ export const PhotoPostCard: React.FC<PhotoPostCardProps> = ({
               fontSize: {
                 small: '0.875rem',
                 medium: '1rem',
-                large: '1.125rem'
-              }[content.fontSize || 'medium']
+                large: '1.125rem',
+              }[content.fontSize || 'medium'],
             }}
           >
             {content.caption}

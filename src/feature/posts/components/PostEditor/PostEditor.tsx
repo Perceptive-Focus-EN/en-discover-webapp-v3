@@ -1,4 +1,4 @@
-// File path: src/components/PostEditor.tsx
+// File path: src/feature/posts/components/PostEditor/PostEditor.tsx
 
 import React, { useCallback, useState } from 'react';
 import { 
@@ -14,8 +14,6 @@ import {
     Tooltip,
     Stack,
     CircularProgress,
-    FormControlLabel,
-    Switch
 } from '@mui/material';
 import { 
     Public, 
@@ -38,10 +36,10 @@ import {
     ProcessingStatus,
     Post
 } from '../../api/types';
-import { uploadApi } from '../../api/uploadApi';
+import { usePostMedia } from '../../hooks/usePostMedia';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
+import { UploadResponse } from '@/types/Resources';
 
-// Add onPostCreated to the props interface
 interface PostEditorProps {
     initialData?: {
         content: PostContent;
@@ -62,9 +60,18 @@ export const PostEditor: React.FC<PostEditorProps> = ({
     onPostCreated
 }) => {
     const { createPost, isLoading, error } = usePost();
+    const { 
+        uploadMultiple, 
+        uploadSingle, 
+        isUploading, 
+        progress, 
+        error: uploadError, 
+        resetError 
+    } = usePostMedia();
+
     const [formState, setFormState] = useState({
         type: initialData?.type || 'TEXT' as PostType,
-        content: initialData?.content || createInitialContent(initialData?.type || 'TEXT'),
+        content: initialData?.content || createInitialContent(initialData?.type ?? 'TEXT' as PostType),
         visibility: initialData?.visibility || 'public' as Visibility,
         isProcessing: false
     });
@@ -127,77 +134,86 @@ export const PostEditor: React.FC<PostEditorProps> = ({
         });
     }, []);
 
+    // Utility function to update form state based on media type
+    const updateFormStateWithMedia = (
+        prevState: typeof formState,
+        uploads: UploadResponse[],
+        mediaType: PostType
+    ) => {
+        if (mediaType === 'PHOTO') {
+            return {
+                ...prevState,
+                content: {
+                    ...prevState.content,
+                    photos: [
+                        ...(prevState.content as PhotoContent).photos,
+                        ...uploads.map(u => u.data.url)
+                    ]
+                } as PhotoContent,
+                isProcessing: false
+            };
+        } else if (mediaType === 'VIDEO') {
+            const upload = uploads[0];
+            return {
+                ...prevState,
+                content: {
+                    ...prevState.content,
+                    videoUrl: upload.data.url,
+                    thumbnailUrl: '',
+                    processingStatus: upload.data.processingStatus || 'processing'
+                } as VideoContent,
+                isProcessing: false
+            };
+        }
+        return prevState;
+    };
+
+    // Handle media update with usePostMedia hook
     const handleMediaUpdate = useCallback(async (files: FileList) => {
         setFormState(prev => ({ ...prev, isProcessing: true }));
         try {
-            const uploads = await uploadApi.uploadMultiple(Array.from(files), (progress) => {
-                console.log(`Upload progress: ${progress.percentage}%`);
-            });
+            const fileArray = Array.from(files);
+            const uploads = formState.type === 'VIDEO' 
+                ? [await uploadSingle(fileArray[0])]
+                : await uploadMultiple(fileArray);
 
-            setFormState(prev => {
-                if (prev.type === 'PHOTO') {
-                    return {
-                        ...prev,
-                        content: {
-                            ...prev.content,
-                            photos: [
-                                ...(prev.content as PhotoContent).photos,
-                                ...(uploads ? uploads.filter(u => u?.url).map(u => u.url) : [])
-                            ]
-                        } as PhotoContent
-                    };
-                } else if (prev.type === 'VIDEO') {
-                    const upload = uploads && uploads[0];
-                    return {
-                        ...prev,
-                        content: {
-                            ...prev.content,
-                            videoUrl: upload?.url || '', // Ensure safe access
-                            thumbnailUrl: upload?.thumbnail || '',
-                            processingStatus: 'processing'
-                        } as VideoContent
-                    };
-                }
-                return prev;
-            });
+            setFormState(prev => updateFormStateWithMedia(prev, uploads, formState.type));
         } catch (err) {
-            console.error('Media upload failed:', err);
             messageHandler.error('Failed to upload media');
         } finally {
             setFormState(prev => ({ ...prev, isProcessing: false }));
         }
-    }, []);
+    }, [uploadSingle, uploadMultiple, formState.type]);
 
-    // In PostEditor.tsx
-const handleSubmit = useCallback(async (e: React.FormEvent) => {
-  e.preventDefault();
-  try {
-    const postData = {
-      type: formState.type,
-      content: formState.content,
-      visibility: formState.visibility,
-      reactions: [], // Initialize empty reactions array
-      reactionMetrics: {
-        totalReactions: 0,
-        averageEngagementRate: 0,
-        peakReactionTime: new Date(),
-        reactionDistribution: {},
-        reactionVelocity: 0,
-        recentReactions: []
-      }
-    };
+    // Handle post submission with the upload state consideration
+    const handleSubmit = useCallback(async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const postData = {
+                type: formState.type,
+                content: formState.content,
+                visibility: formState.visibility,
+                reactions: [],
+                reactionMetrics: {
+                    totalReactions: 0,
+                    averageEngagementRate: 0,
+                    peakReactionTime: new Date(),
+                    reactionDistribution: {},
+                    reactionVelocity: 0,
+                    recentReactions: []
+                }
+            };
 
-    const newPost = await createPost(postData);
-    if (newPost && onPostCreated) {
-      await onPostCreated(newPost);
-    }
-    onSuccess?.();
-    messageHandler.success('Post created successfully');
-  } catch (err) {
-    console.error('Post submission failed:', err);
-    messageHandler.error('Failed to create post');
-  }
-}, [formState, createPost, onSuccess, onPostCreated]);
+            const newPost = await createPost(postData);
+            if (newPost && onPostCreated) {
+                await onPostCreated(newPost);
+            }
+            onSuccess?.();
+            messageHandler.success('Post created successfully');
+        } catch (err) {
+            messageHandler.error('Failed to create post');
+        }
+    }, [formState, createPost, onSuccess, onPostCreated]);
 
     const renderContentInput = () => {
         switch (formState.type) {
@@ -214,8 +230,8 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
             case 'PHOTO':
                 return (
                     <MediaUploader
-                        type={formState.type.toLowerCase() as 'photo' | 'video'}
-                        files={[]} // Pass an empty array or the correct type if available
+                        type="photo"
+                        files={[]}
                         onUpload={handleMediaUpdate}
                         onRemove={(index) => {
                             setFormState(prev => {
@@ -231,28 +247,35 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                             });
                         }}
                         maxFiles={5}
+                        isUploading={isUploading}
+                        uploadProgress={progress}
+                        error={uploadError}
+                        onErrorDismiss={resetError}
                     />
                 );
             case 'VIDEO':
                 return (
                     <MediaUploader
-                        type={formState.type.toLowerCase() as 'photo' | 'video'}
-                        files={[]} // Pass an empty array or the correct type if available
+                        type="video"
+                        files={[]}
                         onUpload={handleMediaUpdate}
-                        onRemove={(index) => {
-                            setFormState(prev => {
-                                const photos = [...(prev.content as PhotoContent).photos];
-                                photos.splice(index, 1);
-                                return {
-                                    ...prev,
-                                    content: {
-                                        ...prev.content,
-                                        photos
-                                    } as PhotoContent
-                                };
-                            });
+                        onRemove={() => {
+                            setFormState(prev => ({
+                                ...prev,
+                                content: {
+                                    ...prev.content,
+                                    videoUrl: '',
+                                    thumbnailUrl: '',
+                                    processingStatus: 'pending' as ProcessingStatus,
+                                    duration: '0'
+                                } as VideoContent
+                            }));
                         }}
                         maxFiles={1}
+                        isUploading={isUploading}
+                        uploadProgress={progress}
+                        error={uploadError}
+                        onErrorDismiss={resetError}
                     />
                 );
             case 'MOOD':
@@ -337,10 +360,10 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                         <Button
                             type="submit"
                             variant="contained"
-                            disabled={isLoading || formState.isProcessing}
+                            disabled={isLoading || isUploading || formState.isProcessing}
                             fullWidth
                         >
-                            {isLoading || formState.isProcessing ? (
+                            {isLoading || isUploading || formState.isProcessing ? (
                                 <CircularProgress size={24} />
                             ) : (
                                 'Publish'
@@ -349,7 +372,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                         {!isDraft && (
                             <Button
                                 variant="outlined"
-                                disabled={isLoading || formState.isProcessing}
+                                disabled={isLoading || isUploading || formState.isProcessing}
                                 onClick={() => {/* Save as draft logic */}}
                                 startIcon={<Save />}
                             >
@@ -373,42 +396,15 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
 const createInitialContent = (type: PostType): PostContent => {
     switch (type) {
         case 'TEXT':
-            return {
-                text: '',
-                backgroundColor: '#ffffff',
-                textColor: '#000000',
-                fontSize: 'medium',
-                alignment: 'left'
-            } as TextContent;
+            return { text: '', backgroundColor: '#ffffff', textColor: '#000000', fontSize: 'medium', alignment: 'left' } as TextContent;
         case 'PHOTO':
-            return {
-                photos: [],
-                caption: '',
-                layout: 'grid'
-            } as PhotoContent;
+            return { photos: [], caption: '', layout: 'grid' } as PhotoContent;
         case 'VIDEO':
-            return {
-                videoUrl: '',
-                caption: '',
-                thumbnailUrl: '',
-                duration: '0',
-                autoplay: false,
-                muted: false,
-                processingStatus: 'pending' as ProcessingStatus
-            } as VideoContent;
+            return { videoUrl: '', caption: '', thumbnailUrl: '', duration: '0', autoplay: false, muted: false, processingStatus: 'pending' as ProcessingStatus } as VideoContent;
         case 'MOOD':
-            return {
-                mood: '',
-                color: '#ffffff',
-                intensity: 1,
-                caption: ''
-            } as MoodContent;
+            return { mood: '', color: '#ffffff', intensity: 1, caption: '' } as MoodContent;
         case 'SURVEY':
-            return {
-                question: '',
-                options: [],
-                allowMultipleChoices: false
-            } as SurveyContent;
+            return { question: '', options: [], allowMultipleChoices: false } as SurveyContent;
         default:
             throw new Error(`Unsupported post type: ${type}`);
     }

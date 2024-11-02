@@ -1,4 +1,5 @@
-import React, { useContext, useEffect } from 'react';
+// src/components/Settings/StyleSettings.tsx
+import React, { useEffect } from 'react';
 import { StyleSettings as StyleSettingsType } from '../../types/Settings/interfaces';
 import { 
     FormControl, 
@@ -9,110 +10,96 @@ import {
     Typography,
     Grid,
     SelectChangeEvent,
-    FormHelperText
+    FormHelperText,
+    Box,
+    CircularProgress
 } from '@mui/material';
-import { ThemeModeContext } from '../../pages/_app';
-import { useSettings } from '../../contexts/SettingsContext';
 import { useTheme } from '@mui/material/styles';
+import WebFont from 'webfontloader';
 
 interface StyleSettingsProps {
-    settings: StyleSettingsType | undefined;
-    onUpdate: (newSettings: StyleSettingsType) => void;
+  settings: StyleSettingsType;
+  onUpdate: (newSettings: StyleSettingsType) => Promise<void>;
+  isLoading?: boolean;
 }
 
-const fontSizes = [12, 14, 16, 18, 20, 22, 24];
-const fonts = ["Arial", "Helvetica", "Times New Roman", "Courier New", "Verdana"];
+const fonts = [
+  { name: "Arial", family: "Arial" },
+  { name: "Roboto", family: "Roboto" },
+  { name: "Open Sans", family: "'Open Sans'" },
+  { name: "Lato", family: "Lato" },
+  { name: "Montserrat", family: "Montserrat" }
+];
+
+const fontSizes = [
+  { label: 'Small', value: 14 },
+  { label: 'Medium', value: 16 },
+  { label: 'Large', value: 18 },
+  { label: 'Extra Large', value: 20 }
+];
+
 const colorSchemes = ["Default", "Dark", "Light", "Blue", "Green"];
 
-const StyleSettings: React.FC<StyleSettingsProps> = ({ settings, onUpdate }) => {
-    const updateCustomTheme = (newTheme: any) => {
-        // Custom logic to update the theme
-        // This function should handle the new theme object correctly
-        console.log('Updating custom theme:', newTheme);
-    };
-
-    const updateThemeObject = (newTheme: any) => {
-        // Logic to update the theme object
-        console.log('Updating theme object:', newTheme);
-    };
-    const { updateTheme } = useSettings();
-    const { mode, toggleThemeMode } = useContext(ThemeModeContext);
+const StyleSettings: React.FC<StyleSettingsProps> = ({
+  settings,
+  onUpdate,
+  isLoading = false
+}) => {
     const theme = useTheme();
 
+    // Load custom fonts
     useEffect(() => {
-        if (settings && settings.theme !== mode) {
-            onUpdate({ ...settings, theme: mode });
+      WebFont.load({
+        google: {
+          families: ['Roboto', 'Open Sans', 'Lato', 'Montserrat']
         }
-    }, [mode, settings, onUpdate]);
+      });
+    }, []);
+
+    if (isLoading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
 
     if (!settings) return null;
 
-    const handleSelectChange = (event: SelectChangeEvent) => {
+    const handleSelectChange = async (event: SelectChangeEvent) => {
         const { name, value } = event.target;
-        onUpdate({ ...settings, [name]: value });
+        await onUpdate({
+            ...settings,
+            [name]: value
+        });
 
-        if (name === 'theme') {
-            if (value === 'light' || value === 'dark' || value === 'system') {
-                updateTheme(value);
-            }
-            if (value === 'light' || value === 'dark') {
-                toggleThemeMode();
-            }
+        // Apply font changes immediately
+        if (name === 'font') {
+          document.body.style.fontFamily = value;
         }
-
-        // Update the theme with new font or fontSize
-        if (name === 'font' || name === 'fontSize') {
-            const newTheme = {
-                ...theme,
-                typography: {
-                    ...theme.typography,
-                    fontFamily: name === 'font' ? value : theme.typography.fontFamily,
-                    fontSize: name === 'fontSize' ? Number(value) : theme.typography.fontSize,
-                },
-            };
-            updateCustomTheme(newTheme);
-            updateThemeObject(newTheme);
+        if (name === 'fontSize') {
+          document.body.style.fontSize = `${value}px`;
         }
     };
 
     const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = event.target;
-        onUpdate({ ...settings, [name]: value });
-
-        if (name === 'theme') {
-            if (value === 'light' || value === 'dark' || value === 'system') {
-                await updateTheme(value);
-            }
-            if (value === 'light' || value === 'dark') {
-                toggleThemeMode();
-            }
-        }
-
-        // Update the theme with new font or fontSize
-        if (name === 'font' || name === 'fontSize') {
-            const newTheme = {
-                ...theme,
-                typography: {
-                    ...theme.typography,
-                    fontFamily: name === 'font' ? value : theme.typography.fontFamily,
-                    fontSize: name === 'fontSize' ? Number(value) : theme.typography.fontSize,
-                },
-            };
-            updateCustomTheme(newTheme);
-            await updateThemeObject(newTheme);
-        }
+        await onUpdate({
+            ...settings,
+            [name]: value
+        });
     };
 
     return (
-        <div>
+        <Box sx={{ maxWidth: 'lg', mx: 'auto', p: 3 }}>
             <Typography variant="h6" gutterBottom>Style Preferences</Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
                     <FormControl fullWidth>
                         <InputLabel id="theme-label">Theme</InputLabel>
                         <Select
                             labelId="theme-label"
-                            value={mode}
+                            value={settings.theme || 'system'}
                             onChange={handleSelectChange}
                             name="theme"
                         >
@@ -123,66 +110,84 @@ const StyleSettings: React.FC<StyleSettingsProps> = ({ settings, onUpdate }) => 
                         <FormHelperText>Select your preferred theme</FormHelperText>
                     </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={6}>
-                    <TextField
-                        fullWidth
-                        label="Language"
-                        name="language"
-                        value={settings.language}
-                        onChange={handleInputChange}
-                        helperText="Enter your preferred language"
-                    />
-                </Grid>
+
                 <Grid item xs={12} sm={6}>
                     <FormControl fullWidth>
                         <InputLabel id="font-label">Font</InputLabel>
                         <Select
                             labelId="font-label"
-                            value={settings.font}
+                            value={settings.font || fonts[0].name}
                             onChange={handleSelectChange}
                             name="font"
                         >
                             {fonts.map((font) => (
-                                <MenuItem key={font} value={font}>{font}</MenuItem>
+                                <MenuItem 
+                                    key={font.name} 
+                                    value={font.name}
+                                    sx={{ fontFamily: font.family }}
+                                >
+                                    {font.name}
+                                </MenuItem>
                             ))}
                         </Select>
                         <FormHelperText>Select your preferred font</FormHelperText>
                     </FormControl>
                 </Grid>
+
                 <Grid item xs={12} sm={6}>
                     <FormControl fullWidth>
                         <InputLabel id="font-size-label">Font Size</InputLabel>
                         <Select
                             labelId="font-size-label"
-                            value={settings.fontSize.toString()}
+                            value={settings.fontSize?.toString() || fontSizes[1].value.toString()}
                             onChange={handleSelectChange}
                             name="fontSize"
                         >
                             {fontSizes.map((size) => (
-                                <MenuItem key={size} value={size}>{size}</MenuItem>
+                                <MenuItem 
+                                    key={size.value} 
+                                    value={size.value}
+                                    sx={{ fontSize: `${size.value}px` }}
+                                >
+                                    {size.label} ({size.value}px)
+                                </MenuItem>
                             ))}
                         </Select>
                         <FormHelperText>Select your preferred font size</FormHelperText>
                     </FormControl>
                 </Grid>
+
+                <Grid item xs={12} sm={6}>
+                    <TextField
+                        fullWidth
+                        label="Language"
+                        name="language"
+                        value={settings.language || ''}
+                        onChange={handleInputChange}
+                        helperText="Enter your preferred language"
+                    />
+                </Grid>
+
                 <Grid item xs={12}>
                     <FormControl fullWidth>
                         <InputLabel id="color-scheme-label">Color Scheme</InputLabel>
                         <Select
                             labelId="color-scheme-label"
-                            value={settings.colorScheme}
+                            value={settings.colorScheme || 'Default'}
                             onChange={handleSelectChange}
                             name="colorScheme"
                         >
                             {colorSchemes.map((scheme) => (
-                                <MenuItem key={scheme} value={scheme}>{scheme}</MenuItem>
+                                <MenuItem key={scheme} value={scheme}>
+                                    {scheme}
+                                </MenuItem>
                             ))}
                         </Select>
                         <FormHelperText>Select your preferred color scheme</FormHelperText>
                     </FormControl>
                 </Grid>
             </Grid>
-        </div>
+        </Box>
     );
 };
 

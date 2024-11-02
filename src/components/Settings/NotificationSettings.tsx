@@ -1,40 +1,91 @@
-// components/settings/NotificationSettings.tsx
-
+// src/components/Settings/NotificationSettings.tsx
 import React from 'react';
 import { NotificationSettings as NotificationSettingsType } from '../../types/Settings/interfaces';
-import { FormControlLabel, Switch, Typography } from '@mui/material';
+import { 
+  FormControlLabel, 
+  Switch, 
+  Typography, 
+  CircularProgress,
+  Box 
+} from '@mui/material';
 
 interface NotificationSettingsProps {
-  settings: NotificationSettingsType | undefined;
-  onUpdate: (newSettings: NotificationSettingsType) => void;
+  settings: NotificationSettingsType;
+  onUpdate: (newSettings: NotificationSettingsType) => Promise<void>;
+  isLoading: boolean;
 }
 
-const NotificationSettings: React.FC<NotificationSettingsProps> = ({ settings, onUpdate }) => {
-  if (!settings) return null;
+const NotificationSettings: React.FC<NotificationSettingsProps> = ({
+  settings,
+  onUpdate,
+  isLoading
+}) => {
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  if (!settings) {
+    return null;
+  }
+
+  const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = event.target;
-    onUpdate({ ...settings, [name]: checked });
+    await onUpdate({
+      ...settings,
+      [name]: checked
+    });
   };
 
   return (
-    <div>
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: 2,
+      maxWidth: 'sm',
+      mx: 'auto',
+      p: 2 
+    }}>
       <Typography variant="h6" gutterBottom>
         Notification Preferences
       </Typography>
+      
       <FormControlLabel
-        control={<Switch checked={settings.email} onChange={handleChange} name="email" />}
+        control={
+          <Switch
+            checked={settings.email}
+            onChange={handleChange}
+            name="email"
+          />
+        }
         label="Email Notifications"
       />
+      
       <FormControlLabel
-        control={<Switch checked={settings.sms} onChange={handleChange} name="sms" />}
+        control={
+          <Switch
+            checked={settings.sms}
+            onChange={handleChange}
+            name="sms"
+          />
+        }
         label="SMS Notifications"
       />
+      
       <FormControlLabel
-        control={<Switch checked={settings.inApp} onChange={handleChange} name="inApp" />}
+        control={
+          <Switch
+            checked={settings.inApp}
+            onChange={handleChange}
+            name="inApp"
+          />
+        }
         label="In-App Notifications"
       />
-    </div>
+    </Box>
   );
 };
 

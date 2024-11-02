@@ -3,9 +3,20 @@ import { UserAccountType } from "@/constants/AccessKey/accounts";
 import { EmotionId, EmotionName, PostReaction } from "../../types/Reaction";
 
 // Core Post Types
-export type PostType = 'TEXT' | 'PHOTO' | 'VIDEO' | 'MOOD' | 'SURVEY';
 export type ProcessingStatus = 'queued' | 'processing' | 'completed' | 'failed';
 export type Visibility = 'public' | 'private' | 'connections';
+
+
+// Also update your PostType enum to include RESOURCES
+// In your types file:
+export enum PostType {
+  TEXT = 'TEXT',
+  PHOTO = 'PHOTO',
+  VIDEO = 'VIDEO',
+  MOOD = 'MOOD',
+  SURVEY = 'SURVEY',
+  RESOURCES = 'RESOURCES'
+}
 
 // Media Types
 export interface Media {
@@ -23,6 +34,8 @@ export interface Post {
     userAvatar?: string;
     type: PostType;
     content: PostContent;
+      heading?: string;
+
     media?: Media;
     reactions?: PostReaction[];
     reactionMetrics?: {

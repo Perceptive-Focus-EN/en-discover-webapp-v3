@@ -2,35 +2,42 @@
 
 import React, { useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { IconButton } from '@mui/material';
+import { IconButton, CircularProgress, Typography } from '@mui/material';
 import { Delete } from '@mui/icons-material';
 
 interface MediaUploaderProps {
   type: 'photo' | 'video';
   files: File[];
-  onUpload: (files: FileList) => Promise<void>; // Renamed from 'onAdd' to 'onUpload'
+  onUpload: (files: FileList) => Promise<void>;
   onRemove: (index: number) => void;
   maxFiles: number;
+  // Add the new props
+  isUploading?: boolean;
+  uploadProgress?: number;
+  error?: string | null;
+  onErrorDismiss?: () => void;
 }
 
 export const MediaUploader: React.FC<MediaUploaderProps> = ({
   type,
   files,
-  onUpload, // Updated from 'onAdd'
+  onUpload,
   onRemove,
-  maxFiles
+  maxFiles,
+  // Add the new props with defaults
+  isUploading = false,
+  uploadProgress = 0,
+  error = null,
+  onErrorDismiss
 }) => {
   const { getRootProps, getInputProps, fileRejections, acceptedFiles } = useDropzone({
     accept: type === 'photo' ? { 'image/*': [] } : { 'video/*': [] },
     maxFiles,
     onDrop: async (acceptedFiles) => {
       try {
-        // Convert acceptedFiles to FileList
         const fileList = new DataTransfer();
         acceptedFiles.forEach((file) => fileList.items.add(file));
-
-        // Call onUpload with the generated FileList
-        await onUpload(fileList.files); // Renamed from 'onAdd'
+        await onUpload(fileList.files);
       } catch (err) {
         console.error('Error uploading files:', err);
       }
@@ -51,11 +58,29 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
         {...getRootProps()}
         className="border-2 border-dashed p-4 text-center cursor-pointer"
       >
-        <input {...getInputProps()} />
-        <p>
-          Drag & drop or click to select {type === 'photo' ? 'photos' : 'video'}
-        </p>
+        <input {...getInputProps()} disabled={isUploading} />
+        {isUploading ? (
+          <div className="flex flex-col items-center">
+            <CircularProgress size={24} />
+            <Typography variant="body2">{uploadProgress}% Uploaded</Typography>
+          </div>
+        ) : (
+          <p>
+            Drag & drop or click to select {type === 'photo' ? 'photos' : 'video'}
+          </p>
+        )}
       </div>
+
+      {error && (
+        <Typography 
+          color="error" 
+          variant="body2" 
+          onClick={onErrorDismiss}
+          className="cursor-pointer"
+        >
+          {error}
+        </Typography>
+      )}
 
       <div className="grid grid-cols-4 gap-4">
         {files.map((file, index) => (
@@ -79,6 +104,7 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
               size="small"
               className="absolute top-0 right-0"
               onClick={() => onRemove(index)}
+              disabled={isUploading}
             >
               <Delete />
             </IconButton>

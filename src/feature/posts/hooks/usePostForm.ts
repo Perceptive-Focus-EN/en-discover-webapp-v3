@@ -1,11 +1,11 @@
 // src/features/posts/hooks/usePostForm.ts
+
 import { useState, useCallback } from 'react';
 import { usePost } from './usePost';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePostMedia } from './usePostMedia';
-import { uploadApi } from '../api/uploadApi';
-import { draftApi } from '../api/draftApi';
 import { PostContent, PostType, CreatePostDTO, Media } from '../api/types';
+import { draftApi } from '../api/draftApi';
 
 interface PostFormState {
   type: PostType;
@@ -17,7 +17,7 @@ interface PostFormState {
 
 const createInitialContent = (type: PostType): PostContent => {
   switch (type) {
-    case 'TEXT':
+    case PostType.TEXT:
       return {
         text: '',
         backgroundColor: '#FFFFFF',
@@ -26,24 +26,24 @@ const createInitialContent = (type: PostType): PostContent => {
         alignment: 'left',
         fontWeight: 'normal',
       };
-    case 'PHOTO':
+    case PostType.PHOTO:
       return {
         photos: [],
         caption: '',
       };
-    case 'VIDEO':
+    case PostType.VIDEO:
       return {
         videoUrl: '',
         duration: '0:00',
         caption: '',
       };
-    case 'MOOD':
+    case PostType.MOOD:
       return {
         mood: '',
         color: '',
         caption: '',
       };
-    case 'SURVEY':
+    case PostType.SURVEY:
       return {
         question: '',
         options: [],
@@ -54,20 +54,20 @@ const createInitialContent = (type: PostType): PostContent => {
   }
 };
 
-const initialState: PostFormState = {
-  type: 'TEXT',
-  content: createInitialContent('TEXT'),
-  visibility: 'public',
-};
-
 export const usePostForm = (initialData?: Partial<PostFormState>) => {
   const { user } = useAuth();
   const { createPost } = usePost();
   const { uploadMultiple, isUploading: isMediaUploading, progress } = usePostMedia();
 
+  const initialState: PostFormState = {
+      type: PostType.TEXT,
+      content: createInitialContent(PostType.TEXT), // default content, adjust as needed
+      visibility: 'public',
+  };
+  
   const [formState, setFormState] = useState<PostFormState>({
-    ...initialState,
-    ...initialData,
+      ...initialState,
+      ...initialData,
   });
 
   const [isUploading, setIsUploading] = useState(false);
@@ -85,15 +85,23 @@ export const usePostForm = (initialData?: Partial<PostFormState>) => {
   }, []);
 
   const handleMediaUpload = useCallback(async (files: FileList): Promise<Media> => {
-    const uploads = await uploadMultiple(Array.from(files));
+    try {
+      const uploads = await uploadMultiple(Array.from(files));
 
-    return {
-      urls: uploads.map((u) => u.url),
-      thumbnails: uploads.map((u) => u.thumbnail).filter((thumbnail): thumbnail is string => Boolean(thumbnail)),
-      files: Object.fromEntries(
-        uploads.map((u, i) => [files[i].name, { size: files[i].size }])
-      ),
-    };
+      return {
+        urls: uploads.map((u) => u.data.url),
+        thumbnails: uploads
+          .map((u) => (u.data as any).thumbnail)
+          .filter((thumbnail): thumbnail is string => Boolean(thumbnail)),
+        files: Object.fromEntries(
+          uploads.map((u, i) => [files[i].name, { size: files[i].size }])
+        ),
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload media files';
+      setError(errorMessage);
+      throw error;
+    }
   }, [uploadMultiple]);
 
   const saveDraft = useCallback(async () => {

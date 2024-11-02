@@ -53,7 +53,6 @@ const DashboardPage: NextPage = () => {
   const theme = useTheme();
   const router = useRouter();
   const { user, loading: authLoading, onboardingStatus } = useAuth();
-  // const moodBoardRef = useRef<{ fetchUserEmotions: () => Promise<void> }>(null);
   const moodBoardRef = useRef<MoodBoardRef>(null);
 
   // Core states
@@ -73,7 +72,12 @@ const DashboardPage: NextPage = () => {
 
   useEffect(() => {
     const initializeDashboard = async () => {
-      if (!authLoading && user) {
+      if (!authLoading) {
+        if (!user) {
+          router.replace('/login');
+          return;
+        }
+
         if (onboardingStatus && !onboardingStatus.isOnboardingComplete) {
           router.replace('/onboarding');
           return;
@@ -180,8 +184,7 @@ const DashboardPage: NextPage = () => {
         }, 
         overflow: 'hidden' 
       }}>
-            <MoodBoard
-    />
+        <MoodBoard/>
       </Box>
 
       <Drawer

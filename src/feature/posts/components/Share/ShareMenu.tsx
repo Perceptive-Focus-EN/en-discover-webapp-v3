@@ -1,8 +1,8 @@
 // src/features/posts/components/Share/ShareMenu.tsx
 import React, { useState, useCallback } from 'react';
-import { 
-  Button, 
-  Paper, 
+import {
+  Button,
+  Paper,
   IconButton,
   Tooltip,
   Dialog,
@@ -13,7 +13,7 @@ import {
   Typography,
   CircularProgress
 } from '@mui/material';
-import { 
+import {
   Twitter as TwitterIcon,
   Facebook as FacebookIcon,
   LinkedIn as LinkedInIcon,
@@ -37,72 +37,40 @@ interface ShareOption {
   action?: () => Promise<void>;
 }
 
-// Helper function to get share content based on post type
 const getShareContent = (post: Post): { title: string; content: string } => {
   switch (post.type) {
     case 'TEXT':
-      return {
-        title: (post.content as TextContent).text.slice(0, 100),
-        content: (post.content as TextContent).text
-      };
+      return { title: (post.content as TextContent).text.slice(0, 100), content: (post.content as TextContent).text };
     case 'PHOTO':
-      return {
-        title: (post.content as PhotoContent).caption || 'Photo post',
-        content: (post.content as PhotoContent).caption || 'Check out this photo'
-      };
+      return { title: (post.content as PhotoContent).caption || 'Photo post', content: (post.content as PhotoContent).caption || 'Check out this photo' };
     case 'VIDEO':
-      return {
-        title: (post.content as VideoContent).caption || 'Video post',
-        content: (post.content as VideoContent).caption || 'Check out this video'
-      };
+      return { title: (post.content as VideoContent).caption || 'Video post', content: (post.content as VideoContent).caption || 'Check out this video' };
     case 'MOOD':
-      return {
-        title: `Mood: ${(post.content as MoodContent).mood}`,
-        content: (post.content as MoodContent).caption || (post.content as MoodContent).mood
-      };
+      return { title: `Mood: ${(post.content as MoodContent).mood}`, content: (post.content as MoodContent).caption || (post.content as MoodContent).mood };
     case 'SURVEY':
-      return {
-        title: (post.content as SurveyContent).question,
-        content: (post.content as SurveyContent).question
-      };
+      return { title: (post.content as SurveyContent).question, content: (post.content as SurveyContent).question };
     default:
-      return {
-        title: 'Check out this post',
-        content: 'Interesting post'
-      };
+      return { title: 'Check out this post', content: 'Interesting post' };
   }
 };
 
-// Helper function to generate full URL
 const getFullUrl = (postId: string) => {
-  const baseUrl = typeof window !== 'undefined' 
-    ? window.location.origin 
-    : process.env.NEXT_PUBLIC_BASE_URL || '';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_BASE_URL || '';
   return `${baseUrl}/posts/${postId}`;
 };
 
-// Updated ShareMenuProps to accept Post type
 export interface ShareMenuProps {
   post: Post;
   open: boolean;
   onClose: () => void;
 }
 
-export const ShareMenu: React.FC<ShareMenuProps> = ({
-  post,
-  open,
-  onClose,
-}) => {
+export const ShareMenu: React.FC<ShareMenuProps> = ({ post, open, onClose }) => {
   const [showCopyNotification, setShowCopyNotification] = useState(false);
   const { title, content } = getShareContent(post);
   const fullUrl = getFullUrl(post.id);
 
-  // Use the engagement hook
-  const {
-    isProcessing,
-    metrics,
-    handleShare: handlePostShare
-  } = usePostEngagement({
+  const { isProcessing, metrics, handleShare: handlePostShare } = usePostEngagement({
     post,
     onShare: async (platform, postId) => {
       try {
@@ -170,7 +138,6 @@ export const ShareMenu: React.FC<ShareMenuProps> = ({
 
   const handleShare = async (option: ShareOption) => {
     if (isProcessing) return;
-
     try {
       if (option.action) {
         await option.action();
@@ -187,22 +154,11 @@ export const ShareMenu: React.FC<ShareMenuProps> = ({
     <>
       <AnimatePresence>
         {open && (
-          <Dialog
-            open={open}
-            onClose={onClose}
-            maxWidth="xs"
-            fullWidth
-            PaperComponent={({ children }) => (
-              <motion.div
-                initial={{ opacity: 0, y: 50 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 50 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Paper>{children}</Paper>
-              </motion.div>
-            )}
-          >
+          <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperComponent={({ children }) => (
+            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} transition={{ duration: 0.3 }}>
+              <Paper>{children}</Paper>
+            </motion.div>
+          )}>
             <DialogTitle className="flex justify-between items-center">
               Share Post
               <div className="flex items-center">
@@ -227,10 +183,7 @@ export const ShareMenu: React.FC<ShareMenuProps> = ({
                       sx={{
                         backgroundColor: option.color,
                         color: 'white',
-                        '&:hover': {
-                          backgroundColor: option.color,
-                          opacity: 0.9
-                        },
+                        '&:hover': { backgroundColor: option.color, opacity: 0.9 },
                         textTransform: 'none'
                       }}
                     >
@@ -250,11 +203,7 @@ export const ShareMenu: React.FC<ShareMenuProps> = ({
         onClose={() => setShowCopyNotification(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={() => setShowCopyNotification(false)} 
-          severity="success"
-          variant="filled"
-        >
+        <Alert onClose={() => setShowCopyNotification(false)} severity="success" variant="filled">
           Link copied to clipboard!
         </Alert>
       </Snackbar>
@@ -262,7 +211,6 @@ export const ShareMenu: React.FC<ShareMenuProps> = ({
   );
 };
 
-// Updated ShareButtonProps to accept Post type
 export interface ShareButtonProps {
   post: Post;
 }
@@ -270,9 +218,7 @@ export interface ShareButtonProps {
 export const ShareButton: React.FC<ShareButtonProps> = ({ post }) => {
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const { metrics, isProcessing } = usePostEngagement({
-    post
-  });
+  const { metrics, isProcessing } = usePostEngagement({ post });
 
   if (error) {
     return (
@@ -287,16 +233,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({ post }) => {
   return (
     <>
       <Tooltip title={isProcessing ? "Processing..." : "Share"}>
-        <IconButton 
-          onClick={() => setIsShareMenuOpen(true)}
-          disabled={isProcessing}
-          className="relative"
-        >
-          {isProcessing ? (
-            <CircularProgress size={20} />
-          ) : (
-            <ShareIcon />
-          )}
+        <IconButton onClick={() => setIsShareMenuOpen(true)} disabled={isProcessing} className="relative">
+          {isProcessing ? <CircularProgress size={20} /> : <ShareIcon />}
           {metrics.shareCount > 0 && (
             <Typography
               variant="caption"
@@ -318,11 +256,7 @@ export const ShareButton: React.FC<ShareButtonProps> = ({ post }) => {
         </IconButton>
       </Tooltip>
 
-      <ShareMenu
-        post={post}
-        open={isShareMenuOpen}
-        onClose={() => setIsShareMenuOpen(false)}
-      />
+      <ShareMenu post={post} open={isShareMenuOpen} onClose={() => setIsShareMenuOpen(false)} />
     </>
   );
 };

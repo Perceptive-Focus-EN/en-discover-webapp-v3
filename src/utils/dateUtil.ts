@@ -19,3 +19,4 @@ export function getStartDate(timeRange: TimeRange): Date {
       return new Date(now.setDate(now.getDate() - 7));
   }
 }
+

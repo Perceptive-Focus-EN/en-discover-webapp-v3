@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+// src/components/Footer.tsx
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Box,
   IconButton,
@@ -21,14 +22,14 @@ import {
   Notifications as NotificationsIcon,
 } from '@mui/icons-material';
 import { useRouter } from 'next/router';
-import { ItemMenu, NavItem } from './ItemMenu';
-import Logout from './Auth/Logout';
+import { ItemMenu, NavItem } from './ItemMenu'; // Import both ItemMenu and NavItem
 import { useAuth } from '@/contexts/AuthContext';
 import { ExtendedUserInfo } from '../types/User/interfaces';
 import ClientOnly from './ClientOnly';
 import AvatarComponent from './Uploads/AvatarComponent';
 import MessagingDrawer from './Messaging/MessagingDrawer';
 
+// Dynamic imports
 const SwipeableDrawer = dynamic(() => import('@mui/material/SwipeableDrawer'), { ssr: false });
 const Dialog = dynamic(() => import('@mui/material/Dialog'), { ssr: false });
 const DialogContent = dynamic(() => import('@mui/material/DialogContent'), { ssr: false });
@@ -40,84 +41,46 @@ interface FooterProps {
   currentAccount: ExtendedUserInfo;
 }
 
+
+// Define fixed IDs that can't be dragged
+const FIXED_NAV_IDS = [1, 5]; // Home and More buttons
+
+
 const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
-  // Theme and responsive hooks
   const theme = useTheme();
   const isMobileQuery = useMediaQuery(theme.breakpoints.down('sm'));
   const router = useRouter();
+  const { user, loading, logout } = useAuth();
 
-  // Auth hooks
-  const { user, loading } = useAuth();
-
-  // State hooks - declare ALL hooks at the top level
-  const [isInitialized, setIsInitialized] = useState(false);
+  // State
+    const [isInitialized, setIsInitialized] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [activeDrawerComponent, setActiveDrawerComponent] = useState<React.ReactNode | null>(null);
 
-  const getDefaultNavigationItems = () => [
-    { id: 1, name: 'AccessKeyCreationPage', icon: <DashboardIcon />, path: '/' },
+  const getDefaultNavigationItems = useCallback(() => [
+    { id: 1, name: 'Home', icon: <DashboardIcon />, path: '/' },
     { id: 2, name: 'Resources', icon: <ResourcesIcon />, path: '/resources' },
     { id: 3, name: 'Friends', icon: <FriendsIcon />, path: '/friends' },
     { id: 4, name: 'Consultation', icon: <ConsultationIcon />, path: '/consultation' },
     { id: 5, name: 'More', icon: <MoreIcon />, onClick: () => setIsDrawerOpen(true) },
-  ];
+  ] as NavItem[], [setIsDrawerOpen]);
 
-  const [mainNavigationItems, setMainNavigationItems] = useState<NavItem[]>(getDefaultNavigationItems);
 
-  // All useEffect hooks
-  useEffect(() => {
-    if (!loading) {
-      setIsInitialized(true);
-    }
-  }, [loading]);
+  const [mainNavigationItems, setMainNavigationItems] = useState<NavItem[]>(() => 
+    getDefaultNavigationItems()
+  );
 
-  useEffect(() => {
-    if (!user) {
-      setIsLogoutDialogOpen(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    setIsMobile(isMobileQuery);
-  }, [isMobileQuery]);
-
-  // Callbacks
+    // Handlers
   const handleDrawerClose = useCallback(() => {
     setIsDrawerOpen(false);
     setActiveDrawerComponent(null);
   }, []);
 
-  const handleItemClick = useCallback((item: NavItem) => {
-    if (item.path) {
-      router.push(item.path);
-    } else if (item.onClick) {
-      item.onClick();
-    }
-  }, [router]);
 
-  const moveItem = useCallback((dragIndex: number, hoverIndex: number) => {
-    setMainNavigationItems((prevItems) => {
-      const updatedItems = [...prevItems];
-      const [removed] = updatedItems.splice(dragIndex, 1);
-      updatedItems.splice(hoverIndex, 0, removed);
-      return updatedItems;
-    });
-  }, []);
-
-  const handleLogoutClick = useCallback(() => {
-    setIsDrawerOpen(false);
-    setIsLogoutDialogOpen(true);
-  }, []);
-
-  // Early return checks - after all hooks
-  if (!isInitialized || loading || !user || !currentAccount) {
-    return null;
-  }
-
-  // Memoized additional items
-  const additionalItems: NavItem[] = [
+  // Additional items for drawer
+  const additionalItems: NavItem[] = useMemo(() => [
     {
       id: 6,
       name: 'Notifications',
@@ -151,7 +114,9 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
       name: 'Messaging',
       icon: <ChatIcon />,
       onClick: () => {
-        setActiveDrawerComponent(<MessagingDrawer open={isDrawerOpen} onClose={handleDrawerClose} />);
+        setActiveDrawerComponent(
+          <MessagingDrawer open={isDrawerOpen} onClose={handleDrawerClose} />
+        );
         setIsDrawerOpen(true);
       },
     },
@@ -166,7 +131,65 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
         setIsDrawerOpen(true);
       },
     },
-  ];
+  ], [isDrawerOpen, handleDrawerClose, setActiveDrawerComponent, currentAccount]);
+
+  // Effects
+  useEffect(() => {
+    if (!loading && !isInitialized) setIsInitialized(true);
+    }, [loading, isInitialized]);
+
+  useEffect(() => {
+    if (!user) {
+      setIsLogoutDialogOpen(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    setIsMobile(isMobileQuery);
+  }, [isMobileQuery]);
+
+  const handleItemClick = useCallback((item: NavItem) => {
+    if (item.path) {
+      router.push(item.path);
+    } else if (item.onClick) {
+      item.onClick();
+    }
+  }, [router]);
+
+    const moveItem = useCallback((dragIndex: number, hoverIndex: number) => {
+    setMainNavigationItems((prevItems) => {
+      if (!prevItems || dragIndex < 0 || hoverIndex < 0 || 
+          dragIndex >= prevItems.length || hoverIndex >= prevItems.length) return prevItems;
+
+      const dragItem = prevItems[dragIndex];
+      const hoverItem = prevItems[hoverIndex];
+
+      if (!dragItem || !hoverItem || FIXED_NAV_IDS.includes(dragItem.id) || FIXED_NAV_IDS.includes(hoverItem.id)) {
+        return prevItems;
+      }
+
+      const updatedItems = [...prevItems];
+      const [removed] = updatedItems.splice(dragIndex, 1);
+      updatedItems.splice(hoverIndex, 0, removed);
+
+      return updatedItems;
+    });
+    }, [FIXED_NAV_IDS]);
+
+  const handleLogoutClick = useCallback(async () => {
+    setIsDrawerOpen(false);
+    setIsLogoutDialogOpen(false);
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed', error);
+    }
+  }, [logout]);
+
+
+  if (!isInitialized || loading || !user || !currentAccount) {
+    return null;
+  }
 
   return (
     <ClientOnly>
@@ -181,7 +204,10 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
           left: 0,
           right: 0,
           zIndex: theme.zIndex.appBar,
-          transition: 'all 0.3s ease-in-out',
+          transition: theme.transitions.create('all', {
+            duration: theme.transitions.duration.standard,
+          }),
+          py: 1,
         }}
         className="animate-fade-in-up"
       >
@@ -205,6 +231,7 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             bgcolor: 'background.paper',
+            py: 2,
           },
         }}
       >
@@ -215,10 +242,19 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
               moveItem={moveItem}
               onItemClick={handleItemClick}
               mainNavCount={5}
+              isMainNavigation={false} // Set to false for drawer content
             />
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+            <Box 
+              sx={{ 
+                mt: 2, 
+                display: 'flex', 
+                justifyContent: 'center',
+                borderTop: `1px solid ${theme.palette.divider}`,
+                pt: 2,
+              }}
+            >
               <IconButton 
-                onClick={handleLogoutClick} 
+                onClick={() => setIsLogoutDialogOpen(true)} 
                 color="primary"
                 className="transition-all hover:scale-105"
               >
@@ -244,7 +280,12 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
         }}
       >
         <DialogContent className="animate-fade-in">
-          <Logout />
+          <IconButton onClick={handleLogoutClick} color="primary">
+            <LogoutIcon />
+            <Typography variant="caption" sx={{ ml: 1 }}>
+              Confirm Logout
+            </Typography>
+          </IconButton>
         </DialogContent>
       </Dialog>
     </ClientOnly>

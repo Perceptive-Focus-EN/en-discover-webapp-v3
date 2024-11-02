@@ -136,13 +136,63 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
 
           const storage = azureBlobStorageInstance as IAzureBlobStorage;
-
           const blobName = `${type}s/${requestId}-${file.originalFilename}`;
           const uploadStart = Date.now();
-          let url: string;
 
           try {
-            url = await storage.uploadFile(file, blobName);
+            const uploadResponse = await storage.uploadFile(file, blobName);
+            console.log('Uploaded file URL:', uploadResponse.data.url); // Debug log
+
+            // Record upload duration metric
+            monitoringManager.metrics.recordMetric(
+              MetricCategory.PERFORMANCE,
+              'upload',
+              'duration',
+              Date.now() - uploadStart,
+              MetricType.HISTOGRAM,
+              MetricUnit.MILLISECONDS,
+              {
+                type,
+                size: file.size,
+                userId: decodedToken.userId,
+              }
+            );
+
+            // Handle video processing if needed
+            let processingStatus;
+            if (type === 'video') {
+              const queued = await queueVideoProcessing(uploadResponse.data.url, requestId);
+              processingStatus = queued ? 'queued' : 'pending';
+
+              if (!queued) {
+                monitoringManager.logger.warn('Video processing unavailable', {
+                  requestId,
+                  url: uploadResponse.data.url,
+                });
+              }
+            }
+
+            // Use the response directly without rewrapping it
+            console.log('Response data:', uploadResponse); // Debug log
+
+            // Record success metric
+            monitoringManager.metrics.recordMetric(
+              MetricCategory.BUSINESS,
+              'upload',
+              'success',
+              1,
+              MetricType.COUNTER,
+              MetricUnit.COUNT,
+              {
+                type,
+                size: file.size,
+                processingStatus,
+                userId: decodedToken.userId,
+              }
+            );
+
+            // Send the response directly
+            res.status(200).json(uploadResponse);
           } catch (uploadError) {
             throw monitoringManager.error.createError(
               'system',
@@ -151,58 +201,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               { error: uploadError, blobName }
             );
           }
-
-          monitoringManager.metrics.recordMetric(
-            MetricCategory.PERFORMANCE,
-            'upload',
-            'duration',
-            Date.now() - uploadStart,
-            MetricType.HISTOGRAM,
-            MetricUnit.MILLISECONDS,
-            {
-              type,
-              size: file.size,
-              userId: decodedToken.userId,
-            }
-          );
-
-          let processingStatus;
-          if (type === 'video') {
-            const queued = await queueVideoProcessing(url, requestId);
-            processingStatus = queued ? 'queued' : 'pending';
-
-            if (!queued) {
-              monitoringManager.logger.warn('Video processing unavailable', {
-                requestId,
-                url,
-              });
-            }
-          }
-
-          monitoringManager.metrics.recordMetric(
-            MetricCategory.BUSINESS,
-            'upload',
-            'success',
-            1,
-            MetricType.COUNTER,
-            MetricUnit.COUNT,
-            {
-              type,
-              size: file.size,
-              processingStatus,
-              userId: decodedToken.userId,
-            }
-          );
-
-          res.status(200).json({
-            data: {
-              url,
-              type,
-              size: file.size,
-              processingStatus,
-            },
-            message: 'File uploaded successfully',
-          });
         } catch (error) {
           const appError = monitoringManager.error.createError(
             'system',

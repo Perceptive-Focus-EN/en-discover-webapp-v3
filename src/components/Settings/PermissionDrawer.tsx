@@ -1,175 +1,154 @@
-// src/components/Settings/PermissionDrawer.tsx
+// import React, { useState } from 'react';
+// import { ApiAccessSettings as ApiAccessSettingsType, ApiKeyInfo } from '../../types/Settings/interfaces';
+// import {
+//   Typography,
+//   Button,
+//   Chip,
+//   IconButton,
+//   Dialog,
+//   DialogTitle,
+//   DialogContent,
+//   DialogActions,
+//   TextField,
+//   Tooltip,
+// } from '@mui/material';
+// import { Add as AddIcon, Delete as DeleteIcon, FileCopy as FileCopyIcon } from '@mui/icons-material';
+// import SecurityBadgePreview from '../AccessKeyForms/SecurityBadgePreview';
+// import { useRouter } from 'next/router';
+// import { useSettings } from '../../contexts/SettingsContext';
 
-import React, { useState, useEffect } from 'react';
-import {
-  SwipeableDrawer,
-  Box,
-  Typography,
-  TextField,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-  Grid,
-  Tabs,
-  Tab,
-  Alert,
-  Snackbar,
-} from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { UserAccountType, UserAccountTypeEnum } from '../../constants/AccessKey/accounts';
-import { ACCESS_LEVELS, AccessLevel } from '../../constants/AccessKey/access_levels';
-import { getPermissionsForAccountTypeAndLevel } from '../../constants/AccessKey/permissions/index';
-import { InstituteRoles } from '../../constants/AccessKey/AccountRoles/instituteRoles';
-import { useAuth } from '../../contexts/AuthContext';
-import createAccessKey from '../../constants/AccessKey/AccessKeysComponent';
-import { UnifiedAccessKeyParams } from '../../components/AccessKeyForms/types/UnifiedAccessKey';
-import { Subscription_TypeEnum } from '../../constants/AccessKey/accounts';
+// const ApiAccessSettings: React.FC = () => {
+//   const { settings, updateSettings } = useSettings();
+//   const router = useRouter();
+//   const [isNewKeyDialogOpen, setIsNewKeyDialogOpen] = useState(false);
+//   const [newKeyName, setNewKeyName] = useState('');
 
-interface PermissionDrawerProps {
-  open: boolean;
-  onClose: () => void;
-  onOpen: () => void;
-  permissions: string[];
-  onAddPermission: (permission: string) => void;
-  onRemovePermission: (permission: string) => void;
-}
+//   if (!settings) return null;
 
-const PermissionDrawer: React.FC<PermissionDrawerProps> = ({
-  open,
-  onClose,
-  onOpen,
-  permissions,
-  onAddPermission,
-  onRemovePermission,
-}) => {
-  const { user } = useAuth();
-  const [newPermission, setNewPermission] = useState('');
-  const [accountType, setAccountType] = useState<UserAccountType>(UserAccountTypeEnum.PERSONAL);
-  const [accessLevel, setAccessLevel] = useState<AccessLevel>(AccessLevel.L0);
-  const [instituteType, setInstituteType] = useState<keyof typeof InstituteRoles | ''>('');
-  const [availablePermissions, setAvailablePermissions] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState(0);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+//   const handleRemovePermission = (permission: string) => {
+//     const updatedPermissions = settings.permissions.filter(p => p !== permission);
+//     updateSettings('apiAccess', { permissions: updatedPermissions });
+//   };
 
-  useEffect(() => {
-    if (accountType && accessLevel) {
-      let perms: string[];
-      if (accountType === UserAccountTypeEnum.INSTITUTE && instituteType) {
-        perms = getPermissionsForAccountTypeAndLevel(accountType, accessLevel, instituteType as keyof typeof InstituteRoles).map(String);
-      } else {
-        perms = getPermissionsForAccountTypeAndLevel(accountType, accessLevel).map(String);
-      }
-      const currentPermissions = new Set(permissions);
-      const additionalPerms = perms.filter(perm => !currentPermissions.has(perm));
-      setAvailablePermissions(additionalPerms);
-    }
-  }, [accountType, accessLevel, instituteType, permissions]);
+//   const handleGenerateNewApiKey = () => {
+//     const newApiKey: ApiKeyInfo = {
+//       key: 'new-api-key-' + Date.now(),
+//       name: newKeyName,
+//       createdAt: new Date(),
+//       lastUsed: new Date()
+//     };
+//     const updatedApiKeys = [...settings.apiKeys, newApiKey];
+//     updateSettings('apiAccess', { apiKeys: updatedApiKeys });
+//     setIsNewKeyDialogOpen(false);
+//     setNewKeyName('');
+//   };
 
-  const handleAddPermission = () => {
-    if (newPermission.trim()) {
-      onAddPermission(newPermission.trim());
-      setNewPermission('');
-    }
-  };
+//   const handleDeleteApiKey = (keyToDelete: string) => {
+//     const updatedApiKeys = settings.apiKeys.filter(key => key.key !== keyToDelete);
+//     updateSettings('apiAccess', { apiKeys: updatedApiKeys });
+//   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
-  };
+//   const handleCopyApiKey = (key: string) => {
+//     navigator.clipboard.writeText(key);
+//     // You could add a toast notification here for feedback.
+//   };
 
-  const handleAccessKeySubmit = async () => {
-    try {
-      const accessKeyParams: UnifiedAccessKeyParams = {
-          ACCOUNT_TYPE: accountType,
-          ACCESS_LEVEL: accessLevel,
-          PERMISSIONS: permissions,
-          USER_ID: '',
-          ASSOCIATED_TENANT_ID: '',
-          SYSTEM_LEVEL_ROLE: 'TENANT',
-          ADDITIONAL_PERMISSIONS: [],
-          SUBSCRIPTION_TYPE: Subscription_TypeEnum.TRIAL,
-          TITLE: 'AlternativeEducation'
-      };
-      const createdAccessKey = await createAccessKey(accessKeyParams);
-      setSuccessMessage('Access key and security badge created successfully!');
-      console.log('Created Access Key:', createdAccessKey);
-    } catch (error) {
-      setErrorMessage('Failed to create access key and security badge. Please try again.');
-      console.error('Error creating access key:', error);
-    }
-  };
+//   const handleManagePermissions = () => {
+//     router.push('/AccessKeyCreationPage');
+//   };
 
-  const handleCloseSnackbar = () => {
-    setSuccessMessage(null);
-    setErrorMessage(null);
-  };
+//   return (
+//     <div style={{ maxWidth: 800, margin: 'auto', paddingTop: 16 }}>
+//       <Typography variant="h4" gutterBottom>API Access Settings</Typography>
+      
+//       <div style={{ marginBottom: 16 }}>
+//         <Typography variant="h6" gutterBottom>API Keys</Typography>
+//         {settings.apiKeys.map((apiKey, index) => (
+//           <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+//             <Typography variant="body1" style={{ flexGrow: 1 }}>{apiKey.name || 'Unnamed Key'}</Typography>
+//             <Tooltip title="Copy API Key">
+//               <IconButton onClick={() => handleCopyApiKey(apiKey.key)}>
+//                 <FileCopyIcon />
+//               </IconButton>
+//             </Tooltip>
+//             <Tooltip title="Delete API Key">
+//               <IconButton onClick={() => handleDeleteApiKey(apiKey.key)}>
+//                 <DeleteIcon />
+//               </IconButton>
+//             </Tooltip>
+//           </div>
+//         ))}
+//         <Button
+//           variant="outlined"
+//           startIcon={<AddIcon />}
+//           onClick={() => setIsNewKeyDialogOpen(true)}
+//           style={{ marginTop: 16 }}
+//         >
+//           Generate New API Key
+//         </Button>
+//       </div>
 
-  return (
-    <SwipeableDrawer
-      anchor="bottom"
-      open={open}
-      onClose={onClose}
-      onOpen={onOpen}
-      disableSwipeToOpen={false}
-      ModalProps={{ keepMounted: true }}
-    >
-      <Box sx={{ p: 2, height: '80vh', display: 'flex', flexDirection: 'column' }}>
-        <Typography variant="h6" gutterBottom>
-          Manage Permissions and Access Keys
-        </Typography>
-        
-        <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 2 }}>
-          <Tab label="Manage Permissions" />
-          <Tab label="Create Access Key" />
-        </Tabs>
+//       <div style={{ marginBottom: 16 }}>
+//         <Typography variant="h6" gutterBottom>Permissions</Typography>
+//         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+//           {settings.permissions.map((permission, index) => (
+//             <Chip
+//               key={index}
+//               label={permission}
+//               onDelete={() => handleRemovePermission(permission)}
+//               color="primary"
+//               variant="outlined"
+//             />
+//           ))}
+//         </div>
+//         <Button
+//           variant="contained"
+//           color="primary"
+//           onClick={handleManagePermissions}
+//         >
+//           Manage Permissions
+//         </Button>
+//       </div>
 
-        {activeTab === 0 && (
-          <Grid container spacing={2}>
-            {/* Existing permission management UI */}
-            {/* ... (keep the existing Grid items for account type, access level, etc.) */}
-          </Grid>
-        )}
+//       {settings.apiKeys.length > 0 && (
+//         <div>
+//           <Typography variant="h6" gutterBottom>Security Badge Preview</Typography>
+//           <SecurityBadgePreview
+//             name="API User"
+//             role="API Access"
+//             accessLevel="API"
+//             accountType="API"
+//             avatarUrl=""
+//             userId={settings.apiKeys[0].key}
+//             tenantId=""
+//             accessKey={settings.apiKeys[0].key}
+//             nfcId=""
+//           />
+//         </div>
+//       )}
 
-        {activeTab === 1 && (
-          <Box>
-            <Typography variant="body1" paragraph>
-              Create a new access key and security badge based on the current permissions.
-            </Typography>
-            <Button variant="contained" color="primary" onClick={handleAccessKeySubmit}>
-              Create Access Key
-            </Button>
-          </Box>
-        )}
+//       <Dialog open={isNewKeyDialogOpen} onClose={() => setIsNewKeyDialogOpen(false)}>
+//         <DialogTitle>Generate New API Key</DialogTitle>
+//         <DialogContent>
+//           <TextField
+//             autoFocus
+//             margin="dense"
+//             id="name"
+//             label="API Key Name"
+//             type="text"
+//             fullWidth
+//             variant="outlined"
+//             value={newKeyName}
+//             onChange={(e) => setNewKeyName(e.target.value)}
+//           />
+//         </DialogContent>
+//         <DialogActions>
+//           <Button onClick={() => setIsNewKeyDialogOpen(false)}>Cancel</Button>
+//           <Button onClick={handleGenerateNewApiKey} variant="contained" color="primary">Generate</Button>
+//         </DialogActions>
+//       </Dialog>
+//     </div>
+//   );
+// };
 
-        <List sx={{ flexGrow: 1, overflow: 'auto' }}>
-          {permissions.map((permission, index) => (
-            <ListItem
-              key={index}
-              secondaryAction={
-                <IconButton edge="end" aria-label="delete" onClick={() => onRemovePermission(permission)}>
-                  <DeleteIcon />
-                </IconButton>
-              }
-            >
-              <ListItemText primary={permission} />
-            </ListItem>
-          ))}
-        </List>
-
-        <Snackbar open={!!successMessage || !!errorMessage} autoHideDuration={6000} onClose={handleCloseSnackbar}>
-          <Alert onClose={handleCloseSnackbar} severity={successMessage ? "success" : "error"} sx={{ width: '100%' }}>
-            {successMessage || errorMessage}
-          </Alert>
-        </Snackbar>
-      </Box>
-    </SwipeableDrawer>
-  );
-};
-
-export default PermissionDrawer;
+// export default ApiAccessSettings;

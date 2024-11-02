@@ -220,6 +220,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: doc.status,
         isEdited: doc.isEdited,
         processingStatus: doc.processingStatus,
+        tenantId: doc.tenantId,
+        accountType: doc.accountType,
       }));
       const totalPages = Math.ceil(totalCount / limit);
       console.log('Query results:', {
@@ -411,14 +413,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             commentCount: createdPost.commentCount || 0,
             authorId: createdPost.authorId,
             timestamp: createdPost.timestamp,
-            userAccountType: createdPost.userAccountType,
+            accountType: createdPost.userAccountType,
             createdAt: createdPost.createdAt,
             updatedAt: createdPost.updatedAt,
             status: createdPost.status,
             visibility: createdPost.visibility,
             isEdited: createdPost.isEdited || false,
             lastEditedAt: createdPost.lastEditedAt,
-            metadata: createdPost.metadata
+            metadata: createdPost.metadata,
+            tenantId: createdPost.tenantId,
           };
 
           monitoringManager.metrics.recordMetric(

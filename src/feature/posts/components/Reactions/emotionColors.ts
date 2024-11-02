@@ -1,6 +1,5 @@
-import { EmotionName, EmotionId } from '@/feature/types/Reaction';
+import { EmotionName, EmotionId, EmotionType } from '@/feature/types/Reaction';
 import { parseToRgba, lighten, darken, rgba } from 'color2k';
-import { EmotionType } from '../../../EmotionSelectionDrawer';
 
 // Base color for emotion
 const BASE_COLOR = '#FFD700'; // Example base color
@@ -17,7 +16,9 @@ export const getEmotionConfig = (emotionName: EmotionName): {
   color: string;
   animate: { scale: number; rotate?: number };
 } => {
-  const emotion = EmotionType.find(e => e.emotionName === emotionName);
+const emotion: { id: EmotionId; emotionName: EmotionName } | undefined = EmotionType.find(
+    (e: { emotionName: EmotionName }) => e.emotionName === emotionName
+);
   if (!emotion) return { label: emotionName, color: BASE_COLOR, animate: { scale: 1 } };
 
   const color = getEmotionColor(emotion.id);

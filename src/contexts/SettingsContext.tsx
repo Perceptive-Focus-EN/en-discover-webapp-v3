@@ -1,4 +1,3 @@
-// src/contexts/SettingsContext.tsx
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { 
@@ -9,6 +8,13 @@ import {
   OverseerInviteSettings 
 } from '@/types/Settings/interfaces';
 import { settingsApi } from '../lib/api_s/settings/client';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
+
+interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
 
 interface SettingsContextType {
   settings: SettingsState | null;
@@ -43,8 +49,7 @@ const settingsReducer = (state: ExtendedSettingsState, action: SettingsAction): 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-
-    const initialState: ExtendedSettingsState = {
+  const initialState: ExtendedSettingsState = {
     id: '',
     userId: '',
     tenantId: '',
@@ -90,14 +95,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     privacyPolicy: { version: '', lastAccepted: new Date(), content: '' },
     apiAccess: { apiKeys: [], permissions: [] },
     isLoading: true,
-    error: null,
     tenantInfo: {
       roles: [],
       resourceAllocation: {
         storageLimit: 0,
         apiUsageLimit: 0
       }
-    }
+    },
+    error: null
   };
 
   const [state, dispatch] = useReducer(settingsReducer, initialState);
@@ -105,72 +110,83 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const fetchSettings = useCallback(async () => {
     dispatch({ type: 'FETCH_INIT' });
-    
     const storedSettings = localStorage.getItem('userSettings');
     if (storedSettings) {
       dispatch({ type: 'FETCH_SUCCESS', payload: JSON.parse(storedSettings) });
       return;
     }
 
-    const [
-      allSettingsResponse,
-      faqResponse,
-      termsResponse,
-      privacyPolicyResponse
-    ] = await Promise.all([
-      settingsApi.getAll(),
-      settingsApi.faq.get(),
-      settingsApi.terms.get(),
-      settingsApi.privacyPolicy.get()
-    ]);
+    try {
+      const allSettingsResponse = await settingsApi.getAll();
 
-    const fetchedSettings: ExtendedSettingsState = {
-      ...state,
-      ...allSettingsResponse,
-      faq: faqResponse,
-      terms: termsResponse,
-      privacyPolicy: privacyPolicyResponse,
-      isLoading: false
-    };
+      if (!allSettingsResponse) {
+        throw new Error('Failed to fetch settings');
+      }
 
-    dispatch({ type: 'FETCH_SUCCESS', payload: fetchedSettings });
-    localStorage.setItem('userSettings', JSON.stringify(fetchedSettings));
+      const fetchedSettings: ExtendedSettingsState = {
+        ...state,
+        ...allSettingsResponse,
+        isLoading: false,
+      };
+
+      dispatch({ type: 'FETCH_SUCCESS', payload: fetchedSettings });
+      localStorage.setItem('userSettings', JSON.stringify(fetchedSettings));
+    } catch (error) {
+      messageHandler.error('Failed to fetch settings');
+      dispatch({ type: 'FETCH_SUCCESS', payload: { ...state, isLoading: false } });
+    }
   }, [user]);
 
+  
   const updateSettings = async (category: string, newSettings: Partial<SettingsState>) => {
-    switch (category) {
-      case 'notifications':
-        await settingsApi.notifications.update(newSettings.notifications as NotificationSettings);
-        break;
-      case 'private':
-        await settingsApi.privateSettings.update(newSettings.private as PrivateSettings);
-        break;
-      case 'style':
-        await settingsApi.styleSettings.update(newSettings.style as StyleSettings);
-        break;
-      case 'overseerInvites':
-        await settingsApi.overseerInvites.send(newSettings.overseerInvites as OverseerInviteSettings);
-        break;
-      case 'appRating':
-        if (newSettings.appRating) {
-          await settingsApi.appRating.submit(newSettings.appRating as unknown as { rating: number; feedback: string });
-        }
-        break;
-      default:
-        throw new Error(`Invalid settings category: ${category}`);
-    }
+    try {
+      switch (category) {
+        case 'notifications':
+          await settingsApi.notifications.update(newSettings.notifications as NotificationSettings);
+          break;
+        case 'private':
+          await settingsApi.privateSettings.update(newSettings.private as PrivateSettings);
+          break;
+        case 'style':
+          await settingsApi.styleSettings.update(newSettings.style as StyleSettings);
+          break;
+        case 'overseerInvites':
+          if (newSettings.overseerInvites) {
+            await settingsApi.overseerInvites.send(newSettings.overseerInvites as OverseerInviteSettings);
+          }
+          break;
+        case 'appRating':
+          if (newSettings.appRating) {
+            await settingsApi.appRating.submit(newSettings.appRating as unknown as { rating: number; feedback: string });
+          }
+          break;
+        case 'all':
+          await settingsApi.updateAll(newSettings);
+          break;
+        default:
+          throw new Error(`Invalid settings category: ${category}`);
+      }
 
-    const updatedSettings = { ...state, ...newSettings };
-    dispatch({ type: 'UPDATE_SUCCESS', payload: updatedSettings });
-    localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
+      const updatedSettings = { ...state, ...newSettings };
+      dispatch({ type: 'UPDATE_SUCCESS', payload: updatedSettings });
+      localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
+      messageHandler.success('Settings updated successfully');  // Add success feedback
+    } catch (error) {
+      messageHandler.error(`Failed to update ${category} settings`);  // Use messageHandler for error feedback
+    }
   };
 
   const updateTheme = async (newTheme: 'light' | 'dark' | 'system') => {
-    await updateSettings('style', { style: { ...state.style, theme: newTheme } });
-    if (newTheme !== 'system') {
-      localStorage.setItem('themeMode', newTheme);
-    } else {
-      localStorage.removeItem('themeMode');
+    try {
+      await updateSettings('style', { style: { ...state.style, theme: newTheme } });
+      if (newTheme !== 'system') {
+        localStorage.setItem('themeMode', newTheme);
+      } else {
+        localStorage.removeItem('themeMode');
+      }
+      messageHandler.success(`Theme updated to ${newTheme}`);  // Add feedback for theme update
+    } catch (error) {
+      messageHandler.error('Failed to update theme');  // Use messageHandler for error feedback
     }
   };
 
@@ -188,12 +204,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   return (
     <SettingsContext.Provider
-      value={{ 
-        settings: state, 
+      value={{
+        settings: state,
         isLoading: state.isLoading,
         updateSettings,
         updateTheme,
-        refreshSettings 
+        refreshSettings
       }}
     >
       {children}

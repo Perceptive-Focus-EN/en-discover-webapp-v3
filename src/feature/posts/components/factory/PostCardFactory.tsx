@@ -75,15 +75,15 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
   const renderPostCard = () => {
     switch (post.type) {
       case 'TEXT':
-        return <TextPostCard {...baseProps} type="TEXT" content={localPost.content as TextContent} />;
+        return <TextPostCard {...baseProps} type={PostType.TEXT} content={localPost.content as TextContent} />;
       case 'PHOTO':
-        return <PhotoPostCard {...baseProps} type="PHOTO" content={localPost.content as PhotoContent} media={localPost.media} />;
+        return <PhotoPostCard {...baseProps} type={PostType.PHOTO} content={localPost.content as PhotoContent} media={localPost.media} />;
       case 'VIDEO':
-        return <VideoPostCard {...baseProps} type="VIDEO" content={localPost.content as VideoContent} media={localPost.media} />;
+        return <VideoPostCard {...baseProps} type={PostType.VIDEO} content={localPost.content as VideoContent} media={localPost.media} />;
       case 'MOOD':
-        return <MoodPostCard {...baseProps} type="MOOD" content={localPost.content as MoodContent} />;
+        return <MoodPostCard {...baseProps} type={PostType.MOOD} content={localPost.content as MoodContent} />;
       case 'SURVEY':
-        return <SurveyPostCard {...baseProps} type="SURVEY" content={localPost.content as SurveyContent} />;
+        return <SurveyPostCard {...baseProps} type={PostType.SURVEY} content={localPost.content as SurveyContent} />;
       default:
         return null;
     }
@@ -117,10 +117,7 @@ export const PostCardFactory: React.FC<PostCardFactoryProps> = ({
             {/* Replace ReactionBar with MoodBubbleLikeButton */}
             <MoodBubbleLikeButton
               postId={localPost.id}
-              postReactions={localPost.reactions as PostReaction[]}
-              reactionMetrics={localPost.reactionMetrics as unknown as ReactionMetrics}
               onReactionSelect={handleReactionChange}
-              useDynamicSizing={true}
             />
 
             <div className="flex items-center space-x-2">

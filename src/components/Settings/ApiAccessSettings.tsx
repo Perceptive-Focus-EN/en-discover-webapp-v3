@@ -1,3 +1,4 @@
+// src/components/Settings/ApiAccessSettings.tsx
 import React, { useState } from 'react';
 import { ApiAccessSettings as ApiAccessSettingsType, ApiKeyInfo } from '../../types/Settings/interfaces';
 import {
@@ -11,32 +12,50 @@ import {
   DialogActions,
   TextField,
   Tooltip,
+  CircularProgress,
+  Box
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon, FileCopy as FileCopyIcon } from '@mui/icons-material';
 import SecurityBadgePreview from '../AccessKeyForms/SecurityBadgePreview';
 import { useRouter } from 'next/router';
+import { useSettings } from '@/contexts/SettingsContext';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
-export interface ApiAccessSettingsProps {
-  settings: ApiAccessSettingsType | undefined;
-  onUpdate: (newSettings: ApiAccessSettingsType) => void;
+
+interface ApiAccessSettingsProps {
+  settings: ApiAccessSettingsType;
+  onUpdate: (newSettings: ApiAccessSettingsType) => Promise<void>;
+  isLoading?: boolean;
 }
 
-const ApiAccessSettings: React.FC<ApiAccessSettingsProps> = ({ settings, onUpdate }) => {
+const ApiAccessSettings: React.FC<ApiAccessSettingsProps> = ({
+  settings,
+  onUpdate,
+  isLoading = false
+}) => {
   const router = useRouter();
   const [isNewKeyDialogOpen, setIsNewKeyDialogOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
 
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   if (!settings) return null;
 
-  const handleRemovePermission = (permission: string) => {
+    const handleRemovePermission = async (permission: string) => {
     const updatedSettings = {
       ...settings,
       permissions: settings.permissions.filter(p => p !== permission)
     };
-    onUpdate(updatedSettings);
-  };
-
-  const handleGenerateNewApiKey = () => {
+    await onUpdate(updatedSettings);
+    };
+  
+    const handleGenerateNewApiKey = async () => {
     const newApiKey: ApiKeyInfo = {
       key: 'new-api-key-' + Date.now(),
       name: newKeyName,
@@ -47,37 +66,40 @@ const ApiAccessSettings: React.FC<ApiAccessSettingsProps> = ({ settings, onUpdat
       ...settings,
       apiKeys: [...settings.apiKeys, newApiKey]
     };
-    onUpdate(updatedSettings);
+    await onUpdate(updatedSettings);
     setIsNewKeyDialogOpen(false);
     setNewKeyName('');
   };
 
-  const handleDeleteApiKey = (keyToDelete: string) => {
+  const handleDeleteApiKey = async (keyToDelete: string) => {
     const updatedSettings = {
       ...settings,
       apiKeys: settings.apiKeys.filter(key => key.key !== keyToDelete)
     };
-    onUpdate(updatedSettings);
-  };
-
+    await onUpdate(updatedSettings);
+    };
+  
   const handleCopyApiKey = (key: string) => {
     navigator.clipboard.writeText(key);
-    // You might want to show a snackbar or toast notification here
+    messageHandler.success('API key copied to clipboard');
   };
 
   const handleManagePermissions = () => {
     router.push('/AccessKeyCreationPage');
   };
 
+    // Rest of the component remains the same, just change settings.apiAccess to settings
   return (
-    <div style={{ maxWidth: 800, margin: 'auto', paddingTop: 16 }}>
+    <Box sx={{ maxWidth: 800, mx: 'auto', pt: 2 }}>
       <Typography variant="h4" gutterBottom>API Access Settings</Typography>
       
-      <div style={{ marginBottom: 16 }}>
+      <Box sx={{ mb: 2 }}>
         <Typography variant="h6" gutterBottom>API Keys</Typography>
         {settings.apiKeys.map((apiKey, index) => (
-          <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-            <Typography variant="body1" style={{ flexGrow: 1 }}>{apiKey.name || 'Unnamed Key'}</Typography>
+          <Box key={index} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <Typography variant="body1" sx={{ flexGrow: 1 }}>
+              {apiKey.name || 'Unnamed Key'}
+            </Typography>
             <Tooltip title="Copy API Key">
               <IconButton onClick={() => handleCopyApiKey(apiKey.key)}>
                 <FileCopyIcon />
@@ -88,21 +110,21 @@ const ApiAccessSettings: React.FC<ApiAccessSettingsProps> = ({ settings, onUpdat
                 <DeleteIcon />
               </IconButton>
             </Tooltip>
-          </div>
+          </Box>
         ))}
         <Button
           variant="outlined"
           startIcon={<AddIcon />}
           onClick={() => setIsNewKeyDialogOpen(true)}
-          style={{ marginTop: 16 }}
+          sx={{ mt: 2 }}
         >
           Generate New API Key
         </Button>
-      </div>
+      </Box>
 
-      <div style={{ marginBottom: 16 }}>
+      <Box sx={{ mb: 2 }}>
         <Typography variant="h6" gutterBottom>Permissions</Typography>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
           {settings.permissions.map((permission, index) => (
             <Chip
               key={index}
@@ -112,7 +134,7 @@ const ApiAccessSettings: React.FC<ApiAccessSettingsProps> = ({ settings, onUpdat
               variant="outlined"
             />
           ))}
-        </div>
+        </Box>
         <Button
           variant="contained"
           color="primary"
@@ -120,10 +142,10 @@ const ApiAccessSettings: React.FC<ApiAccessSettingsProps> = ({ settings, onUpdat
         >
           Manage Permissions
         </Button>
-      </div>
+      </Box>
 
       {settings.apiKeys.length > 0 && (
-        <div>
+        <Box sx={{ mb: 2 }}>
           <Typography variant="h6" gutterBottom>Security Badge Preview</Typography>
           <SecurityBadgePreview
             name="API User"
@@ -136,7 +158,7 @@ const ApiAccessSettings: React.FC<ApiAccessSettingsProps> = ({ settings, onUpdat
             accessKey={settings.apiKeys[0].key}
             nfcId=""
           />
-        </div>
+        </Box>
       )}
 
       <Dialog open={isNewKeyDialogOpen} onClose={() => setIsNewKeyDialogOpen(false)}>
@@ -156,10 +178,12 @@ const ApiAccessSettings: React.FC<ApiAccessSettingsProps> = ({ settings, onUpdat
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setIsNewKeyDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleGenerateNewApiKey} variant="contained" color="primary">Generate</Button>
+          <Button onClick={handleGenerateNewApiKey} variant="contained" color="primary">
+            Generate
+          </Button>
         </DialogActions>
       </Dialog>
-    </div>
+    </Box>
   );
 };
 

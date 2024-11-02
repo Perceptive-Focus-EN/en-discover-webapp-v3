@@ -6,7 +6,7 @@ import { MoodHistoryItem, MoodHistoryQuery, TimeRange, MoodEntry } from '../comp
 import { emotionMappingsApi } from '../lib/api_s/reactions/emotionMappings';
 import { Emotion } from '../components/EN/types/emotions';
 import { postReactionsApi } from '../lib/api_s/reactions/postReactions';
-import { Post, TextContent } from '../feature/posts/api/types';
+import { Post, PostType, TextContent } from '../feature/posts/api/types';
 import { EmotionId, PostReaction } from '@/feature/types/Reaction';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
@@ -319,7 +319,7 @@ const getEmotionMappings = useCallback(async (userId?: string) => {
     }
   }, []);
 
-  const fetchPostWithReactionsData = useCallback(async (postId: string): Promise<PostData> => {
+  const fetchPostWithReactionsData = useCallback(async (postId: string): Promise<Post> => {
   const startTime = Date.now();
   try {
     const response = await postReactionsApi.fetchPostWithReactions(postId);
@@ -351,7 +351,7 @@ const getEmotionMappings = useCallback(async (userId?: string) => {
       tenantInfo: undefined, // Optional
       processingStatus: undefined // Optional
       ,
-      type: 'TEXT',
+      type: 'TEXT' as PostType,
     };
 
     monitoringManager.metrics.recordMetric(
