@@ -1,42 +1,21 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { AuthResponse } from '../../../types/Login/interfaces';
+import { AuthResponse, SessionInfo, AuthContext } from '../../../types/Login/interfaces';
 import { Collection, WithId } from 'mongodb';
-import { User, ExtendedUserInfo } from '../../../types/User/interfaces';
-import { Tenant, TenantInfo } from '../../../types/Tenant/interfaces';
+import { User } from '../../../types/User/interfaces';
+import { Tenant } from '../../../types/Tenant/interfaces';
 import { generateAccessToken, generateRefreshToken } from '../../../utils/TokenManagement/serverTokenUtils';
 import { authMiddleware } from '../../../middlewares/authMiddleware';
 import { getCosmosClient } from '@/config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
-import { ROLES } from '@/constants/AccessKey/AccountRoles';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
-import { SystemError, BusinessError } from '@/MonitoringSystem/constants/errors';
-import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
-
-interface MeHandlerSystemContext {
-  component: string;
-  systemId: string;
-  systemName: string;
-  environment: 'development' | 'production' | 'staging';
-}
-
-const SYSTEM_CONTEXT: MeHandlerSystemContext = {
-  component: 'MeHandler',
-  systemId: process.env.SYSTEM_ID || 'auth-service',
-  systemName: 'AuthenticationService',
-  environment: (process.env.NODE_ENV as 'development' | 'production' | 'staging') || 'development'
-};
-
-interface DecodedToken {
-  userId: string;
-  email: string;
-  tenantId: string;
-  title: string;
-}
+import { SystemError, BusinessError, SecurityError } from '@/MonitoringSystem/constants/errors';
+import { DecodedToken } from '@/utils/TokenManagement/clientTokenUtils';
+import crypto from 'crypto';
+import { Business } from '@mui/icons-material';
 
 async function meHandler(
   req: NextApiRequest,
-  res: NextApiResponse<AuthResponse | { error: string }>
+  res: NextApiResponse<AuthResponse | { error: string, reference?: string }>
 ) {
   const startTime = Date.now();
   const requestId = crypto.randomUUID();
@@ -54,176 +33,110 @@ async function meHandler(
     const decodedToken = (req as any).user as DecodedToken;
 
     const client = await getCosmosClient();
-    monitoringManager.logger.info('Database connection established', {
-      category: LogCategory.SYSTEM,
-      pattern: LOG_PATTERNS.SYSTEM,
-      metadata: {
-        component: SYSTEM_CONTEXT.component,
-        userId: decodedToken.userId
-      }
-    });
-
     const db = client.db;
     const usersCollection = db.collection(COLLECTIONS.USERS) as Collection<User>;
     const tenantsCollection = db.collection(COLLECTIONS.TENANTS) as Collection<Tenant>;
 
+    // Fetch user data
     const user = await usersCollection.findOne({ userId: decodedToken.userId }) as WithId<User> | null;
     if (!user) {
-      throw monitoringManager.error.createError(
-        'business',
-        BusinessError.USER_NOT_FOUND,
-        'User not found',
-        { userId: decodedToken.userId }
-      );
+      throw monitoringManager.error.createError('business', BusinessError.USER_NOT_FOUND, 'User not found', { userId: decodedToken.userId });
+    }
+    if (user.isDeleted) {
+      throw monitoringManager.error.createError('security', 'AUTH_UNAUTHORIZED', 'User account has been deleted', { userId: user.userId });
     }
 
-    if (user.isDeleted) {
+    const { password: _, ...userWithoutPassword } = user;
+
+    // Retrieve `currentTenantId` and validate association
+    let currentTenantId = user.tenants.context.currentTenantId;
+
+    // Ensure `currentTenantId` is correctly set and associated with the user
+    if (!user.tenants.associations[currentTenantId]) {
+      console.warn(`[${requestId}] - No valid tenant association for currentTenantId: ${currentTenantId}`);
+      currentTenantId = user.tenants.context.personalTenantId;
+    }
+
+    const currentAssociation = user.tenants.associations[currentTenantId];
+    if (!currentAssociation) {
       throw monitoringManager.error.createError(
         'security',
-        'AUTH_UNAUTHORIZED',
-        'User account has been deleted',
-        { userId: user.userId }
+       BusinessError.TENANT_INVALID_DETAILS,
+        'No valid tenant association found for currentTenantId',
+        { userId: user.userId, tenantId: currentTenantId }
       );
     }
 
-    const tenantAssociations = user.tenantAssociations || [];
-    const currentTenantAssociation = tenantAssociations.find(ta => ta.tenantId === user.currentTenantId);
-
-    if (!currentTenantAssociation) {
-      monitoringManager.logger.warn('Current tenant not found, using personal tenant', {
-        category: LogCategory.BUSINESS,
-        pattern: LOG_PATTERNS.BUSINESS,
-        metadata: {
-          userId: user.userId,
-          currentTenantId: user.currentTenantId,
-          personalTenantId: user.personalTenantId
-        }
-      });
-      user.currentTenantId = user.personalTenantId;
+    // Ensure tenant is active and not deleted
+    const currentTenant = await tenantsCollection.findOne({ tenantId: currentTenantId });
+    if (!currentTenant || currentTenant.isDeleted || !currentTenant.isActive) {
+      throw monitoringManager.error.createError(
+        'security',
+        SecurityError.TENANT_NOT_FOUND,
+        'Tenant is inactive or not found',
+        { tenantId: currentTenantId }
+      );
     }
 
-    const currentTenant = await tenantsCollection.findOne({ tenantId: user.currentTenantId }) as WithId<Tenant> | null;
-
-    // Build tenant info and user info...
-    const tenantInfo: TenantInfo | null = currentTenant ? {
-      tenantId: currentTenant.tenantId,
-      name: currentTenant.name,
-      domain: currentTenant.domain,
-      email: currentTenant.email,
-      industry: currentTenant.industry,
-      type: currentTenant.type,
-      isActive: currentTenant.isActive,
-      createdAt: currentTenant.createdAt,
-      updatedAt: currentTenant.updatedAt,
-      ownerId: currentTenant.ownerId,
-      users: currentTenant.users,
-      usersCount: currentTenant.usersCount,
-      parentTenantId: currentTenant.parentTenantId,
-      details: currentTenant.details,
-      resourceUsage: currentTenant.resourceUsage,
-      resourceLimit: currentTenant.resourceLimit,
-      isDeleted: currentTenant.isDeleted,
-      pendingUserRequests: currentTenant.pendingUserRequests || []
-    } : null;
-
-    const userInfo: ExtendedUserInfo = {
-      ...user,
-      userId: user.userId,
-      tenant: tenantInfo,
-      tenantAssociations: tenantAssociations,
-      profile: user.profile || {},
-      connections: user.connections || [],
-      connectionRequests: user.connectionRequests || { sent: [], received: [] },
-      privacySettings: user.privacySettings || { profileVisibility: 'public' },
-      subscriptionType: user.subscriptionType,
-      softDelete: false,
-      reminderSent: false,
-      reminderSentAt: '',
-      lastLogin: '',
-      avatarUrl: '',
-      nfcId: '',
-      department: '',
-      onboardingStatus: user.onboardingStatus,
-      role: ROLES.Personal.SELF,
-    };
-
+    // Generate tokens and session information
     const accessToken = generateAccessToken({
       userId: user.userId,
       email: user.email,
-      tenantId: user.currentTenantId,
-      role: ROLES.Personal.SELF,
+      tenantId: currentTenantId,
+      role: currentAssociation.role
     });
-
     const refreshToken = generateRefreshToken();
+    const sessionId = crypto.randomUUID();
 
-    monitoringManager.metrics.recordMetric(
-      MetricCategory.BUSINESS,
-      'auth',
-      'session_restored',
-      1,
-      MetricType.COUNTER,
-      MetricUnit.COUNT,
-      {
-        userId: user.userId,
-        tenantId: user.currentTenantId,
-        duration: Date.now() - startTime,
-        requestId
-      }
-    );
-
-    const loginResponse: AuthResponse = {
-      success: true,
-      message: 'User session restored successfully',
-      user: userInfo,
+    const sessionInfo: SessionInfo = {
       accessToken,
       refreshToken,
-      sessionId: refreshToken,
-      onboardingComplete: user.onboardingStatus.isOnboardingComplete,
+      sessionId,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours from now
     };
-    
-    monitoringManager.logger.info('Session restored successfully', {
-      category: LogCategory.BUSINESS,
-      pattern: LOG_PATTERNS.BUSINESS,
-      metadata: {
-        userId: user.userId,
-        email: user.email,
-        duration: Date.now() - startTime,
-        requestId
-      }
-    });
 
-    return res.status(200).json(loginResponse);
+    // Construct auth context with tenant-specific information
+    const authContext: AuthContext = {
+      currentTenant,
+      tenantOperations: {
+        switchTenant: async (tenantId: string) => {
+          // Implementation for tenant switch
+        },
+        getCurrentTenantRole: () => currentAssociation.role,
+        getCurrentTenantPermissions: () => currentAssociation.permissions,
+        isPersonalTenant: (tenantId: string) => tenantId === user.tenants.context.personalTenantId
+      },
+      tenantQueries: {
+        getCurrentTenant: () => currentTenantId,
+        getPersonalTenant: () => user.tenants.context.personalTenantId,
+        getTenantRole: (tenantId: string) => user.tenants.associations[tenantId]?.role,
+        getTenantPermissions: (tenantId: string) => user.tenants.associations[tenantId]?.permissions || [],
+        hasActiveTenantAssociation: (tenantId: string) => user.tenants.associations[tenantId]?.status === 'active'
+      }
+    };
+
+    const authResponse: AuthResponse = {
+      success: true,
+      message: 'User session restored successfully',
+      user: userWithoutPassword,
+      session: sessionInfo,
+      context: authContext,
+      onboardingComplete: user.onboardingStatus.isOnboardingComplete
+    };
+
+    return res.status(200).json(authResponse);
 
   } catch (error) {
-    monitoringManager.metrics.recordMetric(
-      MetricCategory.SYSTEM,
-      'auth',
-      'session_restore_error',
-      1,
-      MetricType.COUNTER,
-      MetricUnit.COUNT,
-      {
-        error: error instanceof Error ? error.message : 'unknown',
-        duration: Date.now() - startTime,
-        requestId
-      }
-    );
-
     const appError = monitoringManager.error.createError(
       'system',
       SystemError.SERVER_INTERNAL_ERROR,
       'Error in me handler',
-      { 
-        error,
-        requestId,
-        duration: Date.now() - startTime
-      }
+      { error, requestId, duration: Date.now() - startTime }
     );
     const errorResponse = monitoringManager.error.handleError(appError);
-
-    return res.status(errorResponse.statusCode).json({
-      error: errorResponse.userMessage,
-      reference: errorResponse.errorReference
+    return res.status(errorResponse.statusCode).json({ 
+      error: errorResponse.userMessage, 
+      reference: errorResponse.errorReference 
     });
   }
 }

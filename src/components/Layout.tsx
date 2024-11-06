@@ -10,7 +10,7 @@ import Header from './Header';
 import Footer from './Footer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
-import { ExtendedUserInfo } from '@/types/User/interfaces';
+import { ExtendedUserInfo, User } from '@/types/User/interfaces';
 import { useRouter } from 'next/router';
 import AIAssistant from './AIAssistant';
 import Image from 'next/image';
@@ -27,55 +27,66 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, loading, refreshUser, switchTenant } = useAuth();
   const { settings } = useSettings();
   const { state, toggleAIAssistant } = useAIAssistant();
-  
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+
   const [currentAccount, setCurrentAccount] = useState<ExtendedUserInfo | null>(null);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
   const [isAuthChecked, setIsAuthChecked] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
-
-  // Public routes that don’t need auth
+  // Public routes that don't need auth
   const publicRoutes = ['/login', '/register', '/forgot-password'];
   const isPublicRoute = publicRoutes.includes(router.pathname);
 
-  // Authentication check with optimized dependencies
-  useEffect(() => {
-    if (loading) return;  // Wait for auth to load
-    if (!user && !isPublicRoute && !isRedirecting) {
-      setIsRedirecting(true);
-      router.push('/login').finally(() => setIsRedirecting(false));
-    } else if (user?.currentTenantId && !currentAccount) {
-      updateCurrentAccount(user.currentTenantId);
-    }
-    setIsAuthChecked(true);
-  }, [user, loading, router.pathname, isPublicRoute, isRedirecting, currentAccount]);
-
-  // Refreshes `currentAccount` if the tenant changes
+  // Memoized current account update function
   const updateCurrentAccount = useCallback((tenantId: string) => {
-    if (!user) return;
-    const tenant = user.tenantAssociations.find((assoc) => assoc.tenantId === tenantId);
-    if (tenant) {
-      setCurrentAccount({ ...user, currentTenantId: tenantId });
-    }
+    if (!user?.tenants?.associations) return;
+    
+    const association = user.tenants.associations[tenantId];
+    if (!association || association.status !== 'active') return;
+
+    // Create ExtendedUserInfo with current tenant context
+    const enhancedUser: ExtendedUserInfo = {
+      ...user,
+      tenants: {
+        ...user.tenants,
+        context: {
+          ...user.tenants.context,
+          currentTenantId: tenantId
+        }
+      }
+    };
+
+    setCurrentAccount(enhancedUser);
   }, [user]);
 
-  // Handles tenant switching with error handling
+  // Authentication and account setup effect
+  useEffect(() => {
+    if (loading) return;
+
+    if (!user && !isPublicRoute) {
+      router.push('/login');
+      return;
+    }
+
+    if (user?.tenants?.context?.currentTenantId && !currentAccount) {
+      updateCurrentAccount(user.tenants.context.currentTenantId);
+    }
+
+    setIsAuthChecked(true);
+  }, [user, loading, isPublicRoute, router, currentAccount, updateCurrentAccount]);
+
+  // Tenant switching handler with error boundary
   const handleAccountChange = async (tenantId: string) => {
     try {
       await switchTenant(tenantId);
-      await refreshUser();
+      await refreshUser();  // This will get fresh user data with new tenant context
       updateCurrentAccount(tenantId);
     } catch (error) {
-      console.error('Failed to switch tenant context:', error);
+      console.error('Failed to switch tenant:', error);
     }
   };
 
-  const handleMessagingToggle = useCallback((open: boolean) => {
-    setIsMessagingOpen(open);
-  }, []);
-
-  // Ensure auth is checked and user is available before rendering
+  // Loading state
   if (!isAuthChecked || loading) {
     return (
       <Box
@@ -90,100 +101,84 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     );
   }
 
-  // Return children only for public routes
+  // Public routes render without layout
   if (isPublicRoute) {
     return <>{children}</>;
   }
 
-  // Only render layout if user and tenant are authenticated
+  // Don't render layout without proper auth and tenant context
   if (!user || !currentAccount) {
     return null;
   }
 
   return (
     <Box
-      display="flex"
-      flexDirection="column"
-      minHeight="100vh"
       sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100vh',
+        bgcolor: 'background.default',
         color: theme.palette.text.primary,
-        overflow: 'hidden',
         fontFamily: settings?.style?.font || theme.typography.fontFamily,
         fontSize: settings?.style?.fontSize || theme.typography.fontSize,
-        bgcolor: 'background.default',
       }}
-      className="animate-fade-in"
     >
       {/* Header */}
-      <Box
-        sx={{
+      <Box 
+        sx={{ 
           position: 'fixed',
           top: 0,
           left: 0,
           right: 0,
-          zIndex: theme.zIndex.appBar,
-          transition: 'all 0.3s ease-in-out',
+          zIndex: theme.zIndex.appBar 
         }}
-        className="animate-fade-in-down"
       >
         <Header
           currentAccount={currentAccount}
           onAccountChange={handleAccountChange}
           user={user}
-          onMessagingToggle={handleMessagingToggle}
+          onMessagingToggle={(open) => setIsMessagingOpen(open)}
         />
       </Box>
-
       {/* Main Content */}
       <Box
         component="main"
         sx={{
-          flex: 1,
-          py: { xs: 4, md: 6 },
+          flexGrow: 1,
+          width: '100%',
+          pt: '64px', // Header height
+          pb: '56px', // Footer height
           px: { xs: 2, sm: 3, md: 4 },
-          pb: { xs: 10, sm: 11 },
-          overflowY: 'auto',
-          display: 'block',
-          mt: '64px',
-          mb: '56px',
-          transition: 'all 0.3s ease-in-out',
+          minHeight: 'calc(100vh - 120px)', // Account for header and footer
         }}
-        className="animate-fade-in-up"
       >
         {children}
       </Box>
 
       {/* Footer */}
-      <Box
-        sx={{
+      <Box 
+        sx={{ 
           position: 'fixed',
           bottom: 0,
           left: 0,
           right: 0,
-          zIndex: theme.zIndex.appBar,
+          zIndex: theme.zIndex.appBar 
         }}
-        className="animate-fade-in-up"
       >
         {currentAccount && <Footer currentAccount={currentAccount} />}
       </Box>
 
-      {/* AI Assistant (Mobile Only) */}
+      {/* AI Assistant for mobile */}
       {!isDesktop && (
         <Fab
           color="primary"
-          aria-label="AI Assistant"
+          onClick={toggleAIAssistant}
           sx={{
             position: 'fixed',
-            bottom: { xs: 70, sm: 70 },
+            bottom: 70,
             right: 20,
-            zIndex: theme.zIndex.fab + 1,
-            width: 60,
-            height: 60,
-            borderRadius: '50%',
-            overflow: 'hidden',
-            p: 0,
+            zIndex: theme.zIndex.fab,
           }}
-          onClick={toggleAIAssistant}
         >
           <Image
             src="/EN_LightMode.png"
@@ -195,10 +190,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </Fab>
       )}
 
-      {/* AI Assistant Backdrop */}
+      {/* AI Assistant Modal */}
       {state.isActive && (
         <>
           <Box
+            onClick={toggleAIAssistant}
             sx={{
               position: 'fixed',
               top: 0,
@@ -208,7 +204,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               bgcolor: 'rgba(0, 0, 0, 0.5)',
               zIndex: theme.zIndex.modal - 1,
             }}
-            onClick={toggleAIAssistant}
           />
           <Box
             sx={{
@@ -216,10 +211,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               top: '80px',
               right: 20,
               zIndex: theme.zIndex.modal,
-              p: 2,
               maxWidth: '90vw',
               maxHeight: 'calc(100vh - 100px)',
               overflow: 'auto',
+              p: 2,
             }}
           >
             <AIAssistant />
@@ -229,8 +224,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Messaging Drawer */}
       <MessagingDrawer 
-        open={isMessagingOpen} 
-        onClose={() => setIsMessagingOpen(false)} 
+        open={isMessagingOpen}
+        onClose={() => setIsMessagingOpen(false)}
       />
     </Box>
   );

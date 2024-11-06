@@ -247,15 +247,35 @@ export default async function revokeHandler(req: NextApiRequest, res: NextApiRes
 
     const authResponse: AuthResponse = {
       user: parsedSessionData,
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-      sessionId: newSessionId,
+      session: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        sessionId: newSessionId,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      },
       onboardingComplete: parsedSessionData.onboardingStatus?.isOnboardingComplete || false,
       success: true,
       message: 'Tokens revoked and renewed successfully',
-      permissions: []
+      context: {
+        currentTenant: undefined, // Add appropriate context data here
+        tenantOperations: {
+          switchTenant: async (tenantId: string) => {
+            // Implementation provided by client
+          },
+          getCurrentTenantRole: () => parsedSessionData.tenants.associations[parsedSessionData.tenants.context.currentTenantId]?.role,
+          getCurrentTenantPermissions: () => parsedSessionData.tenants.associations[parsedSessionData.tenants.context.currentTenantId]?.permissions,
+          isPersonalTenant: (tenantId: string) => tenantId === parsedSessionData.tenants.context.personalTenantId
+        },
+        tenantQueries: {
+          getCurrentTenant: () => parsedSessionData.tenants.context.currentTenantId,
+          getPersonalTenant: () => parsedSessionData.tenants.context.personalTenantId,
+          getTenantRole: (tenantId: string) => parsedSessionData.tenants.associations[tenantId]?.role,
+          getTenantPermissions: (tenantId: string) => parsedSessionData.tenants.associations[tenantId]?.permissions || [],
+          hasActiveTenantAssociation: (tenantId: string) => parsedSessionData.tenants.associations[tenantId]?.status === 'active'
+        }
+      }
     };
-
+  
     // Record final security metric
     monitoringManager.metrics.recordMetric(
       MetricCategory.SECURITY,

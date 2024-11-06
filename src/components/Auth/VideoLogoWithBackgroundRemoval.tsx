@@ -7,7 +7,7 @@ const VideoContainer = styled('div')({
     borderRadius: '50%',
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: 'black', // Ensure black background
+    backgroundColor: 'var(--app-background-color)', // Use CSS variable for background color
 });
 
 const VideoElement = styled('video')<{ $scale: number, $offsetX: number, $offsetY: number }>(

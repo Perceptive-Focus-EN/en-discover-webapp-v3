@@ -116,6 +116,13 @@ export class LoggerManager implements ILogger {
     this.log(LogLevel.DEBUG, message, metadata);
   }
 
+  public generateRequestId(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+    const systemPrefix = this.systemContext.systemId.substring(0, 4);
+    return `${systemPrefix}_${timestamp}_${random}`;
+  }
+
   public child(metadata: Record<string, unknown>): ILogger {
     return LoggerManager.getInstance(
       {

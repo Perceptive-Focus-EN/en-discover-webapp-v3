@@ -44,7 +44,7 @@ const AccessKeyCreationPage: React.FC = () => {
   };
 
   return (
-    <Paper elevation={3} sx={{ mt: 4, p: 4, backgroundColor: 'transparent' }}>
+    <Paper elevation={3} sx={{ mt: 4, p: 4, pt: 8, pb: 8, backgroundColor: 'transparent', overflow: 'auto', maxHeight: '80vh' }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4" component="h1">
           Access Key and Security Management

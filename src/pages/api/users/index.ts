@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
-import { UpdateUserInfoRequest, User, ExtendedUserInfo } from '../../../types/User/interfaces';
+import {  User, ExtendedUserInfo } from '../../../types/User/interfaces';
 import { COLLECTIONS } from '../../../constants/collections';
 import { authMiddleware } from '../../../middlewares/authMiddleware';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
@@ -28,7 +28,7 @@ async function updateUserInfoHandler(
   const decodedToken = (req as any).user;
 
   try {
-    const updatedInfo = req.body as UpdateUserInfoRequest;
+    const updatedInfo = req.body as Partial<User>;
     const client = await getCosmosClient();
     const db = client.db;
     const usersCollection = db.collection(COLLECTIONS.USERS);

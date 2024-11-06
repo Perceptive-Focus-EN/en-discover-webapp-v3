@@ -2,8 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
 import { authMiddleware } from '../../../middlewares/authMiddleware';
-import { User, ExtendedUserInfo } from '../../../types/User/interfaces';
-import { TenantInfo } from '../../../types/Tenant/interfaces';
+import { User, ExtendedUserInfo } from '../../../types/types/User/interfaces';
 import { ROLES } from '@/constants/AccessKey/AccountRoles';
 import { MongoClient, Db } from 'mongodb';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
@@ -86,9 +85,16 @@ async function linkAccountsHandler(req: NextApiRequest, res: NextApiResponse) {
       }
 
       // Record tenant merge metrics
-      const initialTenantCount = currentUser.tenants.length;
-      const mergedTenants = [...new Set([...currentUser.tenants, ...accountToLink.tenants])];
-      const mergedTenantAssociations = [...currentUser.tenantAssociations, ...accountToLink.tenantAssociations];
+      const initialTenantCount = Array.isArray(currentUser.tenants) ? currentUser.tenants.length : 0;
+      const mergedTenants = [...new Set([
+        ...(Array.isArray(currentUser.tenants) ? currentUser.tenants : []),
+        ...(Array.isArray(accountToLink.tenants) ? accountToLink.tenants : [])
+      ])];
+      const mergedTenantAssociations = [...new Set([
+        ...(Array.isArray(currentUser.tenants.associations) ? currentUser.tenants.associations: []),
+        ...(Array.isArray(accountToLink.tenants.associations) ? accountToLink.tenants.associations : [])
+      ])];
+
 
       monitoringManager.metrics.recordMetric(
         MetricCategory.BUSINESS,

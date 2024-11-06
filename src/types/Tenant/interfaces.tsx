@@ -1,72 +1,122 @@
 // src/types/Tenant/interfaces.ts
 
-import { AllRoles } from "@/constants/AccessKey/AccountRoles/index";
-import { AccessLevel } from "@/constants/AccessKey/access_levels";
-import { PersonalPermission } from "@/constants/AccessKey/permissions/personal";
-import { AnnualRevenue, EmployeeCount, Goals, Industry } from "../Shared/enums";
-import { User } from "../User/interfaces";
+import { Industry, EmployeeCount, AnnualRevenue, Goals } from "../Shared/enums";
 import { UserAccountTypeEnum } from "@/constants/AccessKey/accounts";
+import { AllRoles } from "@/constants/AccessKey/AccountRoles";
 
-export interface BaseTenant {
-    tenantId: string;
-    name: string;
-    domain: string;
-    email: string;
-    industry: Industry;
-    type: UserAccountTypeEnum;
-    isActive: boolean;
-    createdAt: string;
-    updatedAt: string;
+
+// Ownership Management:
+
+export interface TenantOwnership {
+  currentOwnerId: string;
+  ownershipHistory: Array<{
+    userId: string;
+    startDate: string;
+    endDate?: string;
+  }>;
 }
 
 export interface TenantDetails {
-    employeeCount?: EmployeeCount;
-    annualRevenue?: AnnualRevenue;
-    goals?: Goals[];
-    formationDate?: string;
-    phone?: string;
-    address?: string;
-    city?: string;
-    state?: string;
-    zip?: string;
-    country?: string;
-    website?: string;
-    region: string;
+  employeeCount?: EmployeeCount;
+  annualRevenue?: AnnualRevenue;
+  goals?: Goals[];
+  formationDate?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
+  website?: string;
+  region: string;
+}
+
+export interface TenantMember {
+  userId: string;
+  role: AllRoles;
+  joinedAt: string;
+  status: 'active' | 'suspended' | 'pending';
+  statusUpdatedAt: string;
+  lastActiveAt: string;
+}
+
+export interface TenantSettings {
+  joinRequests: {
+    enabled: boolean;
+    requireApproval: boolean;
+    autoExpireHours?: number;
+  };
+  userLimits: {
+    maxUsers: number;
+    warningThreshold: number;
+  };
+  security: {
+    mfaRequired: boolean;
+    sessionTimeout: number;
+    passwordPolicy: {
+      minLength: number;
+      requireSpecialChars: boolean;
+      requireNumbers: boolean;
+    };
+  };
+  resourceManagement: {
+    quotaEnabled: boolean;
+    quotaLimit: number;
+    warningThreshold: number;
+  };
+}
+
+export interface BaseTenant {
+  tenantId: string;
+  name: string;
+  domain: string;
+  email: string;
+  industry: Industry;
+  type: UserAccountTypeEnum;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Tenant extends BaseTenant {
-    ownerId: string;
-    users: string[]; // Array of userIds
-    usersCount: number;
-    parentTenantId?: string;
-    pendingUserRequests: string[]; // Array of user IDs with pending join requests
-    details: TenantDetails;
-    resourceUsage: number;
-    resourceLimit: number;
-    isDeleted: boolean;
+  ownership: TenantOwnership;
+
+  members: {
+    active: TenantMember[];
+    suspended: TenantMember[];
+    pending: TenantMember[];
+  };
+  membersCount: {
+    active: number;
+    suspended: number;
+    pending: number;
+    total: number;
+  };
+  parentTenantId?: string;
+  childTenants?: string[];
+  details: TenantDetails;
+  settings: TenantSettings;
+  resourceUsage: number;
+  resourceLimit: number;
+  isDeleted: boolean;
+  lastActivityAt: string;
 }
 
-export interface TenantInfo extends Tenant {}
-
-export interface UserWithTenantInfo extends User {
-    tenantInfo: TenantInfo | null;
+export interface CreateTenantRequest {
+  name: string;
+  domain?: string;
+  email: string;
+  industry: Industry;
+  type: UserAccountTypeEnum;
+  details?: Partial<TenantDetails>;
+  settings?: Partial<TenantSettings>;
 }
 
-export interface TenantAssociation {
-    accountType: UserAccountTypeEnum;
-    tenantId: string;
-    role: AllRoles;
-    accessLevel: AccessLevel;
-    permissions: PersonalPermission[];
-    tenant: BaseTenant & {
-        avatarUrl?: string;
-        ownerId?: string;
-        users?: string[]; // Array of userIds
-        usersCount?: number;
-        parentTenantId?: string;
-        details?: TenantDetails;
-        resourceUsage?: number;
-        resourceLimit?: number;
-        isDeleted?: boolean;
-    };
+export interface UpdateTenantRequest {
+  name?: string;
+  domain?: string;
+  email?: string;
+  industry?: Industry;
+  details?: Partial<TenantDetails>;
+  settings?: Partial<TenantSettings>;
 }

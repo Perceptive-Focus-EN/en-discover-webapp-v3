@@ -1,12 +1,12 @@
 import React from 'react';
-import { Box, Typography, Link, styled } from '@mui/material';
+import { Typography, Link, styled } from '@mui/material';
 import NextLink from 'next/link';
 import LoginForm from '../components/Auth/LoginForm';
 import { LoginRequest } from '../types/Login/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 
-const CenteredBox = styled(Box)(({ theme }) => ({
+const CenteredBox = styled('div')(({ theme }) => ({
   minHeight: '100vh',
   display: 'flex',
   flexDirection: 'column',
@@ -43,7 +43,7 @@ const LoginPage: React.FC = () => {
         onMagicLinkRequest={handleMagicLinkRequest}
         loading={loading}
       />
-      <Box sx={{ mt: 2, textAlign: 'center' }}>
+      <div style={{ marginTop: '16px', textAlign: 'center' }}>
         <Typography variant="body2">
           Don't have an account?{' '}
           <Link 
@@ -56,9 +56,9 @@ const LoginPage: React.FC = () => {
             Sign up here
           </Link>
         </Typography>
-      </Box>
-      <Box sx={{ mt: 3, textAlign: 'center' }}>
-        <Typography variant="body2" sx={{ fontSize: '0.75rem', opacity: 0.7 }}>
+      </div>
+      <div style={{ marginTop: '24px', textAlign: 'center' }}>
+        <Typography variant="body2" style={{ fontSize: '0.75rem', opacity: 0.7 }}>
           By continuing, you agree to our{' '}
           <NextLink href="/settings/terms" passHref>
             <Link color="primary" underline="hover">Terms of Service</Link>
@@ -72,7 +72,7 @@ const LoginPage: React.FC = () => {
             <Link color="primary" underline="hover">FAQ</Link>
           </NextLink>.
         </Typography>
-      </Box>
+      </div>
     </CenteredBox>
   );
 };

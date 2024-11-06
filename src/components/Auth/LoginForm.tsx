@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { 
   TextField, 
   Button, 
-  Grid, 
   IconButton, 
   InputAdornment, 
   Typography,
@@ -147,69 +146,62 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, onMagicLinkRequest, loa
           </Typography>
         </Box>
         <form onSubmit={handleSubmit} noValidate>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <StyledTextField
-                fullWidth
-                type="email"
-                name="email"
-                label="Email"
-                value={formData.email}
-                onChange={handleChange}
-                disabled={loading}
-                required
-                autoComplete="email"
-              />
-            </Grid>
-            {!isMagicLinkRequested && (
-              <Grid item xs={12}>
-                <StyledTextField
-                  fullWidth
-                  name="password"
-                  label="Password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={handleChange}
-                  disabled={loading}
-                  required
-                  autoComplete="current-password"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label="toggle password visibility"
-                          onClick={togglePasswordVisibility}
-                          edge="end"
-                        >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-            )}
-            <Grid item xs={12}>
-              <StyledButton
-                type="submit"
-                fullWidth
-                variant="contained"
-                disabled={loading}
-              >
-                {isMagicLinkRequested ? 'Check Email for Magic Link' : 'Sign In'}
-              </StyledButton>
-            </Grid>
-            <Grid item xs={12}>
-              <StyledButton
-                fullWidth
-                variant="outlined"
-                onClick={handleMagicLinkRequest}
-                disabled={loading}
-              >
-                {isMagicLinkRequested ? 'Resend Magic Link' : 'Sign in with Magic Link'}
-              </StyledButton>
-            </Grid>
-          </Grid>
+          <StyledTextField
+            fullWidth
+            type="email"
+            name="email"
+            label="Email"
+            value={formData.email}
+            onChange={handleChange}
+            disabled={loading}
+            required
+            autoComplete="email"
+            sx={{ mb: 2 }}
+          />
+          {!isMagicLinkRequested && (
+            <StyledTextField
+              fullWidth
+              name="password"
+              label="Password"
+              type={showPassword ? 'text' : 'password'}
+              value={formData.password}
+              onChange={handleChange}
+              disabled={loading}
+              required
+              autoComplete="current-password"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={togglePasswordVisibility}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 2 }}
+            />
+          )}
+          <StyledButton
+            type="submit"
+            fullWidth
+            variant="contained"
+            disabled={loading}
+            sx={{ mb: 2 }}
+          >
+            {isMagicLinkRequested ? 'Check Email for Magic Link' : 'Sign In'}
+          </StyledButton>
+          <StyledButton
+            fullWidth
+            variant="outlined"
+            onClick={handleMagicLinkRequest}
+            disabled={loading}
+          >
+            {isMagicLinkRequested ? 'Resend Magic Link' : 'Sign in with Magic Link'}
+          </StyledButton>
         </form>
       </StyledPaper>
     </Fade>

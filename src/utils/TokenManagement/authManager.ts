@@ -1,12 +1,13 @@
 // src/utils/TokenManagement/authManager.ts
 import tokenService from './TokenService';
-import { AuthResponse } from '../../types/Login/interfaces';
+import { AuthResponse, SessionInfo, AuthContext } from '../../types/Login/interfaces';
 import { API_ENDPOINTS } from '../../constants/endpointsConstants';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { SecurityError } from '@/MonitoringSystem/constants/errors';
 import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 import { DecodedToken } from './clientTokenUtils';
+import { User } from '@/types/User/interfaces';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
@@ -86,9 +87,9 @@ export const authManager = {
   // Auth State Management
   async setAuthState(authResponse: AuthResponse): Promise<void> {
     tokenService.setTokens(
-      authResponse.accessToken,
-      authResponse.refreshToken,
-      authResponse.sessionId
+      authResponse.session.accessToken,
+      authResponse.session.refreshToken,
+      authResponse.session.sessionId
     );
     tokenService.storeUser(JSON.stringify(authResponse.user));
   },
@@ -103,21 +104,56 @@ export const authManager = {
       const sessionId = tokenService.getSessionId();
       const storedUser = tokenService.getStoredUser();
 
-      if (!refreshToken || !sessionId || !storedUser) return null;
+      if (!storedUser) {
+        throw new Error('No stored user data found');
+      }
+
+      const parsedUser = JSON.parse(storedUser) as Omit<User, 'password'>;
+      const currentTenantId = parsedUser.tenants.context.currentTenantId;
+      const currentAssociation = parsedUser.tenants.associations[currentTenantId];
+
+      const sessionInfo: SessionInfo = {
+        accessToken: token,
+        refreshToken: refreshToken || '',
+        sessionId: sessionId || '',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      };
+
+      const context: AuthContext = {
+        currentTenant: undefined, // Will be populated by server
+        tenantOperations: {
+          switchTenant: async (tenantId: string) => {
+            // Implementation provided by client
+          },
+          getCurrentTenantRole: () => currentAssociation.role,
+          getCurrentTenantPermissions: () => currentAssociation.permissions,
+          isPersonalTenant: (tenantId: string) => 
+            tenantId === parsedUser.tenants.context.personalTenantId
+        },
+        tenantQueries: {
+          getCurrentTenant: () => currentTenantId,
+          getPersonalTenant: () => parsedUser.tenants.context.personalTenantId,
+          getTenantRole: (tenantId: string) => 
+            parsedUser.tenants.associations[tenantId]?.role,
+          getTenantPermissions: (tenantId: string) => 
+            parsedUser.tenants.associations[tenantId]?.permissions || [],
+          hasActiveTenantAssociation: (tenantId: string) => 
+            parsedUser.tenants.associations[tenantId]?.status === 'active'
+        }
+      };
 
       return {
-        accessToken: token,
-        refreshToken,
-        sessionId,
-        user: JSON.parse(storedUser),
         success: true,
         message: 'Tokens refreshed successfully',
-        onboardingComplete: JSON.parse(storedUser).onboardingStatus?.isOnboardingComplete || false
+        user: parsedUser,
+        session: sessionInfo,
+        context,
+        onboardingComplete: parsedUser.onboardingStatus?.isOnboardingComplete || false
       };
     } catch (error) {
       monitoringManager.logger.error(
-        new Error('Token refresh failed'),
-        SecurityError.AUTH_TOKEN_FAILED,
+        new Error('Token refresh failed'), 
+        SecurityError.AUTH_TOKEN_FAILED, 
         {
           category: LogCategory.SECURITY,
           pattern: LOG_PATTERNS.SECURITY,
@@ -156,12 +192,12 @@ export const authManager = {
 
   // Session Management
   async revokeTokens(): Promise<AuthResponse | null> {
-  const refreshToken = tokenService.getRefreshToken();
-  const sessionId = tokenService.getSessionId();
-  const tokenPayload = tokenService.getTokenPayload<DecodedToken>(tokenService.getAccessToken() || '');
-  const userId = tokenPayload?.userId;
+    const refreshToken = tokenService.getRefreshToken();
+    const sessionId = tokenService.getSessionId();
+    const tokenPayload = tokenService.getTokenPayload<DecodedToken>(tokenService.getAccessToken() || '');
+    const userId = tokenPayload?.userId;
 
-  if (refreshToken && sessionId && userId) {
+    if (refreshToken && sessionId && userId) {
       const response = await fetchWithAuth(API_ENDPOINTS.REVOKE_TOKENS, {
         method: 'POST',
         body: JSON.stringify({ refreshToken, sessionId, userId }),
@@ -175,56 +211,57 @@ export const authManager = {
   },
 
   async logout(): Promise<void> {
-  const startTime = Date.now();
-  try {
-    // Get the current token before clearing
-    const currentToken = tokenService.getAccessToken();
-    
-    // Clear tokens first to prevent further authenticated requests
-    tokenService.clearTokens();
-    tokenService.clearStoredUser();
+    const startTime = Date.now();
+    try {
+      // Get the current token before clearing
+      const currentToken = tokenService.getAccessToken();
+      
+      // Clear tokens first to prevent further authenticated requests
+      tokenService.clearAllTokens();
+      tokenService.clearStoredUser();
 
-    // Only try to revoke if we had a token
-    if (currentToken) {
-      try {
-        // Make the logout request with the stored token
-        await fetch(`${BASE_URL}${API_ENDPOINTS.LOGOUT_USER}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${currentToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-      } catch (error) {
-        // Log but don't throw - we still want to clear local state
-        console.error('Logout request failed:', error);
-      }
-    }
-
-    monitoringManager.metrics.recordMetric(
-      MetricCategory.SECURITY,
-      'auth',
-      'logout_success',
-      1,
-      MetricType.COUNTER,
-      MetricUnit.COUNT,
-      { duration: Date.now() - startTime }
-    );
-  } catch (error) {
-    monitoringManager.logger.error(
-      new Error('Logout failed'),
-      SecurityError.AUTH_LOGOUT_FAILED,
-      {
-        category: LogCategory.SECURITY,
-        pattern: LOG_PATTERNS.SECURITY,
-        metadata: {
-          error,
-          duration: Date.now() - startTime
+      // Only try to revoke if we had a token
+      if (currentToken) {
+        try {
+          // Make the logout request with the stored token
+          await fetch(`${BASE_URL}${API_ENDPOINTS.LOGOUT_USER}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${currentToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        } catch (error) {
+          // Log but don't throw - we still want to clear local state
+          console.error('Logout request failed:', error);
         }
       }
-    );
-  }
-},
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.SECURITY,
+        'auth',
+        'logout_success',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        { duration: Date.now() - startTime }
+      );
+    } catch (error) {
+      monitoringManager.logger.error(
+        new Error('Logout failed'),
+        SecurityError.AUTH_LOGOUT_FAILED,
+        {
+          category: LogCategory.SECURITY,
+          pattern: LOG_PATTERNS.SECURITY,
+          metadata: {
+            error,
+            duration: Date.now() - startTime
+          }
+        }
+      );
+    }
+  },
+
   // Auth Status
   isAuthenticated(): boolean {
     const accessToken = tokenService.getAccessToken();

@@ -9,9 +9,10 @@ import { LoginRequest } from '../types/Login/interfaces';
 import { SignupRequest } from '../types/Signup/interfaces';
 import { ExtendedUserInfo } from '../types/User/interfaces';
 import { OnboardingStepRequest, OnboardingStatusDetails } from '../types/Onboarding/interfaces';
-import { TenantInfo } from '@/types/Tenant/interfaces';
 // src/contexts/AuthContext.tsx
 import authManager from '../utils/TokenManagement/authManager';  // Change from * import
+import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
+import { Tenant } from '@/types/Tenant/interfaces';
 
 interface AuthContextType {
   user: ExtendedUserInfo | null;
@@ -27,7 +28,7 @@ interface AuthContextType {
   requestMagicLink: (email: string) => Promise<void>;
   switchTenant: (tenantId: string) => Promise<void>;
   joinTenant: (tenantId: string) => Promise<void>;
-  getUserTenants: () => Promise<TenantInfo[]>;
+  getUserTenants: () => Promise<Tenant[]>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -109,8 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await authorizationApi.login(loginData);
       if (response?.user) {
-        authManager.setTokens(response.accessToken, response.refreshToken, response.sessionId);
-        setUserAndStore(response.user);
+        authManager.setTokens(response.session.accessToken, response.session.refreshToken, response.session.sessionId);
+        setUserAndStore({ ...response.user, password: '' });
         router.push(response.onboardingComplete ? '/moodboard' : '/onboarding');
       } else {
         throw new Error('Invalid login response');
@@ -120,12 +121,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw error; // Re-throw the error to handle it in the UI
     }
   };
+  
 
   const verifyMagicLink = async (token: string): Promise<boolean> => {
     try {
       const response = await authManager.verifyMagicLink(token);
       if (response?.user) {
-        setUserAndStore(response.user);
+        setUserAndStore({ ...response.user, password: '' });
         setOnboardingStatus(response.user.onboardingStatus as OnboardingStatusDetails | null);
         return true;
       }
@@ -160,34 +162,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const switchTenant = async (tenantId: string) => {
-    try {
-      const updatedUser = await userApi.switchTenant(tenantId);
-      setUserAndStore(updatedUser);
-    } catch (error) {
-      console.error('Failed to switch tenant:', error);
-      throw error;
-    }
-  };
+    const switchTenant = async (tenantId: string) => {
+  try {
+    // Call the API to switch tenants
+    await userApi.switchTenant(tenantId);
 
-  const joinTenant = async (tenantId: string) => {
-    try {
-      const updatedUser = await userApi.joinTenant(tenantId);
-      setUserAndStore(updatedUser);
-    } catch (error) {
-      console.error('Failed to join tenant:', error);
-      throw error;
-    }
-  };
+    // Fetch the updated user data to ensure the UI reflects the new tenant context
+    const updatedUser = await userApi.getCurrentUser();
+    setUserAndStore(updatedUser); // Update state and local storage
+  } catch (error) {
+    console.error('Failed to switch tenant:', error);
+    throw error; // Propagate the error for handling in the UI if needed
+  }
+};
 
-  const getUserTenants = async () => {
-    try {
-      return await userApi.getUserTenants();
-    } catch (error) {
-      console.error('Failed to fetch user tenants:', error);
-      return [];
-    }
-  };
+    const joinTenant = async (tenantId: string) => {
+      try {
+        const response = await userApi.joinTenantWithInvite({
+          tenantId,
+          inviteCode: '',
+          firstName: '',
+          lastName: '',
+          email: '',
+          password: '',
+          phone: '',
+          tenantName: '',
+          accountType: UserAccountTypeEnum.MEMBER,
+        });
+        const updatedUser = response.user as ExtendedUserInfo;
+        setUserAndStore(updatedUser);
+      } catch (error) {
+        console.error('Failed to join tenant:', error);
+        throw error;
+      }
+    };
+
+
+  const getUserTenants = async (): Promise<Tenant[]> => {
+  try {
+    const tenants = await userApi.getUserTenants();
+    // Already returns Tenant[] from the API
+    return tenants;
+  } catch (error) {
+    console.error('Failed to fetch user tenants:', error);
+    return [];
+  }
+};
 
   return (
     <AuthContext.Provider

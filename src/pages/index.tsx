@@ -160,7 +160,7 @@ const DashboardPage: NextPage = () => {
         <EmotionDisplay
           emotions={emotions}
           onEmotionSelect={handleEmotionDisplaySelect}
-          tenantId={user?.tenantId || ''}
+          tenantId={user.currentTenant?.tenantId ?? ''}
         />
       )}
 

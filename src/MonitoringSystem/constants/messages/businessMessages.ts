@@ -13,7 +13,12 @@ export const BusinessMessages = {
         warn: 'User creation issues detected',
         info: 'User creation attempted'
     },
-
+    [BusinessError.USER_UPDATE_FAILED]: {
+        error: 'Failed to update user',
+        warn: 'User update issues detected',
+        info: 'User update attempted'
+    },
+    
     // Tenant Management
     [BusinessError.TENANT_NOT_FOUND]: {
         error: 'Tenant not found',
@@ -25,6 +30,155 @@ export const BusinessMessages = {
         warn: 'Approaching tenant limit',
         info: 'Tenant limit checked'
     },
+    [BusinessError.TENANT_CREATE_FAILED]: {
+        error: 'Failed to create tenant',
+        warn: 'Tenant creation issues detected',
+        info: 'Tenant creation attempted'
+    },
+    [BusinessError.TENANT_UPDATE_FAILED]: {
+        error: 'Failed to update tenant',
+        warn: 'Tenant update issues detected',
+        info: 'Tenant update attempted'
+    },
+    [BusinessError.TENANT_DELETE_FAILED]: {
+        error: 'Failed to delete tenant',
+        warn: 'Tenant deletion issues detected',
+        info: 'Tenant deletion attempted'
+    },
+    [BusinessError.TENANT_SUSPEND_FAILED]: {
+        error: 'Failed to suspend tenant',
+        warn: 'Tenant suspension issues detected',
+        info: 'Tenant suspension attempted'
+    },
+    [BusinessError.TENANT_REACTIVATE_FAILED]: {
+        error: 'Failed to reactivate tenant',
+        warn: 'Tenant reactivation issues detected',
+        info: 'Tenant reactivation attempted'
+    },
+    [BusinessError.TENANT_INVALID_NAME]: {
+        error: 'Invalid tenant name',
+        warn: 'Tenant name validation failed',
+        info: 'Tenant name validation performed'
+    },
+    [BusinessError.TENANT_INVALID_DOMAIN]: {
+        error: 'Invalid tenant domain',
+        warn: 'Tenant domain validation failed',
+        info: 'Tenant domain validation performed'
+    },
+    [BusinessError.TENANT_INVALID_EMAIL]: {
+        error: 'Invalid tenant email',
+        warn: 'Tenant email validation failed',
+        info: 'Tenant email validation performed'
+    },
+    [BusinessError.TENANT_INVALID_INDUSTRY]: {
+        error: 'Invalid tenant industry',
+        warn: 'Tenant industry validation failed',
+        info: 'Tenant industry validation performed'
+    },
+    [BusinessError.TENANT_INVALID_TYPE]: {
+        error: 'Invalid tenant type',
+        warn: 'Tenant type validation failed',
+        info: 'Tenant type validation performed'
+    },
+    [BusinessError.TENANT_INVALID_STATUS]: {
+        error: 'Invalid tenant status',
+        warn: 'Tenant status validation failed',
+        info: 'Tenant status validation performed'
+    },
+    [BusinessError.TENANT_INVALID_OWNER]: {
+        error: 'Invalid tenant owner',
+        warn: 'Tenant owner validation failed',
+        info: 'Tenant owner validation performed'
+    },
+    [BusinessError.TENANT_INVALID_DETAILS]: {
+        error: 'Invalid tenant details',
+        warn: 'Tenant details validation failed',
+        info: 'Tenant details validation performed'
+    },
+    [BusinessError.TENANT_INVALID_SETTINGS]: {
+        error: 'Invalid tenant settings',
+        warn: 'Tenant settings validation failed',
+        info: 'Tenant settings validation performed'
+    },
+    [BusinessError.TENANT_INVALID_JOIN_REQUESTS]: {
+        error: 'Invalid tenant join requests',
+        warn: 'Tenant join requests validation failed',
+        info: 'Tenant join requests validation performed'
+    },
+    [BusinessError.TENANT_INVALID_USER_LIMITS]: {
+        error: 'Invalid tenant user limits',
+        warn: 'Tenant user limits validation failed',
+        info: 'Tenant user limits validation performed'
+    },
+    [BusinessError.TENANT_INVALID_SECURITY]: {
+        error: 'Invalid tenant security settings',
+        warn: 'Tenant security settings validation failed',
+        info: 'Tenant security settings validation performed'
+    },
+
+    // Account Management
+    [BusinessError.ACCOUNT_UPDATE_FAILED]: {
+        error: 'Failed to update account',
+        warn: 'Account update issues detected',
+        info: 'Account update attempted'
+    },
+    [BusinessError.ACCOUNT_DELETE_FAILED]: {
+        error: 'Failed to delete account',
+        warn: 'Account deletion issues detected',
+        info: 'Account deletion attempted'
+    },
+    [BusinessError.ACCOUNT_SUSPEND_FAILED]: {
+        error: 'Failed to suspend account',
+        warn: 'Account suspension issues detected',
+        info: 'Account suspension attempted'
+    },
+    [BusinessError.ACCOUNT_REACTIVATE_FAILED]: {
+        error: 'Failed to reactivate account',
+        warn: 'Account reactivation issues detected',
+        info: 'Account reactivation attempted'
+    },
+    [BusinessError.ACCOUNT_INVALID_NAME]: {
+        error: 'Invalid account name',
+        warn: 'Account name validation failed',
+        info: 'Account name validation performed'
+    },
+    [BusinessError.ACCOUNT_INVALID_TYPE]: {
+        error: 'Invalid account type',
+        warn: 'Account type validation failed',
+        info: 'Account type validation performed'
+    },
+    [BusinessError.ACCOUNT_INVALID_STATUS]: {
+        error: 'Invalid account status',
+        warn: 'Account status validation failed',
+        info: 'Account status validation performed'
+    },
+    [BusinessError.ACCOUNT_INVALID_INDUSTRY]: {
+        error: 'Invalid account industry',
+        warn: 'Account industry validation failed',
+        info: 'Account industry validation performed'
+    },
+    [BusinessError.ACCOUNT_INVALID_OWNER]: {
+        error: 'Invalid account owner',
+        warn: 'Account owner validation failed',
+        info: 'Account owner validation performed'
+    },
+    [BusinessError.ACCOUNT_INVALID_SUBSCRIPTION]: {
+        error: 'Invalid account subscription',
+        warn: 'Account subscription validation failed',
+        info: 'Account subscription validation performed'
+    },
+    [BusinessError.ACCOUNT_INVALID_SUBSCRIPTION_STATUS]: {
+        error: 'Invalid account subscription status',
+        warn: 'Account subscription status validation failed',
+        info: 'Account subscription status validation performed'
+    },
+    [BusinessError.ACCOUNT_INVALID_SUBSCRIPTION_TYPE]: {
+        error: 'Invalid account subscription type',
+        warn: 'Account subscription type validation failed',
+        info: 'Account subscription type validation performed'
+    },
+
+
 
     // Subscription Management
     [BusinessError.SUBSCRIPTION_CREATE_FAILED]: {
@@ -66,10 +220,34 @@ export const BusinessMessages = {
     },
 
     // Resource Management
+    [BusinessError.RESOURCE_NOT_FOUND]: {
+        error: 'Resource not found',
+        warn: 'Resource lookup failed',
+        info: 'Resource search performed'
+    },
+
+    [BusinessError.RESOURCE_CREATE_FAILED]: {
+        error: 'Failed to create resource',
+        warn: 'Resource creation issues',
+        info: 'Resource creation attempted'
+    },
+
+    [BusinessError.RESOURCE_UPDATE_FAILED]: {
+        error: 'Failed to update resource',
+        warn: 'Resource update issues',
+        info: 'Resource update attempted'
+    },
+
     [BusinessError.RESOURCE_LIMIT_EXCEEDED]: {
         error: 'Resource limit exceeded',
         warn: 'Approaching resource limit',
         info: 'Resource usage checked'
+    },
+
+    [BusinessError.RESOURCE_DELETE_FAILED]: {
+        error: 'Failed to delete resource',
+        warn: 'Resource deletion issues',
+        info: 'Resource deletion attempted'
     },
 
     // Onboarding
@@ -132,34 +310,29 @@ export const BusinessMessages = {
         info: 'Metrics format validation performed'
     },
 
+    // Post Management
     [BusinessError.POST_CREATION_SUCCESS]: {
         error: 'Post created successfully',
         warn: 'Post creation issues',
         info: 'Post creation attempted'
     },
-
-[BusinessError.POST_CREATION_FAILURE]: {
+    [BusinessError.POST_CREATION_FAILURE]: {
         error: 'Failed to create post',
         warn: 'Post creation issues',
         info: 'Post creation attempted'
-},
-
-    [BusinessError.USER_UPDATE_FAILED]: {
-        error: 'Failed to update user',
-        warn: 'User update issues detected',
-        info: 'User update attempted'
     },
 
+    // File Uploads
     [BusinessError.UPLOAD_FAILED]: {
         error: 'Failed to upload file',
         warn: 'File upload issues detected',
         info: 'File upload attempted'
     },
 
+    // Text Generation
     [BusinessError.GENERATE_TEXT_FAILURE]: {
         error: 'Failed to generate text',
         warn: 'Text generation issues detected',
         info: 'Text generation attempted'
     },
-
 } as const;

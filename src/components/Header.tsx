@@ -6,7 +6,7 @@ import {
     IconButton,
     Box,
     useTheme,
-    SwipeableDrawer,
+    SwipeableDrawer as MuiSwipeableDrawer,
     useMediaQuery,
     Menu,
 } from '@mui/material';
@@ -18,64 +18,82 @@ import { useRouter } from 'next/router';
 import AvatarComponent from './Uploads/AvatarComponent';
 import TenantSwitcher from './TenantSwitcher';
 import ThemeToggleIcon from './ui/ThemeToggleIcon';
-import { ExtendedUserInfo, User } from '../types/User/interfaces';
+import { ExtendedUserInfo, User, TenantAssociation } from '../types/User/interfaces';
 
 interface HeaderProps {
     onAccountChange: (tenantId: string) => void;
     currentAccount: ExtendedUserInfo | null;
     user: User | null;
-    onMessagingToggle: (open: boolean) => void; // Added prop for messaging toggle
+    onMessagingToggle: (open: boolean) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user, onMessagingToggle }) => {
-    const { settings, updateTheme } = useSettings();
+    const { updateTheme } = useSettings();
     const { mode, toggleThemeMode } = useContext(ThemeModeContext);
     const { toggleAIAssistant } = useAIAssistant();
     const theme = useTheme();
     const router = useRouter();
     const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-    const isMobile = useMediaQuery(theme.breakpoints.down('md')); // Changed to 'md' to include tablets
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-    // Handle theme toggle
+    // Get current tenant association from user context
+    const currentTenantAssociation = useMemo(() => {
+        if (!currentAccount?.tenants?.context?.currentTenantId || !currentAccount?.tenants?.associations) {
+            return null;
+        }
+        return currentAccount.tenants.associations[currentAccount.tenants.context.currentTenantId];
+    }, [currentAccount]);
+
+    const getPageTitle = useMemo(() => {
+        if (!currentAccount) return 'EN Discover';
+        
+        const baseTitle = router.pathname === '/' ? 'Mood board' :
+                         router.pathname === '/resources' ? 'Resources' :
+                         router.pathname === '/friends' ? 'Friends' :
+                         router.pathname === '/consultation' ? 'Consultation' : '';
+
+        // Add tenant context if not in personal tenant
+        if (baseTitle && currentTenantAssociation && 
+            currentAccount.tenants.context.currentTenantId !== currentAccount.tenants.context.personalTenantId) {
+            const tenantType = currentTenantAssociation.accountType.toLowerCase();
+            return `${baseTitle} - ${tenantType}`;
+        }
+
+        return baseTitle;
+    }, [router.pathname, currentAccount, currentTenantAssociation]);
+
     const handleThemeToggle = useCallback(() => {
         const newMode = mode === 'light' ? 'dark' : 'light';
         toggleThemeMode();
         updateTheme(newMode);
     }, [mode, toggleThemeMode, updateTheme]);
 
-    // Determine the current page title
-    const getPageTitle = useMemo(() => {
-        if (!user) {
-            return 'EN Discover';
-        }
-        switch (router.pathname) {
-            case '/': return 'Moodboard';
-            case '/resources': return 'Resources';
-            case '/friends': return 'Friends';
-            case '/consultation': return 'Consultation';
-            default: return '';
-        }
-    }, [router.pathname, user]);
-
-    // Handle drawer open for account switching
-    const handleOpenAccountDrawer = () => {
+    const handleOpenAccountDrawer = useCallback(() => {
         setIsAccountDrawerOpen(true);
-    };
+    }, []);
 
-    // Handle menu interactions
-    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    const handleCloseAccountDrawer = useCallback(() => {
+        setIsAccountDrawerOpen(false);
+    }, []);
+
+    const handleMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);
-    };
+    }, []);
 
-    const handleMenuClose = () => {
+    const handleMenuClose = useCallback(() => {
         setAnchorEl(null);
-    };
+    }, []);
 
-    // Handle messaging toggle using prop function
     const handleMessagingToggle = useCallback(() => {
-        onMessagingToggle(true); // Open messaging drawer when toggled
+        onMessagingToggle(true);
     }, [onMessagingToggle]);
+
+    const handleSwitchTenant = useCallback((tenantId: string) => {
+        onAccountChange(tenantId);
+        handleMenuClose();
+        handleCloseAccountDrawer();
+    }, [onAccountChange]);
 
     return (
         <>
@@ -93,58 +111,60 @@ const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user, 
                 className="animate-fade-in-down"
             >
                 <Toolbar sx={{ justifyContent: 'space-between', py: 1, px: { xs: 2, sm: 3, md: 4 } }}>
-                    {/* Logo & User Details */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        {user ? (
+                        {currentAccount ? (
                             <>
                                 {isMobile ? (
                                     <IconButton 
-                                        edge="start" 
-                                        color="inherit" 
-                                        aria-label="menu" 
+                                        edge="start"
+                                        color="inherit"
+                                        aria-label="menu"
                                         onClick={handleOpenAccountDrawer}
                                         className="transition-all hover:scale-105"
                                     >
                                         <MenuIcon />
                                     </IconButton>
                                 ) : (
-                                    currentAccount && (
-                                        <>
-                                            <IconButton
-                                                onClick={handleMenuOpen}
-                                                className="transition-all hover:scale-105"
-                                            >
-                                                <AvatarComponent
-                                                    user={{
-                                                        avatarUrl: currentAccount.avatarUrl,
-                                                        firstName: user.firstName,
-                                                        lastName: user.lastName,
-                                                    }}
-                                                    size={40}
-                                                />
-                                            </IconButton>
+                                    <>
+                                        <IconButton
+                                            onClick={handleMenuOpen}
+                                            className="transition-all hover:scale-105"
+                                        >
+                                            <AvatarComponent
+                                                user={{
+                                                    avatarUrl: currentAccount.avatarUrl,
+                                                    firstName: currentAccount.firstName,
+                                                    lastName: currentAccount.lastName,
+                                                }}
+                                                size={40}
+                                            />
+                                        </IconButton>
+                                        <Menu
+                                            anchorEl={anchorEl}
+                                            open={Boolean(anchorEl)}
+                                            onClose={handleMenuClose}
+                                            PaperProps={{
+                                                sx: {
+                                                    bgcolor: 'background.paper',
+                                                    borderRadius: 2,
+                                                    boxShadow: theme.shadows[3],
+                                                    minWidth: 280,
+                                                },
+                                            }}
+                                        >
+                                            <TenantSwitcher onAccountChange={handleSwitchTenant} />
+                                        </Menu>
+                                        <Box>
                                             <Typography variant="body1" color="textPrimary">
                                                 {currentAccount.firstName} {currentAccount.lastName}
                                             </Typography>
-                                            <Menu
-                                                anchorEl={anchorEl}
-                                                open={Boolean(anchorEl)}
-                                                onClose={handleMenuClose}
-                                                PaperProps={{
-                                                    sx: {
-                                                        bgcolor: 'background.paper',
-                                                        borderRadius: 2,
-                                                        boxShadow: theme.shadows[3],
-                                                    },
-                                                }}
-                                            >
-                                                    <TenantSwitcher onAccountChange={(tenantId) => {
-                                                        onAccountChange(tenantId);
-                                                        handleMenuClose();
-                                                    }} />
-                                            </Menu>
-                                        </>
-                                    )
+                                            {currentTenantAssociation && (
+                                                <Typography variant="caption" color="textSecondary">
+                                                    {currentTenantAssociation.role} • {currentTenantAssociation.accessLevel}
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    </>
                                 )}
                                 <Typography variant="h6" color="primary" sx={{ fontWeight: 'bold' }}>
                                     {getPageTitle}
@@ -157,10 +177,9 @@ const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user, 
                         )}
                     </Box>
 
-                    {/* Theme & Chat Icons */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <ThemeToggleIcon theme={mode} toggleTheme={handleThemeToggle} />
-                        {user && !isMobile && (
+                        {currentAccount && !isMobile && (
                             <>
                                 <IconButton
                                     color="primary"
@@ -174,7 +193,7 @@ const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user, 
                                         },
                                     }}
                                     className="transition-all hover:scale-105"
-                                    onClick={handleMessagingToggle} // Updated to toggle messaging drawer
+                                    onClick={handleMessagingToggle}
                                 >
                                     <ChatIcon />
                                 </IconButton>
@@ -188,7 +207,7 @@ const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user, 
                                 </IconButton>
                             </>
                         )}
-                        {!user && !isMobile && (
+                        {!currentAccount && !isMobile && (
                             <IconButton
                                 edge="start"
                                 color="inherit"
@@ -200,31 +219,28 @@ const Header: React.FC<HeaderProps> = ({ onAccountChange, currentAccount, user, 
                         )}
                     </Box>
                 </Toolbar>
-
-                {/* Mobile Drawer for Account Switching */}
-                {isMobile && user && (
-                    <SwipeableDrawer
-                        anchor="bottom"
-                        open={isAccountDrawerOpen}
-                        onClose={() => setIsAccountDrawerOpen(false)}
-                        onOpen={() => setIsAccountDrawerOpen(true)}
-                        PaperProps={{
-                            sx: {
-                                borderTopLeftRadius: 16,
-                                borderTopRightRadius: 16,
-                                bgcolor: 'background.paper',
-                            },
-                        }}
-                    >
-                        <Box className="animate-fade-in p-4">
-                            <TenantSwitcher onAccountChange={(tenantId) => {
-                                onAccountChange(tenantId);
-                                setIsAccountDrawerOpen(false);
-                            }} />
-                        </Box>
-                    </SwipeableDrawer>
-                )}
             </AppBar>
+
+            {/* Mobile drawer */}
+            {isMobile && currentAccount && (
+                <MuiSwipeableDrawer
+                    anchor="bottom"
+                    open={isAccountDrawerOpen}
+                    onClose={handleCloseAccountDrawer}
+                    onOpen={handleOpenAccountDrawer}
+                    PaperProps={{
+                        sx: {
+                            borderTopLeftRadius: 16,
+                            borderTopRightRadius: 16,
+                            bgcolor: 'background.paper',
+                        },
+                    }}
+                >
+                    <Box className="animate-fade-in p-4">
+                        <TenantSwitcher onAccountChange={handleSwitchTenant} />
+                    </Box>
+                </MuiSwipeableDrawer>
+            )}
         </>
     );
 };

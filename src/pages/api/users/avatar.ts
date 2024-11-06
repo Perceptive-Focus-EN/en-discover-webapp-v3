@@ -114,7 +114,7 @@ export default async function uploadAvatarHandler(
       });
     }
 
-    const blobName = `${user.tenantId}/${decodedToken.userId}-${Date.now()}-${file.originalFilename}`;
+    const blobName = `${user.tenants}/${decodedToken.userId}-${Date.now()}-${file.originalFilename}`;
     const fileContent = await fs.readFile(file.filepath);
 
     if (!azureBlobStorageInstance) {

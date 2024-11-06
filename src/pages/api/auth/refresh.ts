@@ -12,7 +12,12 @@ import {
   isTokenBlacklisted
 } from '../../../utils/TokenManagement/serverTokenUtils';
 import crypto from 'crypto';
-import { AuthResponse } from '../../../types/Login/interfaces';
+import { AuthResponse, SessionInfo, AuthContext } from '../../../types/Login/interfaces';
+import { User } from '../../../types/User/interfaces';
+import { Tenant } from '../../../types/Tenant/interfaces';
+import { Collection, WithId } from 'mongodb';
+import { COLLECTIONS } from '../../../constants/collections';
+import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { redisService } from '../../../services/cache/redisService';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
@@ -106,7 +111,42 @@ async function cleanupOldSession(
   }
 }
 
-export default async function refreshHandler(req: NextApiRequest, res: NextApiResponse) {
+async function enrichSessionData(
+  db: any,
+  sessionData: any
+): Promise<{ user: Omit<User, 'password'>, context: AuthContext }> {
+  const tenantsCollection = db.collection(COLLECTIONS.TENANTS) as Collection<WithId<Tenant>>;
+  const currentTenant = await tenantsCollection.findOne({ tenantId: sessionData.tenants.context.currentTenantId });
+  
+  const currentAssociation = sessionData.tenants.associations[sessionData.tenants.context.currentTenantId];
+
+  const context: AuthContext = {
+    currentTenant: currentTenant || undefined,
+    tenantOperations: {
+      switchTenant: async (tenantId: string) => {
+        // Implementation provided by client
+      },
+      getCurrentTenantRole: () => currentAssociation.role,
+      getCurrentTenantPermissions: () => currentAssociation.permissions,
+      isPersonalTenant: (tenantId: string) => tenantId === sessionData.tenants.context.personalTenantId
+    },
+    tenantQueries: {
+      getCurrentTenant: () => sessionData.tenants.context.currentTenantId,
+      getPersonalTenant: () => sessionData.tenants.context.personalTenantId,
+      getTenantRole: (tenantId: string) => sessionData.tenants.associations[tenantId]?.role,
+      getTenantPermissions: (tenantId: string) => sessionData.tenants.associations[tenantId]?.permissions || [],
+      hasActiveTenantAssociation: (tenantId: string) => 
+        sessionData.tenants.associations[tenantId]?.status === 'active'
+    }
+  };
+
+  return {
+    user: sessionData,
+    context
+  };
+}
+
+export default async function refreshHandler(req: NextApiRequest, res: NextApiResponse<AuthResponse | { error: string }>) {
   const startTime = Date.now();
   const requestId = crypto.randomUUID();
 
@@ -235,20 +275,35 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
     }
 
     const parsedSessionData = JSON.parse(sessionData);
+    const { db } = await getCosmosClient();
+
+    // Enrich session data with tenant context
+    const { user, context } = await enrichSessionData(db, parsedSessionData);
 
     // Generate new tokens
     const newAccessToken = generateAccessToken({
-      userId: parsedSessionData.userId,
-      email: parsedSessionData.email,
-      title: parsedSessionData.title,
-      tenantId: parsedSessionData.tenantId
+      userId: user.userId,
+      email: user.email,
+      tenantId: user.tenants.context.currentTenantId,
+      role: user.tenants.associations[user.tenants.context.currentTenantId].role
     });
     const newRefreshToken = generateRefreshToken();
     const newSessionId = generateRefreshToken();
 
-    // Store new tokens
-    await redisService.storeRefreshToken(newSessionId, newRefreshToken);
-    await redisService.storeSession(newSessionId, JSON.stringify(parsedSessionData), 60 * 60 * 24);
+    // Create session info
+    const sessionInfo: SessionInfo = {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      sessionId: newSessionId,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+    };
+
+    // Store new session
+    await redisService.storeAuthenticationData(
+      newSessionId,
+      newRefreshToken,
+      JSON.stringify(user)
+    );
 
     // Cleanup old session
     await cleanupOldSession(sessionId, storedToken, newSessionId);
@@ -256,12 +311,10 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
     const authResponse: AuthResponse = {
       success: true,
       message: 'Tokens refreshed successfully',
-      user: parsedSessionData,
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-      sessionId: newSessionId,
-      onboardingComplete: parsedSessionData.onboardingStatus?.isOnboardingComplete || false,
-      permissions: []
+      user,
+      session: sessionInfo,
+      context,
+      onboardingComplete: user.onboardingStatus?.isOnboardingComplete || false
     };
 
     monitoringManager.metrics.recordMetric(
@@ -272,7 +325,7 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
       MetricType.COUNTER,
       MetricUnit.COUNT,
       {
-        userId: parsedSessionData.userId,
+        userId: user.userId,
         requestId,
         duration: Date.now() - startTime,
         component: SYSTEM_CONTEXT.component
@@ -283,7 +336,7 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
       category: LogCategory.SECURITY,
       pattern: LOG_PATTERNS.SECURITY,
       metadata: {
-        userId: parsedSessionData.userId,
+        userId: user.userId,
         requestId,
         duration: Date.now() - startTime,
         component: SYSTEM_CONTEXT.component
@@ -337,8 +390,7 @@ export default async function refreshHandler(req: NextApiRequest, res: NextApiRe
     const errorResponse = monitoringManager.error.handleError(appError);
 
     return res.status(errorResponse.statusCode).json({
-      error: errorResponse.userMessage,
-      reference: errorResponse.errorReference
+      error: errorResponse.userMessage
     });
   }
 }

@@ -1,76 +1,73 @@
-// src/types/Signup/interfaces.ts
-
+// src/types/types/Signup/interfaces.ts
 import { UserAccountType, UserAccountTypeEnum } from "@/constants/AccessKey/accounts";
 import { AccessLevel } from "@/constants/AccessKey/access_levels";
 import { AllRoles } from "@/constants/AccessKey/AccountRoles";
+import { Industry } from "../Shared/enums";
+import { TenantDetails, TenantSettings } from "../Tenant/interfaces";
+import { User } from "../User/interfaces";
+import { AuthResponse } from "../Login/interfaces";
+import { Permissions } from "../../constants/AccessKey/permissions";
+import { TenantAssociation } from "../User/interfaces";
 
+
+// Base signup data for personal tenant creation
+export interface PersonalTenantData {
+  name: string;
+  email: string;
+  industry: Industry;
+  type: UserAccountTypeEnum;
+  details?: Partial<TenantDetails>;
+  settings?: Partial<TenantSettings>;
+}
+
+// Base user signup data
 export interface SignupRequest {
   firstName: string;
   lastName: string;
-  password: string;
-  mobile: string;
   email: string;
+  password: string;
+  phone: string;
   tenantName: string;
   accountType: UserAccountType;
-  isVerified: boolean;
-  onboardingStage: string;
+  department?: string;
 }
 
-export interface SignupResponse {
-  message: string;
-  user: {
-    _id: string;
-    userId: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-    tenantId: string;
-  };
+// Response maintains consistency with login flow
+export interface SignupResponse extends Omit<AuthResponse, 'user'> {
+  user: Omit<User, 'password'>;
+}
+
+export interface TenantInviteSignupRequest extends SignupRequest {
+  inviteCode: string;
+  tenantId: string;
+}
+
+// For creating additional tenants (not during signup)
+export interface CreateTenantWithOwnerRequest {
   tenant: {
-    tenantId: string;
     name: string;
-  };
-}
-
-export interface TenantSignupData {
-  name: string;
-  // You can add more fields here if needed for tenant signup
-}
-
-export interface TenantUserSignupData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  role: AllRoles;
-  accountType: UserAccountTypeEnum;
-  accessLevel: AccessLevel;
-  department: string;
-  // Optional fields that might be useful:
-  mobile?: string;
-  isVerified?: boolean;
-  onboardingStage?: string;
-}
-
-// Combined interface for creating a tenant and its first user simultaneously
-export interface CombinedTenantAndUserSignupData {
-  tenant: TenantSignupData;
-  user: TenantUserSignupData;
-}
-
-// If you need a response type specifically for tenant user signup
-export interface TenantUserSignupResponse {
-  message: string;
-  user: {
-    id: string;
     email: string;
-    firstName: string;
-    lastName: string;
-    role: AllRoles;
-    tenantId: string;
-    accountType: UserAccountTypeEnum;
-    accessLevel: AccessLevel;
-    department: string;
+    industry: Industry;
+    type: UserAccountTypeEnum;
+    details?: Partial<TenantDetails>;
+    settings?: Partial<TenantSettings>;
   };
+  ownerUserId: string;
+  role: AllRoles;
+  accessLevel: AccessLevel;
 }
+
+// Internal helper type for tenant association during signup
+export interface InitialTenantAssociation extends TenantAssociation {
+  role: AllRoles;
+  accessLevel: AccessLevel;
+  accountType: UserAccountType;
+  status: 'active';
+  permissions: Permissions[];
+  joinedAt: string;
+  lastActiveAt: string;
+  statusUpdatedAt: string;
+}
+
+
+

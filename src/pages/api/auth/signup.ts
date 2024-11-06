@@ -1,319 +1,351 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
-import { SignupRequest, SignupResponse } from '../../../types/Signup/interfaces';
-import { Tenant } from '../../../types/Tenant/interfaces';
-import { User } from '../../../types/User/interfaces';
+import { InitialTenantAssociation, SignupRequest, SignupResponse } from '../../../types/Signup/interfaces';
 import { COLLECTIONS } from '../../../constants/collections';
-import { ClientSession, Collection } from 'mongodb';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
-import { ROLES } from '@/constants/AccessKey/AccountRoles/index';
 import { AccessLevel } from '@/constants/AccessKey/access_levels';
-import { PERSONAL_PERMISSIONS } from '@/constants/AccessKey/permissions/personal';
-import { ACCOUNT_TYPES, UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
-import { Subscription_Type } from '@/constants/AccessKey/accounts';
+import { ACCOUNT_TYPES, UserAccountTypeEnum, Subscription_Type, Subscription_TypeEnum } from '@/constants/AccessKey/accounts';
 import { generateUniqueUserId, hashPassword } from '../../../utils/utils';
 import { isValidEmail, isStrongPassword } from '../../../validation/validation';
-import { sendVerificationEmail } from '../../../services/emailService';
 import { generateEmailVerificationToken, setEmailVerificationToken } from '../../../utils/emailUtils';
-import { BaseEmailData } from '../../../types/email';
-import { Industry } from '@/types/Shared/enums';
-import { SystemError, BusinessError } from '@/MonitoringSystem/constants/errors';
+import { Industry, EmployeeCount, AnnualRevenue, Goals } from '@/types/Shared/enums';
+import { SystemError, BusinessError, SecurityError } from '@/MonitoringSystem/constants/errors';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 import { LogCategory, LOG_PATTERNS } from '@/MonitoringSystem/constants/logging';
+import { sendVerificationEmail } from '@/services/emailService';
+import { Collection, ObjectId, WithId } from 'mongodb';
+import { User } from '../../../types/User/interfaces';
+import { Tenant } from '../../../types/Tenant/interfaces';
+import { AuthContext, SessionInfo } from '@/types/Login/interfaces';
+import { PersonalRoles } from '@/constants/AccessKey/AccountRoles/personal-roles';
+import { getPermissionsForAccountTypeAndLevel } from '@/constants/AccessKey/permissions/index';
+import { generateAccessToken, generateRefreshToken } from '@/utils/TokenManagement/serverTokenUtils';
+import { Permissions } from '@/constants/AccessKey/permissions';
 
-interface SignupSystemContext {
-  component: string;
-  systemId: string;
-  systemName: string;
-  environment: 'development' | 'production' | 'staging';
-}
+async function createPersonalTenant(
+  db: any,
+  userData: SignupRequest,
+  userId: string
+): Promise<{ tenantId: string, tenantRelationships: any }> {
+  const tenantsCollection = db.collection(COLLECTIONS.TENANTS);
+  const timestamp = new Date().toISOString();
 
-const SYSTEM_CONTEXT: SignupSystemContext = {
-  component: 'SignupHandler',
-  systemId: process.env.SYSTEM_ID || 'auth-service',
-  systemName: 'AuthenticationService',
-  environment: (process.env.NODE_ENV as 'development' | 'production' | 'staging') || 'development'
-};
+    // Get proper permissions based on account type
+  const userPermissions: Permissions[] = (getPermissionsForAccountTypeAndLevel(
+    UserAccountTypeEnum.PERSONAL,
+    AccessLevel.L4  // Highest level for personal tenant owner
+  ).filter(permission => typeof permission === 'object') as unknown) as Permissions[];
 
-function createDefaultPersonalAccountSettings(userId: string, email: string, firstName: string, lastName: string): { user: User, tenant: Tenant } {
-  const personalTenantId = generateUniqueUserId();
-  
-  const tenant: Tenant = {
-    tenantId: generateUniqueUserId(),
-    name: `${firstName} ${lastName}'s Personal Account`,
-    email: email,
-
-    isActive: true,
-    isDeleted: false,
-    ownerId: userId,
-    users: [userId],
-    usersCount: 1,
-    type: UserAccountTypeEnum.PERSONAL,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    resourceUsage: 0,
-    resourceLimit: 1000, // Default limit
-    details: {
-      region: '' // Could be populated based on signup info or IP
-    },
-    domain: '',
+    const personalTenant = {
+    name: userData.tenantName,
+    email: userData.email,
     industry: Industry.OTHER,
-    pendingUserRequests: [],
-  };
-
-  const user: User = {
-    userId: generateUniqueUserId(),
-    email: email,
-    password: '', // This will be set later with the hashed password
-    firstName: firstName,
-    lastName: lastName,
-    personalTenantId: personalTenantId,
-    currentTenantId: personalTenantId,
-    tenants: [personalTenantId],
-    tenantAssociations: [
-      {
-        tenantId: personalTenantId,
-        role: ROLES.Personal.SELF,
-        accessLevel: AccessLevel.L4,
-        permissions: PERSONAL_PERMISSIONS.L4,
-        tenant: tenant,
-        accountType: UserAccountTypeEnum.PERSONAL,
+    type: UserAccountTypeEnum.PERSONAL,
+    details: {
+      phone: userData.phone,
+      region: 'default',
+      employeeCount: EmployeeCount.OneToTen,
+      annualRevenue: AnnualRevenue.Other,
+      goals: [Goals.Other],
+    },
+    settings: {
+      joinRequests: {
+        enabled: true,
+        requireApproval: true
       },
-    ],
-    isActive: true,
-    isVerified: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    isDeleted: false,
-    profile: {
-      dob: '',
-      phone: '',
-      address: '',
-      city: '',
-      state: '',
-      zip: '',
-      country: '',
-      bio: '',
-      interests: [],
-    },
-    connections: [],
-    connectionRequests: {
-      sent: [],
-      received: []
-    },
-    privacySettings: {
-      profileVisibility: 'public'
-    },
-    onboardingStatus: {
-      isOnboardingComplete: false,
-      steps: [],
-      lastUpdated: new Date().toISOString(),
-      currentStepIndex: 0,
-      stage: 'initial'
-    },
-    department: '',
-    lastLogin: new Date().toISOString(),
-    accountType: UserAccountTypeEnum.PERSONAL,
-    accessLevel: AccessLevel.L4,
-    permissions: PERSONAL_PERMISSIONS.L4,
-    subscriptionType: 'TRIAL' as Subscription_Type,
-    tenantId: personalTenantId,
-    title: ROLES.Personal.SELF,
+      userLimits: {
+        maxUsers: 5,
+        warningThreshold: 4
+      },
+      security: {
+        mfaRequired: false,
+        sessionTimeout: 24,
+        passwordPolicy: {
+          minLength: 8,
+          requireSpecialChars: true,
+          requireNumbers: true
+        }
+      },
+      resourceManagement: {
+        quotaEnabled: true,
+        quotaLimit: 1000,
+        warningThreshold: 800
+      }
+    }
   };
 
-  return { user, tenant };
+  const tenantId = await generateUniqueUserId();
+
+    const tenantAssociation: InitialTenantAssociation = {
+      tenantId,
+      role: PersonalRoles.SELF,
+      accessLevel: AccessLevel.L4,
+      accountType: UserAccountTypeEnum.PERSONAL,
+      status: 'active',
+      joinedAt: timestamp,
+      lastActiveAt: timestamp,
+      statusUpdatedAt: timestamp,
+      permissions: []
+    };
+
+  const tenant: Tenant = {
+    tenantId,
+    ...personalTenant,
+    isActive: true,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ownership: {
+      currentOwnerId: userId,
+      ownershipHistory: [{
+        userId,
+        startDate: timestamp
+      }]
+    },
+    members: {
+      active: [{
+        userId,
+        role: PersonalRoles.SELF,
+        joinedAt: timestamp,
+        status: 'active',
+        statusUpdatedAt: timestamp,
+        lastActiveAt: timestamp
+      }],
+      suspended: [],
+      pending: []
+    },
+    membersCount: {
+      active: 1,
+      suspended: 0,
+      pending: 0,
+      total: 1
+    },
+    details: {
+      ...personalTenant.details,
+      region: 'default'
+    },
+    settings: personalTenant.settings,
+    resourceUsage: 0,
+    resourceLimit: 1000,
+    isDeleted: false,
+    lastActivityAt: timestamp,
+    domain: `${userData.tenantName.toLowerCase().replace(/\s/g, '-')}.permas.cloud`
+  };
+
+    // Create the initial tenant relationships structure
+  const tenantRelationships = {
+    context: {
+      personalTenantId: tenantId,
+      currentTenantId: tenantId
+    },
+    associations: {
+      [tenantId]: tenantAssociation
+    }
+  };
+
+
+  await tenantsCollection.insertOne(tenant);
+
+  monitoringManager.logger.info('Personal tenant created', {
+    category: LogCategory.BUSINESS,
+    pattern: LOG_PATTERNS.BUSINESS,
+    metadata: { tenantId, userId }
+  });
+
+  return { tenantId, tenantRelationships };
 }
 
 export default async function signupHandler(
   req: NextApiRequest,
-  res: NextApiResponse<SignupResponse | { error: string }>
+  res: NextApiResponse<SignupResponse | { error: string }>,
+  userPermissions: Permissions[]
 ) {
   const startTime = Date.now();
-  const requestId = crypto.randomUUID();
+  const requestId = await generateUniqueUserId();
 
   try {
+    monitoringManager.logger.info('Signup attempt started', {
+      category: LogCategory.BUSINESS,
+      pattern: LOG_PATTERNS.BUSINESS,
+      metadata: { requestId }
+    });
+
     if (req.method !== 'POST') {
       throw monitoringManager.error.createError(
         'business',
         BusinessError.VALIDATION_FAILED,
-        'Method not allowed',
-        { method: req.method }
+        'Method not allowed'
       );
     }
 
-    const { email, password, firstName, lastName } = req.body as SignupRequest;
+    const signupData = req.body as SignupRequest;
 
-    if (!email || !password || !firstName || !lastName) {
+    // Validate email and password
+    if (!isValidEmail(signupData.email)) {
       throw monitoringManager.error.createError(
         'business',
         BusinessError.VALIDATION_FAILED,
-        'All fields are required',
-        { 
-          missingFields: {
-            email: !email,
-            password: !password,
-            firstName: !firstName,
-            lastName: !lastName
-          }
-        }
+        'Invalid email format'
       );
     }
 
-    if (!isValidEmail(email)) {
+    if (!isStrongPassword(signupData.password)) {
       throw monitoringManager.error.createError(
         'business',
         BusinessError.VALIDATION_FAILED,
-        'Invalid email format',
-        { email }
+        'Password does not meet security requirements'
       );
     }
 
-    if (!isStrongPassword(password)) {
+    const { db } = await getCosmosClient();
+    const usersCollection = db.collection(COLLECTIONS.USERS) as Collection<WithId<User>>;
+
+    // Check existing user
+    const existingUser = await usersCollection.findOne({ email: signupData.email });
+    if (existingUser) {
       throw monitoringManager.error.createError(
         'business',
-        BusinessError.VALIDATION_FAILED,
-        'Password does not meet security requirements',
-        { passwordLength: password.length }
+        BusinessError.USER_ALREADY_EXISTS,
+        'User with this email already exists'
       );
     }
 
-    let client = await getCosmosClient();
-    let session = client.client!.startSession();
+    // Create new user ID and hash password
+    const userId = await generateUniqueUserId();
+    const hashedPassword = await hashPassword(signupData.password);
+    const timestamp = new Date().toISOString();
 
-    if (!session) {
-      throw monitoringManager.error.createError(
-        'system',
-        SystemError.DATABASE_CONNECTION_FAILED,
-        'Failed to start database session'
-      );
-    }
+    // Create personal tenant first
+    const { tenantId: personalTenantId, tenantRelationships } = await createPersonalTenant(db, signupData, userId);
 
-    try {
-      await session.withTransaction(async () => {
-        const db = client.db;
-        const usersCollection: Collection<User> = db.collection(COLLECTIONS.USERS);
-        const tenantsCollection: Collection<Tenant> = db.collection(COLLECTIONS.TENANTS);
-
-        const existingUser = await usersCollection.findOne({ email }, { session });
-        if (existingUser) {
-          throw monitoringManager.error.createError(
-            'business',
-            BusinessError.USER_CREATE_FAILED,
-            'User with this email already exists',
-            { email }
-          );
+    // Create new user with personal tenant
+    const newUser: WithId<User> = {
+      _id: new ObjectId(),
+      userId,
+      email: signupData.email,
+      password: hashedPassword,
+      firstName: signupData.firstName,
+      lastName: signupData.lastName,
+      tenants: tenantRelationships, // This comes from createPersonalTenant
+      accountType: UserAccountTypeEnum.PERSONAL, // Always PERSONAL for initial signup
+      subscriptionType: Subscription_TypeEnum.TRIAL,
+      isActive: true,
+      isVerified: false,
+      isDeleted: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      lastLogin: timestamp,
+      department: signupData.department || 'default',
+      onboardingStatus: {
+        isOnboardingComplete: false,
+        steps: [],
+        lastUpdated: timestamp,
+        currentStepIndex: 0,
+        stage: 'initial'
+      },
+      profile: {
+        phone: signupData.phone
+      },
+      socialProfile: {
+        connections: { active: [], pending: [], blocked: [] },
+        connectionRequests: { sent: [], received: [] },
+        privacySettings: {
+          profileVisibility: 'private',
+          connectionVisibility: 'private',
+          activityVisibility: 'private'
         }
-
-        const userId = generateUniqueUserId();
-        const { user, tenant } = createDefaultPersonalAccountSettings(userId, email, firstName, lastName);
-
-        user.password = await hashPassword(password);
-
-        await tenantsCollection.insertOne(tenant, { session });
-        await usersCollection.insertOne(user, { session });
-
-        const verificationToken = generateEmailVerificationToken({ userId, email });
-        await setEmailVerificationToken(userId, verificationToken);
-
-        try {
-          const emailData: BaseEmailData = {
-            recipientEmail: email,
-            recipientName: `${firstName} ${lastName}`,
-            additionalData: { verificationToken },
-          };
-          await sendVerificationEmail(emailData);
-
-          monitoringManager.logger.info('Verification email sent', {
-            category: LogCategory.BUSINESS,
-            pattern: LOG_PATTERNS.BUSINESS,
-            metadata: {
-              userId,
-              email,
-              requestId
-            }
-          });
-        } catch (emailError) {
-          monitoringManager.logger.warn('Failed to send verification email', {
-            category: LogCategory.SYSTEM,
-            pattern: LOG_PATTERNS.SYSTEM,
-            metadata: {
-              error: emailError,
-              userId,
-              email,
-              requestId
-            }
-          });
-        }
-
-        monitoringManager.metrics.recordMetric(
-          MetricCategory.BUSINESS,
-          'signup',
-          'user_created',
-          1,
-          MetricType.COUNTER,
-          MetricUnit.COUNT,
-          {
-            userId,
-            tenantId: tenant.tenantId,
-            accountType: UserAccountTypeEnum.PERSONAL,
-            requestId
-          }
-        );
-
-        const response: SignupResponse = {
-          message: 'Signup successful. Please check your email to verify your account.',
-          user: {
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            userId: user.userId || '',
-            role: user.title,
-            tenantId: user.tenantId,
-            _id: ''
-          },
-          tenant: {
-            name: tenant.name,
-            tenantId: tenant.tenantId || ''
-          },
-        };
-
-        res.status(201).json(response);
-      });
-    } finally {
-      if (session) {
-        await session.endSession();
       }
-    }
+    };
 
-  } catch (error) {
+    await usersCollection.insertOne(newUser);
+
+    // Create session info
+    const sessionInfo: SessionInfo = {
+      accessToken: generateAccessToken({
+        userId,
+        email: signupData.email,
+        tenantId: personalTenantId,
+        role: PersonalRoles.SELF
+      }),
+      refreshToken: generateRefreshToken(),
+      sessionId: crypto.randomUUID(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+    };
+
+    // Create auth context
+    const authContext: AuthContext = {
+      currentTenant: (await db.collection(COLLECTIONS.TENANTS).findOne({ tenantId: personalTenantId }) as unknown as Tenant) || undefined,
+      tenantOperations: {
+        switchTenant: async (tenantId: string) => {
+          // Implementation provided by client
+        },
+        getCurrentTenantRole: () => PersonalRoles.SELF,
+        isPersonalTenant: (tenantId: string) => tenantId === personalTenantId,
+        getCurrentTenantPermissions: function (): Permissions[] {
+          return userPermissions as unknown as Permissions[];
+        }
+      },
+      tenantQueries: {
+        getCurrentTenant: () => personalTenantId,
+        getPersonalTenant: () => personalTenantId,
+        getTenantRole: (tenantId: string) => tenantRelationships.associations[tenantId]?.role,
+        getTenantPermissions: (tenantId: string) => tenantRelationships.associations[tenantId]?.permissions || [],
+        hasActiveTenantAssociation: (tenantId: string) => 
+          tenantRelationships.associations[tenantId]?.status === 'active'
+      }
+    };
+
+    const { password: _, ...userWithoutPassword } = newUser;
+
+    const response: SignupResponse = {
+      success: true,
+      message: 'Signup successful',
+      user: userWithoutPassword,
+      session: sessionInfo,
+      context: authContext,
+      onboardingComplete: false
+
+    };
+    
+    // Additional monitoring
     monitoringManager.metrics.recordMetric(
-      MetricCategory.SYSTEM,
+      MetricCategory.SECURITY,
+      'auth',
       'signup',
-      'error',
       1,
       MetricType.COUNTER,
       MetricUnit.COUNT,
-      {
-        error: error instanceof Error ? error.message : 'unknown',
-        duration: Date.now() - startTime,
-        requestId
-      }
+      { accountType: signupData.accountType }
     );
+
+    // Generate and send verification email
+    const verificationToken = await generateEmailVerificationToken({ userId: newUser.userId, email: newUser.email });
+    await setEmailVerificationToken(newUser.userId, verificationToken);
+    await sendVerificationEmail({
+      recipientEmail: newUser.email,
+      recipientName: newUser.firstName
+    });
+  
+    return res.status(201).json(response);
+
+  } catch (error) {
+    console.error(`[${requestId}] - Error in signupHandler:`, error);
 
     const appError = monitoringManager.error.createError(
       'system',
       SystemError.SERVER_INTERNAL_ERROR,
       'Signup process failed',
-      { 
-        error,
-        requestId,
-        duration: Date.now() - startTime
-      }
+      { error, requestId, duration: Date.now() - startTime }
     );
-    const errorResponse = monitoringManager.error.handleError(appError);
 
+    monitoringManager.logger.error(new Error('Signup failed'), SecurityError.AUTH_FAILED, {
+      category: LogCategory.SECURITY,
+      pattern: LOG_PATTERNS.SECURITY,
+      metadata: { error: appError, requestId }
+    });
+
+    const errorResponse = monitoringManager.error.handleError(appError);
     return res.status(errorResponse.statusCode).json({
-      error: errorResponse.userMessage,
+      error: errorResponse.userMessage
     });
   }
 }

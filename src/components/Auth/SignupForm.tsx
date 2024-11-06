@@ -10,12 +10,10 @@ const SignupForm: React.FC = () => {
     firstName: '',
     lastName: '',
     password: '',
-    mobile: '',
+    phone: '',
     email: '',
     tenantName: '',
     accountType: 'PERSONAL' as UserAccountType,
-    isVerified: false,
-    onboardingStage: '1'
   });
   const [confirmPassword, setConfirmPassword] = useState('');
   const { signup } = useAuth();
@@ -105,7 +103,7 @@ const SignupForm: React.FC = () => {
         label="Mobile Number"
         name="mobile"
         autoComplete="tel"
-        value={formData.mobile}
+        value={formData.phone}
         onChange={handleChange}
       />
       <TextField

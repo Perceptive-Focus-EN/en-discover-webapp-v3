@@ -1,4 +1,5 @@
 // src/utils/TokenManagement/clientTokenUtils.ts
+import { SessionInfo } from "@/types/Login/interfaces";
 import { jwtDecode } from "jwt-decode";
 
 const isBrowser = typeof window !== 'undefined';
@@ -11,7 +12,7 @@ export interface DecodedToken {
   email?: string;
   role?: string;
   tenantId?: string;
-  sessionId?: string;
+  session?: SessionInfo
   // ... any other JWT standard fields
 }
 
@@ -21,7 +22,7 @@ const TOKEN_PREFIX = 'token_';
 const setItem = (key: string, value: string): void => {
   if (!isBrowser) return;
 
-  if (value.length > MAX_TOKEN_SIZE) {
+  if (value && value.length > MAX_TOKEN_SIZE) {
     console.warn(`${key} exceeds maximum size. Using sessionStorage.`);
     sessionStorage.setItem(key, value);
   } else {

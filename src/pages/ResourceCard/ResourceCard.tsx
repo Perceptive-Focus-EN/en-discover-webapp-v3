@@ -46,7 +46,7 @@ const StyledCard = styled(Card)(({ theme }) => ({
     transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
     '&:hover': {
         transform: 'translateY(-4px)',
-        boxShadow: theme.shadows[8]
+        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)'
     }
 }));
 
@@ -109,7 +109,7 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
             title: resource?.title,
             backgroundColor: 'white',
             textColor: 'black'
-        }
+        },
     }), [resource]);
 
     const handleBookmarkClick = useCallback(async () => {
@@ -190,7 +190,7 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
                         )}
                     </IconButton>
                 )}
-                <ShareButton post={postData} />
+                <ShareButton postData={postData} />
                 {(permissions?.canEdit || permissions?.canDelete) && (
                     <IconButton
                         onClick={(e) => setMenuAnchorEl(e.currentTarget)}

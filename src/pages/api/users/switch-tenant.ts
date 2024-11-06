@@ -1,145 +1,153 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
-import { COLLECTIONS } from '@/constants/collections';
-import { authMiddleware } from '../../../middlewares/authMiddleware';
+import { generateAccessToken, generateRefreshToken } from '../../../utils/TokenManagement/serverTokenUtils';
+import { Collection, WithId } from 'mongodb';
 import { User, ExtendedUserInfo } from '../../../types/User/interfaces';
-import { TenantInfo } from '../../../types/Tenant/interfaces';
-import { ROLES } from '@/constants/AccessKey/AccountRoles/index';
+import { Tenant } from '../../../types/Tenant/interfaces';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
-import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { AppError } from '@/MonitoringSystem/managers/AppError';
+import { COLLECTIONS } from '../../../constants/collections';
 
-async function switchTenantHandler(req: NextApiRequest, res: NextApiResponse) {
+export default async function switchTenantHandler(req: NextApiRequest, res: NextApiResponse) {
+  const requestId = monitoringManager.logger.generateRequestId();
+  
   if (req.method !== 'POST') {
-    const appError = monitoringManager.error.createError(
-      'business',
-      'METHOD_NOT_ALLOWED',
-      'Method not allowed',
-      { method: req.method }
-    );
-    const errorResponse = monitoringManager.error.handleError(appError);
-    return res.status(errorResponse.statusCode).json({
-      error: errorResponse.userMessage,
-      reference: errorResponse.errorReference
-    });
+    console.error(`[${requestId}] - Invalid request method: ${req.method}`);
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const decodedToken = (req as any).user;
 
   try {
+    console.log(`[${requestId}] - Switching tenant for user: ${decodedToken.userId}`);
+    
     const { tenantId } = req.body;
-
     if (!tenantId) {
-      const appError = monitoringManager.error.createError(
-        'business',
-        'VALIDATION_FAILED',
-        'Tenant ID is required'
-      );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
+      console.error(`[${requestId}] - No tenant ID provided`);
+      return res.status(400).json({ error: 'Tenant ID is required' });
     }
 
     const { db } = await getCosmosClient();
-    const usersCollection = db.collection(COLLECTIONS.USERS);
-    const tenantsCollection = db.collection(COLLECTIONS.TENANTS);
+    const usersCollection = db.collection(COLLECTIONS.USERS) as Collection<WithId<User>>;
+    const tenantsCollection = db.collection(COLLECTIONS.TENANTS) as Collection<WithId<Tenant>>;
 
-    const updatedUser = await usersCollection.findOneAndUpdate(
-      { userId: decodedToken.userId, tenants: tenantId },
-      { $set: { currentTenantId: tenantId, updatedAt: new Date().toISOString() } },
-      { returnDocument: 'after' }
-    ) as User | null;
-
-    if (!updatedUser) {
-      const appError = monitoringManager.error.createError(
-        'business',
-        'TENANT_ACCESS_DENIED',
-        'User not found or not associated with this tenant',
-        { userId: decodedToken.userId, tenantId }
-      );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
+    // Fetch user details
+    const user = await usersCollection.findOne({ userId: decodedToken.userId });
+    if (!user || !user.tenants.associations[tenantId]) {
+      console.error(`[${requestId}] - User not found or no tenant association: ${decodedToken.userId}`);
+      return res.status(403).json({ error: 'Tenant access denied or tenant not associated with user' });
     }
 
-    const tenantInfo = await tenantsCollection.findOne({ tenantId }) as TenantInfo | null;
+    // Verify tenant association and fetch tenant details
+    const currentAssociation = user.tenants.associations[tenantId];
+    const currentTenant = await tenantsCollection.findOne({ tenantId });
 
-    const extendedUserInfo: ExtendedUserInfo = {
-      ...updatedUser,
-      tenant: tenantInfo,
-      softDelete: null,
-      reminderSent: false,
-      reminderSentAt: '',
-      profile: updatedUser.profile || {},
-      connections: updatedUser.connections || [],
-      connectionRequests: updatedUser.connectionRequests || { sent: [], received: [] },
-      privacySettings: updatedUser.privacySettings || { profileVisibility: 'public' },
-      createdAt: updatedUser.createdAt,
-      updatedAt: updatedUser.updatedAt,
-      role: ROLES.Business.CHIEF_EXECUTIVE_OFFICER
-    };
+    if (!currentTenant || !currentTenant.isActive) {
+      console.error(`[${requestId}] - Tenant not found or inactive: ${tenantId}`);
+      return res.status(404).json({ error: 'Tenant not found or inactive' });
+    }
 
-    // Record success metric
-    monitoringManager.metrics.recordMetric(
-      MetricCategory.BUSINESS,
-      'tenant',
-      'switch',
-      1,
-      MetricType.COUNTER,
-      MetricUnit.COUNT,
-      {
-        userId: decodedToken.userId,
-        fromTenantId: updatedUser.currentTenantId,
-        toTenantId: tenantId,
-        success: true
+    // Generate new tokens
+    const accessToken = generateAccessToken({
+      userId: user.userId,
+      email: user.email,
+      tenantId,
+      role: currentAssociation.role,
+      permissions: currentAssociation.permissions
+    });
+
+    const now = new Date().toISOString();
+    const sessionId = crypto.randomUUID();
+    const refreshToken = generateRefreshToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    // Update user document with new tenant context and session
+    await usersCollection.updateOne(
+      { userId: user.userId },
+      { 
+        $set: { 
+          'tenants.context.currentTenantId': tenantId,
+          lastLogin: now,
+          session: {
+            id: sessionId,
+            refreshToken: refreshToken,
+            lastActivity: now,
+            isOnline: true,
+            expiresAt: expiresAt
+          }
+        }
       }
     );
 
-    return res.status(200).json({ 
-      message: 'Tenant switched successfully', 
-      user: extendedUserInfo 
+    // Update tenant's last activity
+    await tenantsCollection.updateOne(
+      { tenantId },
+      { 
+        $set: { 
+          lastActivityAt: now,
+          'members.$[member].lastActiveAt': now
+        }
+      },
+      {
+        arrayFilters: [{ 'member.userId': user.userId }]
+      }
+    );
+
+    console.log(`[${requestId}] - Successfully switched tenant for user: ${user.userId}`);
+
+    // Prepare the response
+    const sessionInfo = {
+      accessToken,
+      refreshToken,
+      sessionId,
+      expiresAt
+    };
+
+    const authContext = {
+      currentTenant,
+      tenantOperations: {
+        getCurrentTenantRole: () => currentAssociation.role,
+        getCurrentTenantPermissions: () => currentAssociation.permissions,
+        isPersonalTenant: (tId: string) => tId === user.tenants.context.personalTenantId
+      },
+      tenantQueries: {
+        getCurrentTenant: () => tenantId,
+        getPersonalTenant: () => user.tenants.context.personalTenantId,
+        getTenantRole: (tId: string) => user.tenants.associations[tId]?.role,
+        getTenantPermissions: (tId: string) => user.tenants.associations[tId]?.permissions || [],
+        hasActiveTenantAssociation: (tId: string) => user.tenants.associations[tId]?.status === 'active'
+      }
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Tenant switched successfully',
+      user: {
+        ...user,
+        tenants: {
+          ...user.tenants,
+          context: {
+            ...user.tenants.context,
+            currentTenantId: tenantId
+          }
+        },
+        session: {
+          id: sessionId,
+          refreshToken,
+          lastActivity: now,
+          isOnline: true,
+          expiresAt
+        }
+      },
+      currentTenant: {
+        ...currentTenant,
+        association: currentAssociation
+      },
+      session: sessionInfo,
+      context: authContext
     });
 
   } catch (error) {
-    if (AppError.isAppError(error)) {
-      const errorResponse = monitoringManager.error.handleError(error);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
-      });
-    }
-
-    const appError = monitoringManager.error.createError(
-      'system',
-      'DATABASE_OPERATION_FAILED',
-      'Error switching tenant',
-      { error, userId: decodedToken.userId }
-    );
-    const errorResponse = monitoringManager.error.handleError(appError);
-
-    monitoringManager.metrics.recordMetric(
-      MetricCategory.SYSTEM,
-      'tenant',
-      'error',
-      1,
-      MetricType.COUNTER,
-      MetricUnit.COUNT,
-      {
-        operation: 'switch',
-        errorType: error.name || 'unknown',
-        userId: decodedToken.userId
-      }
-    );
-
-    return res.status(errorResponse.statusCode).json({
-      error: errorResponse.userMessage,
-      reference: errorResponse.errorReference
-    });
+    console.error(`[${requestId}] - Error in switchTenantHandler:`, error);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
-
-export default authMiddleware(switchTenantHandler);

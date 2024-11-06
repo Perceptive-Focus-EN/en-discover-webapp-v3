@@ -16,6 +16,9 @@ export const API_ENDPOINTS = {
   UPDATE_TENANT: '/api/tenants/${tenantId}',
   DELETE_TENANT: '/api/tenants/${tenantId}',
   GET_TENANT_USERS: '/api/tenants/${tenantId}/users',
+  UPDATE_USER_ROLE: '/api/users',
+
+
   // CREATE_TENANT_USER: '/api/tenants/${tenantId}/users',
   UPDATE_TENANT_USER: '/api/tenants/${tenantId}/users/${userId}',
   DELETE_TENANT_USER: '/api/tenants/${tenantId}/users/${userId}',
@@ -30,6 +33,7 @@ export const API_ENDPOINTS = {
   SWITCH_TENANT: '/api/users/switch-tenant',
   JOIN_TENANT: '/api/users/join-tenant',
   GET_USER_TENANTS: '/api/users/get-user-tenants',
+  JOIN_TENANT_INVITE: '/api/users/join-invite',
 
   SEND_CONNECTION_REQUEST: '/api/users/connections/request',
   ACCEPT_CONNECTION_REQUEST: '/api/users/connections/accept',

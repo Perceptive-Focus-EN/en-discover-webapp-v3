@@ -172,7 +172,8 @@ async function sendJoinRequest(req: NextApiRequest, res: NextApiResponse, decode
       });
     }
 
-    if (user.tenants.includes(tenantId) || user.connectionRequests.sent.includes(tenantId)) {
+    if (Array.isArray(user.tenants) && user.tenants.includes(tenantId) ||
+      Array.isArray(user.connectionRequests.sent) && user.connectionRequests.sent.includes(tenantId)) {
       const appError = monitoringManager.error.createError(
         'business',
         'REQUEST_INVALID',
