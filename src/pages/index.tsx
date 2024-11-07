@@ -16,7 +16,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useAuth } from '@/contexts/AuthContext';
 import { MoodEntry } from '@/components/EN/types/moodHistory';
 import { Emotion } from '@/components/EN/types/emotions';
-import { emotionMappingsApi } from '@/lib/api_s/reactions/emotionMappings';
+import { emotionMappingsApi } from '@/lib/api/reactions/emotionMappings';
 import { EmotionName } from '@/feature/types/Reaction';
 import { TimeRange } from '@/components/EN/types/moodHistory';
 import { VolumeLevelId } from '@/components/EN/constants/volume';

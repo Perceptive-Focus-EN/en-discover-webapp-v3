@@ -38,41 +38,29 @@ import {
 } from '../../api/types';
 import { usePostMedia } from '../../hooks/usePostMedia';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { UploadResponse } from '@/types/Resources';
+import { UploadResponse } from '@/types/ArticleMedia';
+import { UploadStatus, UPLOAD_STATUS, FileCategory } from '@/constants/uploadConstants';
 
-interface PostEditorProps {
-    initialData?: {
-        content: PostContent;
-        type: PostType;
-        visibility?: Visibility;
-    };
-    onSuccess?: () => void;
-    onCancel?: () => void;
+export const PostEditor: React.FC<{
+    initialData?: Post;
+    onSuccess: () => void;
+    onCancel: () => void;
     isDraft?: boolean;
-    onPostCreated?: (newPost: Post) => Promise<void>;
-}
-
-export const PostEditor: React.FC<PostEditorProps> = ({ 
+    onPostCreated: (post: Post) => void;
+}> = ({
     initialData,
     onSuccess,
     onCancel,
-    isDraft = false,
+    isDraft,
     onPostCreated
-}) => {
-    const { createPost, isLoading, error } = usePost();
-    const { 
-        uploadMultiple, 
-        uploadSingle, 
-        isUploading, 
-        progress, 
-        error: uploadError, 
-        resetError 
-    } = usePostMedia();
+}): React.ReactElement => {
+    const { createPost, isLoading } = usePost();
+    const { upload, progress, error: uploadError, isUploading, status, resetUpload } = usePostMedia();
 
     const [formState, setFormState] = useState({
-        type: initialData?.type || 'TEXT' as PostType,
-        content: initialData?.content || createInitialContent(initialData?.type ?? 'TEXT' as PostType),
-        visibility: initialData?.visibility || 'public' as Visibility,
+        type: 'TEXT' as PostType,
+        content: createInitialContent('TEXT' as PostType),
+        visibility: 'public' as Visibility,
         isProcessing: false
     });
 
@@ -80,7 +68,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({
         setFormState(prev => ({
             ...prev,
             type: newType,
-            content: createInitialContent(newType)
+            content: createInitialContent(newType as PostType)
         }));
     }, []);
 
@@ -134,8 +122,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({
         });
     }, []);
 
-    // Utility function to update form state based on media type
-    const updateFormStateWithMedia = (
+    const updateFormStateWithMedia = useCallback((
         prevState: typeof formState,
         uploads: UploadResponse[],
         mediaType: PostType
@@ -147,10 +134,10 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                     ...prevState.content,
                     photos: [
                         ...(prevState.content as PhotoContent).photos,
-                        ...uploads.map(u => u.data.url)
+                        ...uploads.map(u => u.fileUrl)
                     ]
                 } as PhotoContent,
-                isProcessing: false
+                isProcessing: status === UPLOAD_STATUS.PROCESSING
             };
         } else if (mediaType === 'VIDEO') {
             const upload = uploads[0];
@@ -158,62 +145,26 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                 ...prevState,
                 content: {
                     ...prevState.content,
-                    videoUrl: upload.data.url,
+                    videoUrl: upload.fileUrl,
                     thumbnailUrl: '',
-                    processingStatus: upload.data.processingStatus || 'processing'
+                    processingStatus: upload.status as ProcessingStatus
                 } as VideoContent,
-                isProcessing: false
+                isProcessing: status === UPLOAD_STATUS.PROCESSING
             };
         }
         return prevState;
-    };
+    }, [status]);
 
-    // Handle media update with usePostMedia hook
     const handleMediaUpdate = useCallback(async (files: FileList) => {
-        setFormState(prev => ({ ...prev, isProcessing: true }));
         try {
-            const fileArray = Array.from(files);
-            const uploads = formState.type === 'VIDEO' 
-                ? [await uploadSingle(fileArray[0])]
-                : await uploadMultiple(fileArray);
-
+            const uploads = await Promise.all(
+                Array.from(files).map(file => upload(file, mapPostTypeToFileCategory(formState.type)))
+            );
             setFormState(prev => updateFormStateWithMedia(prev, uploads, formState.type));
-        } catch (err) {
+        } catch (error) {
             messageHandler.error('Failed to upload media');
-        } finally {
-            setFormState(prev => ({ ...prev, isProcessing: false }));
         }
-    }, [uploadSingle, uploadMultiple, formState.type]);
-
-    // Handle post submission with the upload state consideration
-    const handleSubmit = useCallback(async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            const postData = {
-                type: formState.type,
-                content: formState.content,
-                visibility: formState.visibility,
-                reactions: [],
-                reactionMetrics: {
-                    totalReactions: 0,
-                    averageEngagementRate: 0,
-                    peakReactionTime: new Date(),
-                    reactionDistribution: {},
-                    reactionVelocity: 0,
-                    recentReactions: []
-                }
-            };
-
-            const newPost = await createPost(postData);
-            if (newPost && onPostCreated) {
-                await onPostCreated(newPost);
-            }
-            onSuccess?.();
-            messageHandler.success('Post created successfully');
-        } catch (err) {
-            messageHandler.error('Failed to create post');
-        }
-    }, [formState, createPost, onSuccess, onPostCreated]);
+    }, [updateFormStateWithMedia, formState.type, upload]);
 
     const renderContentInput = () => {
         switch (formState.type) {
@@ -250,7 +201,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                         isUploading={isUploading}
                         uploadProgress={progress}
                         error={uploadError}
-                        onErrorDismiss={resetError}
+                        onErrorDismiss={resetUpload}
                     />
                 );
             case 'VIDEO':
@@ -275,7 +226,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                         isUploading={isUploading}
                         uploadProgress={progress}
                         error={uploadError}
-                        onErrorDismiss={resetError}
+                        onErrorDismiss={resetUpload}
                     />
                 );
             case 'MOOD':
@@ -283,7 +234,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                     <TextField
                         label="Mood"
                         value={(formState.content as MoodContent).mood}
-                        onChange={(e) => handleContentUpdate(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleContentUpdate(e.target.value)}
                         fullWidth
                     />
                 );
@@ -300,6 +251,21 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                 return null;
         }
     };
+
+    const handleSubmit = useCallback(async (event: React.FormEvent) => {
+        event.preventDefault();
+        try {
+            const postData = {
+                type: formState.type,
+                content: formState.content,
+                visibility: formState.visibility
+            };
+            await createPost(postData);
+            onSuccess();
+        } catch (error) {
+            messageHandler.error('Failed to create post');
+        }
+    }, [formState, createPost, onSuccess]);
 
     return (
         <Paper elevation={2} sx={{ p: 3 }}>
@@ -348,9 +314,9 @@ export const PostEditor: React.FC<PostEditorProps> = ({
 
                     {renderContentInput()}
 
-                    {error && (
+                    {uploadError && (
                         <Typography color="error" variant="body2">
-                            {error}
+                            {uploadError}
                         </Typography>
                     )}
 
@@ -390,6 +356,18 @@ export const PostEditor: React.FC<PostEditorProps> = ({
             </form>
         </Paper>
     );
+};
+
+// Helper function to map PostType to FileCategory
+const mapPostTypeToFileCategory = (type: PostType): FileCategory => {
+    switch (type) {
+        case 'PHOTO':
+            return 'image';
+        case 'VIDEO':
+            return 'video';
+        default:
+            throw new Error(`Unsupported post type for file upload: ${type}`);
+    }
 };
 
 // Helper function to create initial content based on type

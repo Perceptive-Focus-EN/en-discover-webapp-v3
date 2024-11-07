@@ -4,7 +4,7 @@ import { api } from '../../axiosSetup';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { isApiError, extractErrorMessage } from '@/lib/api_s/client/utils';
+import { isApiError, extractErrorMessage } from '@/lib/api/client/utils';
 import { 
   NotificationSettings, 
   PrivateSettings, 

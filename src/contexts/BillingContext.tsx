@@ -1,7 +1,7 @@
 // src/contexts/BillingContext.tsx
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { subscriptionsApi, invoicesApi, checkoutApi } from '../lib/api_s/stripe';
-import { billingApi } from '../lib/api_s/stripe/customBillingLogic';
+import { subscriptionsApi, invoicesApi, checkoutApi } from '../lib/api/stripe';
+import { billingApi } from '../lib/api/stripe/customBillingLogic';
 import { OptimizeStorageRequest } from '../types/Billing/api.requests.interfaces';
 import { DEFAULT_EXTENDED_BILLING_DATA, ExtendedBillingData } from '@/types/Billing/billingDefaults';
 import { useAuth } from './AuthContext';

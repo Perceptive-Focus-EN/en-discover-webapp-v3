@@ -4,6 +4,63 @@ import { SystemError } from "../errors/systemErrors";
 
 export const SystemMessages = {
 
+  // < !-- -- - Storage Messages -- -- - >
+
+
+  [SystemError.STORAGE_CONNECTION_FAILED]: {
+    error: 'Failed to connect to storage',
+    warn: 'Storage connection attempt unsuccessful',
+    info: 'Storage connection attempt initiated'
+  },
+
+  [SystemError.STORAGE_OPERATION_FAILED]: {
+    error: 'Storage operation failed',
+    warn: 'Storage operation performance degraded',
+    info: 'Storage operation monitored'
+  },
+
+  [SystemError.STORAGE_UPLOAD_FAILED]: {
+    error: 'Failed to upload file',
+    warn: 'File upload issues detected',
+    info: 'File upload attempted'
+  },
+
+  [SystemError.INVALID_ENVIRONMENT]: {
+    error: 'Invalid environment',
+    warn: 'Environment configuration error',
+    info: 'Environment configuration checked'
+  },
+
+  [SystemError.STORAGE_DELETE_FAILED]: {
+    error: 'Failed to delete file',
+    warn: 'File deletion issues detected',
+    info: 'File deletion attempted'
+  },
+
+  [SystemError.STORAGE_LIST_FAILED]: {
+    error: 'Failed to list files',
+    warn: 'File listing issues detected',
+    info: 'File listing attempted'
+  },
+
+  [SystemError.LEASE_REQUIRED]: {
+    error: 'Lease required for operation',
+    warn: 'Lease not acquired',
+    info: 'Lease acquisition attempted'
+  },
+
+  [SystemError.INITIALIZATION_FAILED]: {
+    error: 'Initialization failed',
+    warn: 'Initialization issues detected',
+    info: 'Initialization attempted'
+  },
+
+  [SystemError.UPLOAD_CONTROL_FAILED]: {
+    error: 'Failed to control upload',
+    warn: 'Upload control issues detected',
+    info: 'Upload control attempted'
+  },
+
 // <-------  Database Messages -------->
 
   [SystemError.DATABASE_CONNECTION]: {

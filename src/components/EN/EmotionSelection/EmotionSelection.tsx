@@ -17,7 +17,7 @@ import { ColorPalette, ValidHexColor } from '../types/colorPalette';
 import { useAuth } from '../../../contexts/AuthContext';
 import { EmotionName, EmotionId } from '../../../feature/types/Reaction';
 import { Emotion } from '../types/emotions';
-import { emotionMappingsApi } from '../../../lib/api_s/reactions/emotionMappings';
+import { emotionMappingsApi } from '../../../lib/api/reactions/emotionMappings';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 // Define MappedEmotion type if it doesn't exist in the module
 interface MappedEmotion {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { notificationsApi } from '@/lib/api_s/notifications';
+import { notificationsApi } from '@/lib/api/notifications';
 import { Notification } from '@/components/Notifications/types/notification';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { useAuth } from '@/contexts/AuthContext';

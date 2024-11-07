@@ -18,12 +18,20 @@ import MemoryIcon from '@mui/icons-material/Memory';
 import StorageIcon from '@mui/icons-material/Storage';
 import ComputerIcon from '@mui/icons-material/Computer';
 import ErrorIcon from '@mui/icons-material/Error';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 interface PerformanceMetric {
   endpoint: string;
   averageResponseTime: number;
   errorCount: number;
   requestCount: number;
+  metadata?: {
+    uploadStats?: {
+      queueSize?: number;
+      chunkProgress?: number;
+      memoryUsage?: number;
+    };
+  };
 }
 
 interface SystemHealth {
@@ -362,10 +370,9 @@ export default function MonitoringDashboard({ onAlertChange }: MonitoringDashboa
                           <Typography variant="body2" color="textSecondary">
                             Error Rate
                           </Typography>
-                            <Typography variant="body2" color="textSecondary">
-                              {((metric.errorCount / metric.requestCount) * 100).toFixed(2)}%
-                            </Typography>
-                          </Box>
+                          <Typography variant="body2" color="textSecondary">
+                            {((metric.errorCount / metric.requestCount) * 100).toFixed(2)}%
+                          </Typography>
                         </Box>
                         <LinearProgress 
                           variant="determinate" 
@@ -373,10 +380,74 @@ export default function MonitoringDashboard({ onAlertChange }: MonitoringDashboa
                           color="error"
                         />
                       </Box>
+                    </Box>
                   ))
                 ) : (
                   <Typography>No performance metrics available.</Typography>
                 )}
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Card elevation={2}>
+              <CardHeader
+                avatar={<CloudUploadIcon />}
+                title="Active Uploads"
+                subheader="Real-time upload monitoring"
+              />
+              <CardContent>
+                {metrics?.filter(m => 
+                  m.endpoint === 'upload_system' && 
+                  m.requestCount > 0
+                ).map((metric, index) => (
+                  <Box key={index} mb={2}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={6}>
+                        <Typography variant="subtitle2">
+                          Active Uploads: {metric.requestCount || 0}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="subtitle2">
+                          Queue Size: {metric.metadata?.uploadStats?.queueSize || 0}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                    
+                    <Box mt={1}>
+                      <Typography variant="body2" color="textSecondary">
+                        Upload Progress
+                      </Typography>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={metric.metadata?.uploadStats?.chunkProgress || 0}
+                        sx={{
+                          height: 8,
+                          borderRadius: 5,
+                          backgroundColor: 'rgba(0,0,0,0.1)',
+                          '& .MuiLinearProgress-bar': {
+                            borderRadius: 5
+                          }
+                        }}
+                      />
+                    </Box>
+
+                    <Box mt={1}>
+                      <Typography variant="body2" color="textSecondary">
+                        Memory Usage
+                      </Typography>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={((metric.metadata?.uploadStats?.memoryUsage || 0) / 1024 / 1024 / 1024) * 100}
+                        color={(metric.metadata?.uploadStats?.memoryUsage ?? 0) > 1024 * 1024 * 1024 ? "warning" : "primary"}
+                      />
+                      <Typography variant="caption">
+                        {Math.round((metric.metadata?.uploadStats?.memoryUsage || 0) / 1024 / 1024)}MB
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
               </CardContent>
             </Card>
           </Grid>

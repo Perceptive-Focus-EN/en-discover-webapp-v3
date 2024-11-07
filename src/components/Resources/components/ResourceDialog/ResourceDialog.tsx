@@ -2,7 +2,7 @@
 import React from 'react';
 import { Dialog } from '@mui/material';
 import { useResourceActions } from '../../hooks/useResourceActions';
-import { Resource } from '../../../../types/Resources';
+import { Resource } from '../../../../types/ArticleMedia';
 import { DialogContainer } from './styles';
 import { DialogHeader } from './DialogHeader';
 import { DialogContent } from './DialogContent';

@@ -30,13 +30,23 @@ const nextConfig = {
 
     return config;
   },
-  images: {
+    images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'media.licdn.com' },
-      { protocol: 'https', hostname: 'mirasmindstorage.blob.core.windows.net' },
-      { deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840]},
-      { imageSizes: [16, 32, 48, 64, 96, 128, 256, 384] },
+      {
+        protocol: 'https',
+        hostname: 'media.licdn.com'
+      },
+      {
+        protocol: 'https',
+        hostname: 'mirasmindstorage.blob.core.windows.net'
+      },
+      {
+        protocol: 'https',
+        hostname: 'aetheriqcorestorage-d5ejehf9aqdxhna8.z03.azurefd.net'
+      }
     ],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384]
   },
   i18n: {
     locales: ['en'],
@@ -129,14 +139,14 @@ const nextConfig = {
     NEXT_PUBLIC_STRIPE_ENTERPRISE_PLAN_ID: process.env.NEXT_PUBLIC_STRIPE_ENTERPRISE_PLAN_ID,
     AZURE_SUBSCRIPTION_COMMAMD_SET: process.env.AZURE_SUBSCRIPTION_COMMAMD_SET,
     AZURE_SUBSCRIPTION_COMMAMD_GET: process.env.AZURE_SUBSCRIPTION_COMMAMD_GET,
-      },
+  },
   api: {
     bodyParser: {
       sizeLimit: '5mb',
     },
   },
 
- // Update the serverInitialize to handle async initialization
+  // Update the serverInitialize to handle async initialization
   async serverInitialize(phase, { defaultConfig }) {
     try {
       const { initializeServer } = await import('./src/server/init.js');

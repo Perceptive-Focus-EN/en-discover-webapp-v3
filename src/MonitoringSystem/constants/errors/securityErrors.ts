@@ -31,6 +31,9 @@ AUTH_LOGOUT_FAILED = 'security/auth/logout_failed',
   VALIDATION_INVALID_INPUT = 'security/validation/invalid_input',
   VALIDATION_MISSING_FIELD = 'security/validation/missing_field',
   VALIDATION_INVALID_FORMAT = 'security/validation/invalid_format',
-  REQUEST_INTERCEPTOR_ERROR = "REQUEST_INTERCEPTOR_ERROR",
-  TOKEN_OPERATION_FAILED = "TOKEN_OPERATION_FAILED"
+
+  REQUEST_INTERCEPTOR_ERROR = 'security/request/interceptor_error',
+  TOKEN_OPERATION_FAILED = 'security/token/operation_failed',
+
+  AUTH_TOKEN_MISSING = 'security/auth/token_missing',
 }

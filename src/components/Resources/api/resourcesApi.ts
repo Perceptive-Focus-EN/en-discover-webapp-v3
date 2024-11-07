@@ -1,17 +1,19 @@
 // src/components/Resources/api/resourcesApi.ts
-import { apiRequest } from '@/lib/api_s/client/utils';
-import { clientApi } from '@/lib/api_s/client';
+import { apiRequest } from '@/lib/api/client/utils';
+import { clientApi } from '@/lib/api/client';
 import {
   Resource,
   ResourceFormData,
   ResourceFilters,
   ResourceSortOptions,
-  ResourceApiResponse,
   ResourceInteractions,
   ResourceMetadata,
-  ResourceStatus,
-  ResourceVisibility
-} from '../../../types/Resources';
+} from '../../../types/ArticleMedia';
+import { ResourceStatus, ResourceVisibility } from '../../../types/ArticleMedia/resources';
+
+interface ResourceApiResponse<T> {
+  data: T;
+}
 
 interface CreateResourcePayload extends ResourceFormData {
   status?: ResourceStatus;
@@ -48,7 +50,6 @@ export const resourcesApi = {
         page,
         limit,
         filter: filters,
-        sort
       });
     } catch (error) {
       throw error;

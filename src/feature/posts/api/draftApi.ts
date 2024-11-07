@@ -1,6 +1,6 @@
 // src/features/posts/api/draftApi.ts
-import { clientApi } from '@/lib/api_s/client';
-import { apiRequest } from '@/lib/api_s/client/utils';
+import { clientApi } from '@/lib/api/client';
+import { apiRequest } from '@/lib/api/client/utils';
 import { Post, CreatePostDTO, Draft, DraftResponse } from './types';
 import { PaginationParams, PaginatedResponse } from '@/types/pagination';
 

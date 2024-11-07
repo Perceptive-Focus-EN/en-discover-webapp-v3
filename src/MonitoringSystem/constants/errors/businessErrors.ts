@@ -119,7 +119,9 @@ export enum BusinessError {
   POST_CREATION_FAILURE = 'business/post/creation_failure',
     
   VALIDATION_FAILED = 'business/validation/failed',
-  UPLOAD_FAILED = "UPLOAD_FAILED",
-  GENERATE_TEXT_FAILURE = "GENERATE_TEXT_FAILURE",
+  UPLOAD_FAILED = 'business/upload/failed',
+  GENERATE_TEXT_FAILURE = 'business/generate_text/failed',
+  INVALID_METHOD = 'business/invalid_method',
+  INVALID_PARAMETERS = 'business/invalid_parameters',
 
 }

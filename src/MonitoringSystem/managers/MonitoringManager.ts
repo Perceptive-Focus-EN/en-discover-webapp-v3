@@ -11,7 +11,8 @@ import { SystemContext } from '../types/logging';
 import { ErrorType, SystemError } from '../constants/errors';
 
 // Add specific metric types for monitoring dashboard
-interface DashboardMetrics {
+
+export interface DashboardMetrics {
   type: 'SYSTEM_HEALTH' | 'API_PERFORMANCE';
   timestamp: number;
   value: number;
@@ -19,6 +20,12 @@ interface DashboardMetrics {
     component: string;
     category: string;
     aggregationType?: 'average' | 'sum' | 'latest';
+    uploadStats?: {
+      activeUploads: number;
+      queueSize: number;
+      memoryUsage: number;
+      chunkProgress: number;
+    };
   };
 }
 

@@ -5,7 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { useAuth } from '@/contexts/AuthContext';
 import EmotionSelectionDrawer from './EmotionSelectionDrawer';
 import { EmotionId, PostReaction, ReactionSummary } from './types/Reaction';
-import { emotionMappingsApi } from '@/lib/api_s/reactions/emotionMappings';
+import { emotionMappingsApi } from '@/lib/api/reactions/emotionMappings';
 import { api } from '@/lib/axiosSetup';
 
 interface MoodBubbleLikeButtonProps {

@@ -1,15 +1,12 @@
-// Types consolidation at the top
 // src/pages/resources.tsx
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Container,
   Box,
   Typography,
   TextField,
-  Grid,
   Button,
   IconButton,
-  Pagination,
   useTheme,
   useMediaQuery,
   Paper,
@@ -17,7 +14,6 @@ import {
   MenuItem,
   Chip,
   Divider,
-  CircularProgress,
   Alert
 } from '@mui/material';
 import {
@@ -28,17 +24,13 @@ import {
 } from '@mui/icons-material';
 import { styled } from '@mui/system';
 
-// Import components and hooks
+// Import components
 import CreateResourceForm from './CreateResourceForm/CreateResourceForm';
-import { ResourceCard } from '../components/Resources/components/ResourceCard';
-import { FilterDrawer } from './FilterDrawer/FilterDrawer';
-import { useResourceList } from '../components/Resources/hooks/useResourceList';
-import { useResourceActions } from '../components/Resources/hooks/useResourceActions';
+import { ResourceList } from './ResourceCard/ResourceList';
+import { useResources } from '../hooks/useResources';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-
-// Import types
-import { Resource, ResourceVisibility, ResourceStatus } from '../types/Resources/resources';
-import { ResourcePermissions } from '../types/Resources/permissions';
+import { Resource, ResourceFilters } from '@/types/ArticleMedia';
+import { FilterDrawer } from './FilterDrawer/FilterDrawer';
 
 // Styled components
 const StyledContainer = styled(Container)(({ theme }) => ({
@@ -60,64 +52,36 @@ const ResourcesPage: React.FC = () => {
 
   // States
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null);
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [filters, setFilters] = useState<ResourceFilters>({});
 
   // Hooks
-  const {
-    state: { resources, loading, error, filters, sort, pagination },
-    handleSearch,
-    handleFilterChange,
-    handleSortChange,
-    handlePageChange,
-    refreshResources
-  } = useResourceList();
-
-  const {
-    handleBookmark,
-    handleRate,
-    handleDelete,
-    handleUpdateStatus,
-    handleUpdateVisibility,
-    isLoading
-  } = useResourceActions();
+  const { 
+    getResources, 
+    createResource, 
+    loading, 
+    error 
+  } = useResources();
 
   // Callbacks
-  const handleCreateResource = useCallback(async (newResource: Omit<Resource, 'id' | 'rating' | 'votes' | 'status'>) => {
+  const handleCreateResource = useCallback(async (
+    newResource: Omit<Resource, 'id' | 'rating' | 'votes' | 'status'>
+  ) => {
     try {
-      // Log the resource being created
-      console.log('Creating resource:', newResource);
-
-      // Validate the image URL
-      if (!newResource.imageUrl) {
-        throw new Error('Image URL is required');
-      }
-
-      // Create the resource
-      // const response = await createResource(newResource);
-      await refreshResources();
+      await createResource(newResource);
       messageHandler.success('Resource created successfully!');
       setIsCreateDialogOpen(false);
     } catch (error) {
       console.error('Failed to create resource:', error);
       messageHandler.error('Failed to create resource');
     }
-  }, [refreshResources]);
+  }, [createResource]);
 
-  const handleResourceAction = useCallback(async (
-    actionType: string,
-    resourceId: string,
-    actionFn: () => Promise<any>
-  ) => {
-    try {
-      await actionFn();
-      await refreshResources();
-      messageHandler.success(`Resource ${actionType} successful`);
-    } catch (error) {
-      console.error(`Failed to ${actionType} resource:`, error);
-      messageHandler.error(`Failed to ${actionType} resource`);
-    }
-  }, [refreshResources]);
+  const handleSearch = useCallback((value: string) => {
+    setSearchTerm(value);
+  }, []);
 
   // Render helpers
   const renderHeader = () => (
@@ -144,72 +108,38 @@ const ResourcesPage: React.FC = () => {
           startAdornment: <SearchIcon color="action" />
         }}
         onChange={(e) => handleSearch(e.target.value)}
+        value={searchTerm}
       />
-      <IconButton onClick={() => setIsFiltersOpen(true)}>
-        <FilterListIcon />
-      </IconButton>
       <IconButton onClick={(e) => setSortAnchorEl(e.currentTarget)}>
         <SortIcon />
       </IconButton>
     </SearchBar>
   );
 
-  const renderActiveFilters = () => (
-    filters && Object.keys(filters).length > 0 && (
-      <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
-        {Object.entries(filters).map(([key, value]) => (
-          <Chip
-            key={key}
-            label={`${key}: ${value}`}
-            onDelete={() => handleFilterChange({ ...filters, [key]: undefined })}
-            size="small"
-          />
-        ))}
-      </Box>
-    )
-  );
-
-  const renderResourceGrid = () => (
-    <Grid container spacing={3}>
-      {resources.map((resource) => (
-        <Grid item key={resource.id} xs={12} sm={6} md={4}>
-          <ResourceCard
-            resource={resource}
-            onReadMore={() => window.open(resource.imageUrl, '_blank')}
-          />
-        </Grid>
-      ))}
-    </Grid>
-  );
-
   return (
     <StyledContainer maxWidth="lg">
       {renderHeader()}
       {renderSearchBar()}
-      {renderActiveFilters()}
 
-      {loading ? (
-        <Box display="flex" justifyContent="center" py={4}>
-          <CircularProgress />
-        </Box>
-      ) : error ? (
+      {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
-          {error.message}
+          {error}
         </Alert>
-      ) : (
-        <>
-          {renderResourceGrid()}
-          <Box display="flex" justifyContent="center" mt={4}>
-            <Pagination
-              count={pagination.totalPages}
-              page={pagination.currentPage}
-              onChange={(_, page) => handlePageChange(page)}
-              color="primary"
-              size="large"
-            />
-          </Box>
-        </>
       )}
+
+                <ResourceList 
+                searchTerm={searchTerm}
+                loading={loading}
+                filters={filters}
+            />
+
+        <FilterDrawer
+                open={isFilterDrawerOpen}
+                onClose={() => setIsFilterDrawerOpen(false)}
+                filters={filters}
+                onFilterChange={setFilters}
+      />
+      
 
       {/* Dialogs and Modals */}
       <CreateResourceForm
@@ -218,27 +148,28 @@ const ResourcesPage: React.FC = () => {
         onSubmit={handleCreateResource}
       />
 
-      <FilterDrawer
-        open={isFiltersOpen}
-        onClose={() => setIsFiltersOpen(false)}
-        filters={filters}
-        onFilterChange={handleFilterChange}
-      />
-
       <Menu
         anchorEl={sortAnchorEl}
         open={Boolean(sortAnchorEl)}
         onClose={() => setSortAnchorEl(null)}
       >
-        {/* Add sort options */}
-        <MenuItem onClick={() => handleSortChange({ field: 'datePublished', order: 'desc' })}>
+        <MenuItem onClick={() => {
+          // Handle sort
+          setSortAnchorEl(null);
+        }}>
           Newest First
         </MenuItem>
-        <MenuItem onClick={() => handleSortChange({ field: 'datePublished', order: 'asc' })}>
+        <MenuItem onClick={() => {
+          // Handle sort
+          setSortAnchorEl(null);
+        }}>
           Oldest First
         </MenuItem>
         <Divider />
-        <MenuItem onClick={() => handleSortChange({ field: 'rating', order: 'desc' })}>
+        <MenuItem onClick={() => {
+          // Handle sort
+          setSortAnchorEl(null);
+        }}>
           Highest Rated
         </MenuItem>
       </Menu>

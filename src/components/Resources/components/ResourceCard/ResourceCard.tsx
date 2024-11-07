@@ -1,7 +1,7 @@
 // src/components/Resources/components/ResourceCard/ResourceCard.tsx
 import React from 'react';
 import { useResourceActions } from '../../hooks/useResourceActions';
-import { Resource } from '../../../../types/Resources';
+import { Resource } from '../../../../types/ArticleMedia';
 import { StyledCard } from './styles';
 import { ResourceCardHeader } from './ResourceCardHeader';
 import { ResourceCardContent } from './ResourceCardContent';

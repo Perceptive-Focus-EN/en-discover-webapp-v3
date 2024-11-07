@@ -118,4 +118,16 @@ export const SecurityMessages = {
     info: 'API request attempted'
   },
 
+  [SecurityError.TOKEN_OPERATION_FAILED]: {
+    error: 'Token operation failed',
+    warn: 'Token operation encountered issues',
+    info: 'Token operation attempted'
+  },
+
+  [SecurityError.AUTH_TOKEN_MISSING]: {
+    error: 'Authentication token missing',
+    warn: 'Missing authentication token',
+    info: 'Token presence check performed'
+  },
+
 } as const;

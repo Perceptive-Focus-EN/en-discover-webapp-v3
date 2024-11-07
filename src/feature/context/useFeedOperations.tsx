@@ -1,7 +1,7 @@
 import { useFeed } from './FeedContext';
-import { feedApi } from '@/lib/api_s/feed';
+import { feedApi } from '@/lib/api/feed';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { videoApi } from '@/lib/api_s/uploads/video';
+import { videoApi } from '@/lib/api/uploads/video';
 
 // Custom hook to handle feed operations
 const useFeedOperations = () => {

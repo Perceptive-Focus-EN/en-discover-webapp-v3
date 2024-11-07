@@ -1,6 +1,6 @@
 import { EmotionId, EmotionName, PostReaction, ReactionCount, ReactionCountResponse, ReactionMetrics, ReactionResponse, ReactionSummary } from '@/feature/types/Reaction';
-import { clientApi } from '@/lib/api_s/client';
-import { apiRequest } from '@/lib/api_s/client/utils';
+import { clientApi } from '@/lib/api/client';
+import { apiRequest } from '@/lib/api/client/utils';
 import { PaginatedResponse, PaginationParams } from '@/types/pagination';
 import { transformReactionResponse } from '../utils/transformers/reactionTransformer';
 

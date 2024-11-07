@@ -1,7 +1,7 @@
 // src/components/Resources/components/ResourceCard/ResourceCardContent.tsx
 import React from 'react';
 import { Box, Typography, Rating } from '@mui/material';
-import { Resource } from '../../../../types/Resources';
+import { Resource } from '../../../../types/ArticleMedia';
 import { CategoryChip, ReadTimeChip } from './styles';
 
 interface ResourceCardContentProps {

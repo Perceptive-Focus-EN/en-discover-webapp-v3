@@ -1,6 +1,6 @@
 // src/features/posts/api/postApi.ts
-import { clientApi } from '@/lib/api_s/client';
-import { apiRequest } from '@/lib/api_s/client/utils';
+import { clientApi } from '@/lib/api/client';
+import { apiRequest } from '@/lib/api/client/utils';
 import { Post, CreatePostDTO, UpdatePostDTO, PostResponse } from './types';
 import { PaginationParams, PaginatedResponse } from '@/types/pagination';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';

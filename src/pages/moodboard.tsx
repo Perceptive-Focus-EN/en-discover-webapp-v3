@@ -9,7 +9,7 @@ import { TimeRange } from '@/components/EN/types/moodHistory';
 import { VolumeLevelId } from '@/components/EN/constants/volume';
 import { Emotion } from '@/components/EN/types/emotions';
 import { MoodBoardRef } from '@/components/EN/MoodBoard';
-import { emotionMappingsApi } from '@/lib/api_s/reactions/emotionMappings';
+import { emotionMappingsApi } from '@/lib/api/reactions/emotionMappings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
 

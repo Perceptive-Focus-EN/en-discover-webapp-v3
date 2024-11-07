@@ -1,7 +1,7 @@
 // src/contexts/MessagingContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { messagingApi } from '@/lib/api_s/messaging';
+import { messagingApi } from '@/lib/api/messaging';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGlobalState } from '@/contexts/GlobalStateContext';
 import { Conversation, DirectMessage, MessagingContextType } from './types/messaging';

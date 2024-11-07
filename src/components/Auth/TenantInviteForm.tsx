@@ -18,7 +18,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { AllRoles } from '@/constants/AccessKey/AccountRoles';
 import { AccessLevel } from '@/constants/AccessKey/access_levels';
-import { userApi } from '@/lib/api_s/user';
+import { userApi } from '@/lib/api/user';
 
 interface InviteFormData {
   email: string;

@@ -11,7 +11,8 @@ export enum MetricUnit {
   COUNT = 'count',
   SECONDS = 'seconds',
   BYTES = 'bytes',
-  PERCENTAGE = 'percentage'
+  PERCENTAGE = 'percentage',
+  PERCENT = "PERCENT"
 }
 
 export enum MetricCategory {

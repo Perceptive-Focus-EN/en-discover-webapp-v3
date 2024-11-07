@@ -1,6 +1,6 @@
 // src/features/posts/api/commentApi.ts
-import { clientApi } from '@/lib/api_s/client';
-import { apiRequest } from '@/lib/api_s/client/utils';
+import { clientApi } from '@/lib/api/client';
+import { apiRequest } from '@/lib/api/client/utils';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';

@@ -7,7 +7,7 @@ import {
   StyleSettings, 
   OverseerInviteSettings 
 } from '@/types/Settings/interfaces';
-import { settingsApi } from '../lib/api_s/settings/client';
+import { settingsApi } from '../lib/api/settings/client';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
 interface ApiResponse<T> {

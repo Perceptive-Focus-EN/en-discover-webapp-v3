@@ -335,4 +335,28 @@ export const BusinessMessages = {
         warn: 'Text generation issues detected',
         info: 'Text generation attempted'
     },
+
+
+
+    // Validation
+    [BusinessError.VALIDATION_FAILED]: {
+        error: 'Validation failed',
+        warn: 'Validation issues detected',
+        info: 'Validation attempted'
+    },
+
+    // Method Errors
+    [BusinessError.INVALID_METHOD]: {
+        error: 'Invalid method',
+        warn: 'Method validation failed',
+        info: 'Method validation performed'
+    },
+
+    // Parameter Errors
+    [BusinessError.INVALID_PARAMETERS]: {
+        error: 'Invalid parameters',
+        warn: 'Parameter validation failed',
+        info: 'Parameter validation performed'
+    }
+ 
 } as const;

@@ -94,4 +94,21 @@ export enum SystemError {
 
 SERVICE_QUEUE_FULL = 'system/service/queue_full',
 SERVICE_QUEUE_PROCESSING_FAILED = 'system/service/queue_processing_failed',
+STORAGE_UPLOAD_FAILED = "STORAGE_UPLOAD_FAILED",
+INVALID_ENVIRONMENT = 'system/invalid_environment',
+STORAGE_DELETE_FAILED = 'system/storage/delete_failed',
+STORAGE_LIST_FAILED = 'system/storage/list_failed',
+
+
+ STORAGE_CONNECTION = 'system/storage/connection',
+
+STORAGE_CONNECTION_FAILED = 'system/storage/connection_failed',
+  
+  STORAGE_OPERATION_FAILED = 'system/storage/operation_failed',
+  LEASE_REQUIRED = 'system/storage/lease_required',
+  INITIALIZATION_FAILED = 'system/initialization_failed',
+  UPLOAD_CONTROL_FAILED = 'system/upload_control_failed',
+
+
+
 }

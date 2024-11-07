@@ -31,12 +31,15 @@ import {
 import { styled } from '@mui/system';
 import { formatDistance } from 'date-fns';
 
-import { Resource, ResourceStatus, ResourceVisibility } from '../../types/Resources/resources';
-import { ResourcePermissions } from '../../types//Resources/permissions';
+import { Resource, ResourceStatus, ResourceVisibility } from '../../types/ArticleMedia/resources';
+import { ResourcePermissions } from '../../types/ArticleMedia/permissions';
 import { ShareButton } from '@/feature/posts/components/Share/ShareMenu';
 import ResourceContentViewer from '../../components/Resources/ResourceContentViewer';
 import { parseResourceContent } from '../../utils/parseResourceContent';
 import ImageRenderer from '../ImageRenderer/ImageRenderer';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
+import ErrorBoundary from '../../components/ErrorBoundary'; // Assuming you have an ErrorBoundary component
+import { resourceToPost } from './resourceToPost';
 
 const StyledCard = styled(Card)(({ theme }) => ({
     height: '100%',
@@ -101,16 +104,11 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
         [resource?.interactions]
     );
 
-    const postData = useMemo(() => ({
-        id: resource?.id,
-        type: 'RESOURCES',
-        content: {
-            text: resource?.abstract,
-            title: resource?.title,
-            backgroundColor: 'white',
-            textColor: 'black'
-        },
-    }), [resource]);
+    const postData = useMemo(() => 
+    resourceToPost(resource), 
+    [resource]
+    );
+    
 
     const handleBookmarkClick = useCallback(async () => {
         if (!permissions?.canView || !onBookmark || !resource) return;
@@ -162,10 +160,20 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
     }, [resource, onVisibilityChange, permissions]);
 
     const renderCardHeader = () => (
-        <Box position="relative">
-            <ImageRenderer
-                src={resource?.imageUrl || '/path/to/fallback/image.jpg'} // URL already includes SAS token
-                alt="Resource cover"
+    <Box position="relative">
+        <ImageRenderer
+            src={resource?.imageUrl}
+            alt="Resource cover"
+            type={resource?.metadata?.mimeType?.startsWith('image/') ? 'image' : 
+                resource?.metadata?.mimeType?.startsWith('video/') ? 'video' : 'document'}
+                processingStatus={resource?.processing?.currentStep}
+                onError={(error) => {
+                console.error('Resource image error:', error);
+                messageHandler.error('Failed to load resource image');
+            }}
+                fallbackSrc="/images/placeholder-image.png"
+                height={200}
+                width="100%"
             />
             <Box
                 position="absolute"
@@ -190,7 +198,7 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
                         )}
                     </IconButton>
                 )}
-                <ShareButton postData={postData} />
+                <ShareButton post={postData} />
                 {(permissions?.canEdit || permissions?.canDelete) && (
                     <IconButton
                         onClick={(e) => setMenuAnchorEl(e.currentTarget)}
@@ -208,55 +216,60 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
 
     const renderCardContent = () => (
         <CardContent sx={{ flexGrow: 1 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                <Box display="flex" gap={0.5} flexWrap="wrap">
-                    {resource?.categories.map(category => (
-                        <CategoryChip
-                            key={category}
-                            label={category}
-                            size="small"
-                        />
-                    ))}
+            {/* Add error boundary */}
+            <ErrorBoundary>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Box display="flex" gap={0.5} flexWrap="wrap">
+                        {resource?.categories?.map(category => (
+                            <CategoryChip
+                                key={category}
+                                label={category}
+                                size="small"
+                            />
+                        ))}
+                    </Box>
+                    <ReadTimeChip>
+                        <ScheduleIcon fontSize="small" />
+                        {resource?.readTime || 0} min
+                    </ReadTimeChip>
                 </Box>
-                <ReadTimeChip>
-                    <ScheduleIcon fontSize="small" />
-                    {resource?.readTime} min
-                </ReadTimeChip>
-            </Box>
 
-            <Typography variant="h6" gutterBottom>
-                {resource?.title}
-            </Typography>
+                <Typography variant="h6" gutterBottom>
+                    {resource?.title || 'Untitled'}
+                </Typography>
 
-            <Typography
-                color="text.secondary"
-                sx={{
-                    display: '-webkit-box',
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    mb: 2
-                }}
-            >
-                {resource?.abstract}
-            </Typography>
+                {resource?.abstract && (
+                    <Typography
+                        color="text.secondary"
+                        sx={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            mb: 2
+                        }}
+                    >
+                        {resource.abstract}
+                    </Typography>
+                )}
 
-            <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box display="flex" alignItems="center" gap={1}>
-                    <Rating
-                        value={resource?.rating}
-                        precision={0.5}
-                        onChange={handleRatingChange}
-                        disabled={!permissions?.canView || isLoading?.('rate', resource?.id)}
-                    />
-                    <Typography variant="body2" color="text.secondary">
-                        ({resource?.votes})
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <Rating
+                            value={resource?.rating}
+                            precision={0.5}
+                            onChange={handleRatingChange}
+                            disabled={!permissions?.canView || isLoading?.('rate', resource?.id)}
+                        />
+                        <Typography variant="body2" color="text.secondary">
+                            ({resource?.votes})
+                        </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                        {formatDistance(new Date(resource?.datePublished), new Date(), { addSuffix: true })}
                     </Typography>
                 </Box>
-                <Typography variant="caption" color="text.secondary">
-                    {formatDistance(new Date(resource?.datePublished), new Date(), { addSuffix: true })}
-                </Typography>
-            </Box>
+            </ErrorBoundary>
         </CardContent>
     );
 
@@ -265,7 +278,10 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
             <Button
                 fullWidth
                 variant="contained"
-                onClick={() => setIsDialogOpen(true)}
+                onClick={() => {
+                    console.log('Opening dialog');
+                    setIsDialogOpen(true);
+                }}
                 disabled={!permissions?.canView}
             >
                 Read More
@@ -283,17 +299,26 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
                 <Menu
                     anchorEl={menuAnchorEl}
                     open={Boolean(menuAnchorEl)}
-                    onClose={() => setMenuAnchorEl(null)}
+                    onClose={() => {
+                        console.log('Closing menu');
+                        setMenuAnchorEl(null);
+                    }}
                 >
                     {permissions?.canEdit && (
                         <>
-                            <MenuItem onClick={() => onEdit?.(resource)}>
+                            <MenuItem onClick={() => {
+                                console.log('Editing resource');
+                                onEdit?.(resource);
+                            }}>
                                 <EditIcon fontSize="small" sx={{ mr: 1 }} />
                                 Edit
                             </MenuItem>
-                            <MenuItem onClick={() => handleVisibilityChange(
-                                resource?.visibility === 'public' ? 'private' : 'public'
-                            )}>
+                            <MenuItem onClick={() => {
+                                console.log('Changing visibility');
+                                handleVisibilityChange(
+                                    resource?.visibility === 'public' ? 'private' : 'public'
+                                );
+                            }}>
                                 {resource?.visibility === 'public' ? (
                                     <>
                                         <VisibilityOffIcon fontSize="small" sx={{ mr: 1 }} />
@@ -310,7 +335,10 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
                     )}
                     {permissions?.canDelete && (
                         <MenuItem
-                            onClick={() => setShowDeleteConfirm(true)}
+                            onClick={() => {
+                                console.log('Showing delete confirmation');
+                                setShowDeleteConfirm(true);
+                            }}
                             sx={{ color: 'error.main' }}
                         >
                             <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
@@ -323,7 +351,10 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
             <Dialog
                 fullScreen
                 open={isDialogOpen}
-                onClose={() => setIsDialogOpen(false)}
+                onClose={() => {
+                    console.log('Closing dialog');
+                    setIsDialogOpen(false);
+                }}
             >
                 <Box sx={{ height: '100%', overflow: 'auto' }}>
                     <Box
@@ -340,7 +371,10 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
                     >
                         <IconButton
                             edge="start"
-                            onClick={() => setIsDialogOpen(false)}
+                            onClick={() => {
+                                console.log('Closing dialog from back button');
+                                setIsDialogOpen(false);
+                            }}
                             aria-label="close"
                         >
                             <ArrowBackIcon />
@@ -360,7 +394,10 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
 
             <Dialog
                 open={showDeleteConfirm}
-                onClose={() => setShowDeleteConfirm(false)}
+                onClose={() => {
+                    console.log('Closing delete confirmation dialog');
+                    setShowDeleteConfirm(false);
+                }}
                 maxWidth="xs"
                 fullWidth
             >
@@ -372,13 +409,19 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
                         Are you sure you want to delete this resource? This action cannot be undone.
                     </Typography>
                     <Box display="flex" justifyContent="flex-end" gap={1}>
-                        <Button onClick={() => setShowDeleteConfirm(false)}>
+                        <Button onClick={() => {
+                            console.log('Canceling delete');
+                            setShowDeleteConfirm(false);
+                        }}>
                             Cancel
                         </Button>
                         <Button
                             variant="contained"
                             color="error"
-                            onClick={handleDelete}
+                            onClick={() => {
+                                console.log('Deleting resource');
+                                handleDelete();
+                            }}
                             disabled={isLoading?.('delete', resource?.id)}
                         >
                             Delete
@@ -390,7 +433,10 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
             <Collapse in={!!error}>
                 <Alert
                     severity="error"
-                    onClose={() => setError(null)}
+                    onClose={() => {
+                        console.log('Closing error alert');
+                        setError(null);
+                    }}
                     sx={{ mt: 1 }}
                 >
                     {error}

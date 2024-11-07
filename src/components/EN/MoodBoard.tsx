@@ -18,7 +18,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { ColorPalette, palettes } from '@/components/EN/types/colorPalette';
 import { Emotion } from '@/components/EN/types/emotions';
-import { emotionMappingsApi } from '@/lib/api_s/reactions/emotionMappings';
+import { emotionMappingsApi } from '@/lib/api/reactions/emotionMappings';
 import BubbleBarChart from '@/components/EN/BubbleBarChart';
 import MoodBubbleChart from '@/components/EN/charts/MoodBubbleChart';
 import RadarChart from '@/components/EN/RadarChart';

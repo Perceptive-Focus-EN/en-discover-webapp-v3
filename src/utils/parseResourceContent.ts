@@ -1,5 +1,5 @@
 import { ContentSection } from '@/components/Resources/ResourceContentViewer';
-import { Resource } from '@/types/Resources/resources';
+import { Resource } from '@/types/ArticleMedia/resources';
 
 interface ParsedContent {
   title: string;
@@ -9,6 +9,26 @@ interface ParsedContent {
 }
 
 export const parseResourceContent = (resource: Resource): ParsedContent => {
+  console.log('Parsing resource:', resource);
+
+  if (!resource) {
+    console.warn('No resource provided to parser');
+    return {
+      title: '',
+      sections: [],
+      references: [],
+      images: []
+    };
+  }
+
+  // Validate required fields
+  if (!resource.title || !resource.abstract) {
+    console.warn('Resource missing required fields:', {
+      hasTitle: !!resource.title,
+      hasAbstract: !!resource.abstract
+    });
+  }
+
   const sections: ContentSection[] = [];
 
   // Text formatting utilities
@@ -21,129 +41,158 @@ export const parseResourceContent = (resource: Resource): ParsedContent => {
   };
 
   type FontType = 'primary' | 'secondary';
-  
-  const getTextStyle = (text: string): { font: FontType; weight: number; isItalic: boolean; isBold: boolean; size: 'medium'; color: string } => ({
-      font: 'primary' as FontType,
-      weight: text.includes('**') ? 700 : 400,
-      isItalic: text.includes('_'),
-      isBold: text.includes('**'),
-      size: 'medium' as const,
-      color: text.startsWith('> ') ? 'primary' : 'text.secondary'
-    });
 
-  // Add abstract section
-  sections.push({
-    type: 'abstract',
-    content: resource.abstract,
-    textStyle: {
-      font: 'primary',
-      size: 'medium',
-      weight: 400,
-      color: 'text.secondary'
-    }
+  const getTextStyle = (text: string): { font: FontType; weight: number; isItalic: boolean; isBold: boolean; size: 'medium'; color: string } => ({
+    font: 'primary' as FontType,
+    weight: text.includes('**') ? 700 : 400,
+    isItalic: text.includes('_'),
+    isBold: text.includes('**'),
+    size: 'medium' as const,
+    color: text.startsWith('> ') ? 'primary' : 'text.secondary'
   });
 
-  // Process main content
-  const contentParts = resource.content.split('\n\n');
-  
-  contentParts.forEach(part => {
-    const trimmedPart = part.trim();
-    
-    if (!trimmedPart) return;
-
-    // Headers
-    const headerMatch = trimmedPart.match(/^(#{1,6})\s(.+)$/);
-    if (headerMatch) {
-      const level = headerMatch[1].length;
+  try {
+    // Add abstract section
+    if (resource.abstract) {
       sections.push({
-        type: 'heading',
-        content: headerMatch[2],
-        level,
-        textStyle: {
-          font: 'primary',
-          weight: level === 1 ? 800 : 700,
-          size: level === 1 ? 'large' : 'medium',
-          color: 'text.primary'
-        }
-      });
-      return;
-    }
-
-    // Lists
-    if (trimmedPart.match(/^[-*]\s/m)) {
-      sections.push({
-        type: 'list',
-        items: trimmedPart
-          .split('\n')
-          .map(item => item.replace(/^[-*]\s/, ''))
-          .map(parseInlineFormatting),
-        content: '',
-        textStyle: {
-          font: 'primary',
-          size: 'medium',
-          weight: 400
-        }
-      });
-      return;
-    }
-
-    // Quotes
-    if (trimmedPart.startsWith('> ')) {
-      sections.push({
-        type: 'quote',
-        content: parseInlineFormatting(trimmedPart.replace(/^>\s/, '')),
+        type: 'abstract',
+        content: resource.abstract,
         textStyle: {
           font: 'primary',
           size: 'medium',
           weight: 400,
-          isItalic: true,
-          color: 'primary'
+          color: 'text.secondary'
         }
       });
-      return;
     }
 
-    // Code blocks
-    if (trimmedPart.startsWith('```')) {
-      const match = trimmedPart.match(/^```(\w+)?\n([\s\S]+?)\n```$/);
-      if (match) {
-        sections.push({
-          type: 'code',
-          content: match[2],
-          language: match[1] || 'text',
-        textStyle: {
-            font: 'secondary',
-            size: 'medium',
-            weight: 400
+    // Process main content if exists
+    if (resource.content) {
+      const contentParts = resource.content.split('\n\n');
+
+      contentParts.forEach((part, index) => {
+        console.log(`Processing content part ${index}:`, part);
+        const trimmedPart = part.trim();
+
+        if (!trimmedPart) return;
+
+        // Headers
+        const headerMatch = trimmedPart.match(/^(#{1,6})\s(.+)$/);
+        if (headerMatch) {
+          const level = headerMatch[1].length;
+          sections.push({
+            type: 'heading',
+            content: headerMatch[2],
+            level,
+            textStyle: {
+              font: 'primary',
+              weight: level === 1 ? 800 : 700,
+              size: level === 1 ? 'large' : 'medium',
+              color: 'text.primary'
+            }
+          });
+          return;
+        }
+
+        // Lists
+        if (trimmedPart.match(/^[-*]\s/m)) {
+          sections.push({
+            type: 'list',
+            items: trimmedPart
+              .split('\n')
+              .map(item => item.replace(/^[-*]\s/, ''))
+              .map(parseInlineFormatting),
+            content: '',
+            textStyle: {
+              font: 'primary',
+              size: 'medium',
+              weight: 400
+            }
+          });
+          return;
+        }
+
+        // Quotes
+        if (trimmedPart.startsWith('> ')) {
+          sections.push({
+            type: 'quote',
+            content: parseInlineFormatting(trimmedPart.replace(/^>\s/, '')),
+            textStyle: {
+              font: 'primary',
+              size: 'medium',
+              weight: 400,
+              isItalic: true,
+              color: 'primary'
+            }
+          });
+          return;
+        }
+
+        // Code blocks
+        if (trimmedPart.startsWith('```')) {
+          const match = trimmedPart.match(/^```(\w+)?\n([\s\S]+?)\n```$/);
+          if (match) {
+            sections.push({
+              type: 'code',
+              content: match[2],
+              language: match[1] || 'text',
+              textStyle: {
+                font: 'secondary',
+                size: 'medium',
+                weight: 400
+              }
+            });
+            return;
           }
+        }
+
+        // Regular text with inline formatting
+        sections.push({
+          type: 'text',
+          content: parseInlineFormatting(trimmedPart),
+          textStyle: getTextStyle(trimmedPart)
         });
-        return;
-      }
+      });
     }
 
-    // Regular text with inline formatting
-    sections.push({
-      type: 'text',
-      content: parseInlineFormatting(trimmedPart),
-      textStyle: getTextStyle(trimmedPart)
-    });
-  });
+    // Add main image if exists
+    if (resource.imageUrl) {
+      sections.push({
+        type: 'image',
+        content: resource.imageUrl,
+        caption: 'Featured image'
+      });
+    }
 
-  // Add main image if exists
-  if (resource.imageUrl) {
-    sections.push({
-      type: 'image',
-      content: resource.imageUrl,
-      caption: 'Featured image'
-    });
+    const parsed = {
+      title: resource.title || '',
+      sections,
+      references: resource.metadata?.references || [],
+      images: [{ url: resource.imageUrl || '', alt: resource.title || '' }]
+    };
+
+    console.log('Parsed content:', parsed);
+    return parsed;
+
+  } catch (error) {
+    console.error('Error parsing resource:', error);
+    // Return a safe fallback
+    return {
+      title: resource.title || '',
+      sections: [{
+        type: 'text',
+        content: 'Error parsing content',
+        textStyle: {
+          font: 'primary',
+          size: 'medium',
+          weight: 400,
+          color: 'error'
+        }
+      }],
+      references: [],
+      images: []
+    };
   }
-
-  return {
-    title: resource.title,
-    sections,
-    references: [], // Add references handling if needed
-    images: [{ url: resource.imageUrl, alt: resource.title }]
-  };
 };
 
 // Helper function to estimate read time
@@ -156,7 +205,7 @@ export const calculateReadTime = (content: string): number => {
 // Helper function to validate content format
 export const validateContentFormat = (content: string): string[] => {
   const errors: string[] = [];
-  
+
   // Check for unclosed formatting tags
   if ((content.match(/\*\*/g) || []).length % 2 !== 0) {
     errors.push('Unclosed bold formatting (**) found');

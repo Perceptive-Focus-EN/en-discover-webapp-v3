@@ -19,18 +19,17 @@ import {
 import {
     CloudUpload as CloudUploadIcon,
 } from '@mui/icons-material';
-import { usePostMedia } from '@/feature/posts/hooks/usePostMedia';
+import { useArticleMedia } from '@/hooks/useArticleMedia';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import {
     Resource,
     ResourceFormData,
+    ResourceInteractions,
     ResourcePermissions,
-    ResourceMetadata,
-    ImageMetadata,
-    ResourceStatus,
-    ResourceVisibility
-} from '@/types/Resources';
+} from '@/types/ArticleMedia';
 import ImageRenderer from '../ImageRenderer/ImageRenderer';
+import { FileCategory } from '@/constants/uploadConstants';
+import { useResources } from '@/hooks/useResources';
 
 const STEPS = ['Basic Info', 'Content', 'Metadata', 'Review'];
 const PREDEFINED_CATEGORIES = ['Technology', 'Health', 'Science', 'Education'];
@@ -43,6 +42,8 @@ interface CreateResourceFormProps {
 }
 
 const CreateResourceForm: React.FC<CreateResourceFormProps> = ({ open, onClose, onSubmit }) => {
+    const { createResource, loading: createLoading } = useResources();
+
     console.log('CreateResourceForm initialized with open:', open);
 
     const [activeStep, setActiveStep] = useState(0);
@@ -57,12 +58,21 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({ open, onClose, 
         readTime: 5,
         author: { name: '', avatar: '' },
         visibility: 'public',
+        datePublished: '',
         metadata: {
             readingLevel: 'intermediate',
             language: 'en',
             tags: [],
             references: [],
-            attachments: []
+            attachments: [],
+            originalName: '',
+            mimeType: '',
+            uploadedAt: '',
+            fileSize: 0,
+            accessLevel: 'public',
+            retention: 'permanent',
+            processingSteps: [],
+            category: 'general' as FileCategory // Add a default category
         }
     });
     console.log('Initial formState:', formState);
@@ -70,8 +80,8 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({ open, onClose, 
     const [errors, setErrors] = useState<Record<string, string>>({});
     console.log('Initial errors:', errors);
 
-    const { uploadSingle, isUploading, progress } = usePostMedia();
-    console.log('usePostMedia hook:', { uploadSingle, isUploading, progress });
+const { uploadMedia, isUploading, progress, processingStatus } = useArticleMedia();
+    console.log('useArticleMedia hook:', { uploadMedia, isUploading, progress });
 
     const validateStep = (step: number): boolean => {
         console.log('Validating step:', step);
@@ -91,63 +101,30 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({ open, onClose, 
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-        console.log('handleImageUpload triggered');
+const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('handleImageUpload triggered');
         if (e.target.files && e.target.files.length > 0) {
-            const file = e.target.files[0];
-            console.log('Selected file:', file);
-            if (!file.type.startsWith('image/')) {
-                setErrors(prev => ({
-                    ...prev,
-                    imageUrl: 'Unsupported file format'
-                }));
-                return;
-            }
-            try {
-                console.log('Starting upload for:', file.name);
-                const response = await uploadSingle(file);
-                console.log('Upload response:', response);
-
-                if (response?.data?.url) {
-                    console.log('Setting image URL:', response.data.url);
-
-                    // Test the URL before setting it
-                    const img = new Image();
-                    img.onload = () => {
-                        console.log('Test load successful');
-                        setFormState(prev => ({
-                            ...prev,
-                            imageUrl: response.data.url,
-                            metadata: {
-                                ...prev.metadata,
-                                imageMetadata: {
-                                    originalName: response.data.metadata.originalName,
-                                    mimeType: response.data.metadata.mimeType,
-                                    uploadedAt: response.data.metadata.uploadedAt
-                                }
-                            }
-                        }));
-                    };
-
-                    img.onerror = (error) => {
-                        console.error('Test load failed:', error);
-                        setErrors(prev => ({
-                            ...prev,
-                            imageUrl: 'Unable to load image URL'
-                        }));
-                    };
-
-                    img.src = response.data.url;
+        const file = e.target.files[0];
+        try {
+            const response = await uploadMedia(file, 'image');
+            setFormState(prev => ({
+                ...prev,
+                imageUrl: response.fileUrl, // URL already includes SAS token
+                metadata: {
+                    ...prev.metadata,
+                    ...response.metadata,
+                    processingStatus: response.processing?.currentStep
                 }
-            } catch (err) {
-                console.error('Upload error:', err);
-                setErrors(prev => ({
-                    ...prev,
-                    imageUrl: 'Failed to upload image'
-                }));
-            }
+            }));
+        } catch (error) {
+            console.error('Upload error:', error);
+            setErrors(prev => ({
+                ...prev,
+                imageUrl: error instanceof Error ? error.message : 'Upload failed'
+            }));
         }
-    }, [uploadSingle]);
+    }
+}, [uploadMedia]);
 
     React.useEffect(() => {
         console.log('useEffect triggered with open:', open);
@@ -161,12 +138,21 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({ open, onClose, 
                 readTime: 5,
                 author: { name: '', avatar: '' },
                 visibility: 'public',
+                datePublished: '',
                 metadata: {
                     readingLevel: 'intermediate',
                     language: 'en',
                     tags: [],
                     references: [],
-                    attachments: []
+                    attachments: [],
+                    originalName: '',
+                    mimeType: '',
+                    uploadedAt: '',
+                    fileSize: 0,
+                    category: 'general' as FileCategory,
+                    accessLevel: 'public',
+                    retention: 'permanent',
+                    processingSteps: []
                 }
             });
             setErrors({});
@@ -176,32 +162,50 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({ open, onClose, 
     }, [open]);
 
     const handleNext = useCallback(() => {
-        console.log('handleNext triggered');
-        if (validateStep(activeStep)) {
-            setActiveStep(prev => prev + 1);
-            console.log('Moved to next step:', activeStep + 1);
-        }
-    }, [activeStep]);
-
-    const handleBack = useCallback(() => {
-        console.log('handleBack triggered');
-        setActiveStep(prev => prev - 1);
-        console.log('Moved to previous step:', activeStep - 1);
-    }, [activeStep]);
-
-    const handleSubmit = useCallback(() => {
-        console.log('handleSubmit triggered');
+            console.log('handleNext triggered');
+            if (validateStep(activeStep)) {
+                setActiveStep(prev => prev + 1);
+                console.log('Moved to next step:', activeStep + 1);
+            }
+        }, [activeStep, validateStep]);
+    
+        const handleBack = useCallback(() => {
+            console.log('handleBack triggered');
+            setActiveStep(prev => prev - 1);
+            console.log('Moved to previous step:', activeStep - 1);
+        }, [activeStep]);
+    
+        const handleSubmit = useCallback(async () => {
         if (validateStep(activeStep)) {
             try {
-                onSubmit({ ...formState, datePublished: new Date().toISOString() });
-                console.log('Form submitted:', formState);
+                const resource = await createResource({
+                    ...formState,
+                    datePublished: new Date().toISOString(),
+                    interactions: {
+                        isBookmarked: false,
+                        viewCount: 0,
+                        shareCount: 0,
+                        bookmarkCount: 0,
+                        comments: [],
+                        lastInteraction: 'created',
+                        interactionHistory: [],
+                        mediaInteractions: {
+                            downloads: 0,
+                            processingViews: 0,
+                            uploadRetries: 0
+                        }
+                    }
+                });
+                onSubmit(resource);
                 onClose();
+                messageHandler.success('Resource created successfully');
             } catch (error) {
                 console.error('Submission error:', error);
                 messageHandler.error('Failed to create resource');
             }
         }
-    }, [formState, activeStep, onSubmit, onClose]);
+    }, [formState, activeStep, createResource, onSubmit, onClose]);
+
 
     const renderBasicInfo = () => (
         <Box display="flex" flexDirection="column" gap={3}>
@@ -255,20 +259,22 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({ open, onClose, 
                     >
                         {formState.imageUrl ? (
                             <Box position="relative" width="100%" height="100%">
-                                <ImageRenderer
-                                    src={formState.imageUrl}
-                                    alt="Resource cover"
-                                    height={200}
-                                    width="100%"
-                                    fallbackText="Failed to load cover image"
-                                    onError={(error) => {
-                                        console.error('Cover image error:', error);
-                                        setErrors(prev => ({
-                                            ...prev,
-                                            imageUrl: 'Failed to load image'
-                                        }));
-                                    }}
-                                />
+                                    <ImageRenderer
+                                        src={formState.imageUrl}
+                                        alt="Resource cover"
+                                        height={200}
+                                        width="100%"
+                                        fallbackText="Failed to load cover image"
+                                        type="image"
+                                        processingStatus={processingStatus ?? undefined} // From useArticleMedia
+                                        onError={(error) => {
+                                            console.error('Cover image error:', error);
+                                            setErrors(prev => ({
+                                                ...prev,
+                                                imageUrl: 'Failed to load image'
+                                            }));
+                                        }}
+                                    />
                                 <Box
                                     position="absolute"
                                     top={0}
@@ -310,25 +316,25 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({ open, onClose, 
                                 </Typography>
                             </Box>
                         )}
-                        {isUploading && (
-                            <Box
-                                position="absolute"
-                                bottom={0}
-                                left={0}
-                                right={0}
-                                height={4}
-                                sx={{ bgcolor: 'background.paper' }}
-                            >
-                                <Box
-                                    sx={{
-                                        width: `${progress}%`,
-                                        height: '100%',
-                                        bgcolor: 'primary.main',
-                                        transition: 'width 0.2s'
-                                    }}
-                                />
-                            </Box>
-                        )}
+    {isUploading && (
+        <Box
+            position="absolute"
+            bottom={0}
+            left={0}
+            right={0}
+            height={4}
+            sx={{ bgcolor: 'background.paper' }}
+        >
+            <Box
+                sx={{
+                    width: `${progress}%`,
+                    height: '100%',
+                    bgcolor: 'primary.main',
+                    transition: 'width 0.2s'
+                }}
+            />
+        </Box>
+    )}
                     </Card>
                 </label>
                 {errors.imageUrl && (

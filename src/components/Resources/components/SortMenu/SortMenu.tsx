@@ -16,7 +16,7 @@ import {
   ArrowUpward,
   ArrowDownward
 } from '@mui/icons-material';
-import { ResourceSortOptions, ResourceSortField } from '../../../../types/Resources';
+import { ResourceSortOptions, ResourceSortField } from '../../../../types/ArticleMedia';
 import { SortStyles } from './styles';
 
 interface SortMenuProps {

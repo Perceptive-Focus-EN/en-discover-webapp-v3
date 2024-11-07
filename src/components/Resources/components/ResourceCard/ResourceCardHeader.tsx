@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Box, IconButton } from '@mui/material';
 import { BookmarkBorder, Bookmark } from '@mui/icons-material';
 import { ShareButton } from '@/feature/posts/components/Share/ShareMenu';
-import { Resource } from '../../../../types/Resources';
+import { Resource } from '../../../../types/ArticleMedia';
 import { StyledCardMedia } from './styles';
 import { Post, PostType, Visibility } from '@/feature/posts/api/types';
 import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';

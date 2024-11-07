@@ -6,10 +6,9 @@ import {
   Resource,
   ResourceFilters,
   ResourceSortOptions,
-  ResourceSortField,
   ResourceListState,
   ResourceListHookReturn
-} from '../../../types/Resources';
+} from '../../../types/ArticleMedia';
 import { PaginationMetadata } from '@/types/pagination';
 
 const DEFAULT_SORT: ResourceSortOptions = {

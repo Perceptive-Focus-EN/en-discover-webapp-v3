@@ -18,7 +18,7 @@ import { styled } from '@mui/system';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
-import ImageRenderer from '@/pages/ImageRenderer';
+import ImageRenderer from '../../pages/ImageRenderer/ImageRenderer';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 
@@ -130,6 +130,20 @@ export const ResourceContentViewer: React.FC<ResourceContentProps> = ({
     author,
     metadata
 }) => {
+    console.log('ResourceContentViewer props:', { content, author, metadata });
+    
+        // Validate content structure
+    if (!content || !Array.isArray(content.sections)) {
+        console.error('Invalid content structure:', content);
+        return (
+            <Box p={3} textAlign="center">
+                <Typography color="error">
+                    Error: Invalid content structure
+                </Typography>
+            </Box>
+        );
+    }
+
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 

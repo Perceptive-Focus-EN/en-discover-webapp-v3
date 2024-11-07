@@ -8,7 +8,7 @@ import {
   Divider,
   Rating
 } from '@mui/material';
-import { Resource } from '../../../../types/Resources';
+import { Resource } from '../../../../types/ArticleMedia';
 import { ContentContainer, MetadataContainer } from './styles';
 import { formatDate } from '../../utils/dateUtils';
 

@@ -1,7 +1,7 @@
 // src/components/Resources/components/ResourceCard/ResourceCardActions.tsx
 import React from 'react';
 import { Box, Button, CardMedia, Typography } from '@mui/material';
-import { Resource } from '../../../../types/Resources';
+import { Resource } from '../../../../types/ArticleMedia';
 
 interface ResourceCardActionsProps {
   resource: Resource;

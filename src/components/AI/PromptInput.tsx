@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { FaMicrophone, FaMicrophoneSlash } from 'react-icons/fa';
 import RocketIcon from './RocketIcon';
-import generateResponseGenerator from '../../lib/api_s/responseGenerator';
+import generateResponseGenerator from '../../lib/api/responseGenerator';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { useAIAssistant } from '@/contexts/AIAssistantContext';
 

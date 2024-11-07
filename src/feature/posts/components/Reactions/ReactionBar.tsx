@@ -4,7 +4,7 @@ import { EmotionId, EmotionName, PostReaction } from '@/feature/types/Reaction';
 import { useReactions } from '../../hooks/useReactions';
 import { useAuth } from '@/contexts/AuthContext';
 import EmotionSelectionDrawer from '../../../EmotionSelectionDrawer';
-import { emotionMappingsApi } from '@/lib/api_s/reactions/emotionMappings';
+import { emotionMappingsApi } from '@/lib/api/reactions/emotionMappings';
 import { Emotion } from '@/components/EN/types/emotions';
 
 export interface ReactionBarProps {

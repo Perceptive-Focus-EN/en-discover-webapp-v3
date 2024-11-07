@@ -1,5 +1,5 @@
 // src/services/ai/chunkProcessing.ts
-import { generateResponse } from '../../lib/api_s/openAIApiService';
+import { generateResponse } from '../../lib/api/openAIApiService';
 import { api } from '../../lib/axiosSetup';
 import { CHUNK_CONFIG } from './constants/aiConstants';
 import { promptBuilderService } from './services/PromptBuilderService';

@@ -1,3 +1,4 @@
+
 export class CircuitBreaker {
   private readonly MAX_ERRORS = 3;
   private readonly RESET_TIMEOUT = 5000;

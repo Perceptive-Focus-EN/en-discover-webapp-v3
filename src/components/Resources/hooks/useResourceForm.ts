@@ -9,7 +9,7 @@ import {
   ResourceFormHookReturn,
   ResourceActionResult,
   ResourceVisibility
-} from '../../../types/Resources';
+} from '../../../types/ArticleMedia';
 
 const initialState: ResourceFormState = {
   title: '',

@@ -21,8 +21,12 @@ import {
   useTheme
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
-import { ResourceFilters, ResourceStatus, ResourceVisibility } from '../../types/Resources';
+import { ResourceFilters } from '../../types/ArticleMedia';
+import { ResourceStatus, ResourceVisibility } from '../../types/ArticleMedia/resources';
 import { FilterStyles } from './styles';
+import { useResourceFilters } from '@/hooks/useResourceFilters';
+import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 
 interface FilterDrawerProps {
   open: boolean;
@@ -39,25 +43,58 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
 }) => {
   const theme = useTheme();
   const [localFilters, setLocalFilters] = useState<ResourceFilters>(filters);
+  const { updateFilters } = useResourceFilters();
 
-  const handleReset = useCallback(() => {
-    const emptyFilters: ResourceFilters = {
-      category: [],
-      status: undefined,
-      visibility: undefined,
-      dateRange: undefined,
-      readingLevel: undefined,
-      tags: [],
-      searchTerm: ''
-    };
-    setLocalFilters(emptyFilters);
-    onFilterChange(emptyFilters);
-  }, [onFilterChange]);
+  const handleReset = useCallback(async () => {
+    try {
+      const emptyFilters: ResourceFilters = {
+        category: [],
+        status: undefined,
+        visibility: undefined,
+        dateRange: undefined,
+        readingLevel: undefined,
+        tags: [],
+        searchTerm: ''
+      };
+      setLocalFilters(emptyFilters);
+      await updateFilters(emptyFilters);
+      onFilterChange(emptyFilters);
 
-  const handleApply = useCallback(() => {
-    onFilterChange(localFilters);
-    onClose();
-  }, [localFilters, onFilterChange, onClose]);
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'resource_filters',
+        'reset',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT
+      );
+    } catch (error) {
+      console.error('Error resetting filters:', error);
+    }
+  }, [updateFilters, onFilterChange]);
+
+  const handleApply = useCallback(async () => {
+    try {
+      await updateFilters(localFilters);
+      onFilterChange(localFilters);
+      onClose();
+
+      monitoringManager.metrics.recordMetric(
+        MetricCategory.BUSINESS,
+        'resource_filters',
+        'apply',
+        1,
+        MetricType.COUNTER,
+        MetricUnit.COUNT,
+        {
+          filterCount: Object.keys(localFilters).length,
+          filters: JSON.stringify(localFilters)
+        }
+      );
+    } catch (error) {
+      console.error('Error applying filters:', error);
+    }
+  }, [localFilters, updateFilters, onFilterChange, onClose]);
 
   const handleCategoryToggle = useCallback((category: string) => {
     setLocalFilters(prev => ({
@@ -253,6 +290,15 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
             </Box>
           </Box>
         </Box>
+
+        {/* Add active filter count */}
+        {Object.keys(localFilters).length > 0 && (
+          <Box sx={FilterStyles.activeFilters}>
+            <Typography variant="caption" color="primary">
+              {Object.keys(localFilters).length} active filters
+            </Typography>
+          </Box>
+        )}
 
         {/* Footer */}
         <Box sx={FilterStyles.footer}>

@@ -14,7 +14,7 @@ import {
     ONBOARDING_STEPS, 
     ONBOARDING_STATUS
 } from '../constants/onboarding';
-import { onboardingApi } from '../lib/api_s/onboarding';
+import { onboardingApi } from '../lib/api/onboarding';
 import { AllRoles } from '@/constants/AccessKey/AccountRoles';
 import { Subscription_Type } from '@/constants/AccessKey/accounts';
 

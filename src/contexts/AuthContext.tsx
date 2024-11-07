@@ -2,9 +2,9 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { authorizationApi } from '../lib/api_s/authorization';
-import { onboardingApi } from '../lib/api_s/onboarding';
-import { userApi } from '../lib/api_s/user';
+import { authorizationApi } from '../lib/api/authorization';
+import { onboardingApi } from '../lib/api/onboarding';
+import { userApi } from '../lib/api/user';
 import { LoginRequest } from '../types/Login/interfaces';
 import { SignupRequest } from '../types/Signup/interfaces';
 import { ExtendedUserInfo } from '../types/User/interfaces';

@@ -1,5 +1,5 @@
 // src/components/Feed/context/useReactionOperations.tsx
-import { postReactionsApi } from '@/lib/api_s/reactions/postReactions';
+import { postReactionsApi } from '@/lib/api/reactions/postReactions';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { Reaction, EmotionId } from '../types/Reaction';
 import { useFeed } from './FeedContext';

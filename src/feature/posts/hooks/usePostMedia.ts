@@ -1,265 +1,200 @@
 import { useState, useCallback } from 'react';
-import { uploadApi, UploadProgress, MAX_FILE_SIZE, ALLOWED_TYPES } from '../api/uploadApi';
-import { isApiError, extractErrorMessage } from '@/lib/api_s/client/utils';
-import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
-import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { UploadResponse } from '@/types/Resources/api';
+import { uploadApi } from '@/lib/api/uploads';
+import { 
+  FileCategory, 
+  UPLOAD_STATUS, 
+  UploadStatus,
+  UPLOAD_CONFIGS,
+  UPLOAD_SETTINGS,
+  AccessLevel,
+  RetentionType,
+  ProcessingStep
+} from '@/constants/uploadConstants';
 
-interface UsePostMediaReturn {
-  uploadSingle: (file: File) => Promise<UploadResponse>;
-  uploadMultiple: (files: File[]) => Promise<UploadResponse[]>;
-  isUploading: boolean;
+// Base types that match backend exactly
+interface BaseMetadata {
+  originalName: string;
+  mimeType: string;
+  uploadedAt: string;
+  fileSize: number;
+  category: FileCategory;
+  accessLevel: AccessLevel;
+  retention: RetentionType;
+  processingSteps: ProcessingStep[];
+}
+
+interface ProcessingMetadata {
+  status: UploadStatus;
+  completedSteps: ProcessingStep[];
+  currentStep?: ProcessingStep;
+  error?: string;
+}
+
+interface UploadResponse {
+  message: string;
+  trackingId: string;
+  fileUrl: string;
+  status: UploadStatus;
+  metadata: BaseMetadata;
+  processing?: ProcessingMetadata;
+}
+
+// Match the API's progress callback signature
+interface ProgressInfo {
+  loaded: number;
+  total: number;
+  percentage: number;
+  speed?: number;
+  remainingTime?: number;
+}
+
+type UploadProgressCallback = (progress: ProgressInfo) => void;
+
+interface UseUploadReturn {
+  upload: (file: File, category: FileCategory) => Promise<UploadResponse>;
+  resumeUpload: (
+    file: File,
+    trackingId: string,
+    lastChunk: number,
+    category: FileCategory
+  ) => Promise<UploadResponse>;
   progress: number;
   error: string | null;
-  resetError: () => void;
-  isProcessing: boolean;
-  processingProgress: number;
+  isUploading: boolean;
+  status: UploadStatus;
+  getStatus: typeof uploadApi.getUploadStatus;
+  cancel: typeof uploadApi.cancelUpload;
+  getHistory: typeof uploadApi.getUploadHistory;
+  resetUpload: () => void;
 }
 
-interface UsePostMediaProps {
-  onSuccess?: (response: UploadResponse) => void;
-  onMultipleSuccess?: (responses: UploadResponse[]) => void;
-}
-
-export const usePostMedia = ({ onSuccess, onMultipleSuccess }: UsePostMediaProps = {}): UsePostMediaReturn => {
-  const [isUploading, setIsUploading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [processingProgress, setProcessingProgress] = useState(0);
+export function usePostMedia(): UseUploadReturn {
+  const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [status, setStatus] = useState<UploadStatus>(UPLOAD_STATUS.INITIALIZING);
 
-  const handleProgress = useCallback((progress: UploadProgress) => {
-    setProgress(progress.percentage);
-
-    monitoringManager.metrics.recordMetric(
-      MetricCategory.PERFORMANCE,
-      'upload_progress_update',
-      progress.percentage.toString(),
-      1,
-      MetricType.COUNTER,
-      MetricUnit.COUNT,
-      {
-        loaded: progress.loaded,
-        total: progress.total,
-      }
-    );
+  const handleProgress = useCallback<UploadProgressCallback>((progressInfo: ProgressInfo) => {
+    setProgress(Math.min(progressInfo.percentage, 99)); // Never show 100% until complete
   }, []);
 
-  const uploadSingle = useCallback(async (file: File): Promise<UploadResponse> => {
-    setIsUploading(true);
-    setProgress(0);
-    setError(null);
-    setProcessingProgress(0);
-
-    const startTime = Date.now();
-
-    const isImage = ALLOWED_TYPES.image.includes(file.type);
-    const isVideo = ALLOWED_TYPES.video.includes(file.type);
-
-    if (!isImage && !isVideo) {
-      const errorMessage = 'Invalid file type';
-      setError(errorMessage);
-      messageHandler.error(errorMessage);
-      setIsUploading(false);
-      throw new Error(errorMessage);
+  const validateFileForCategory = useCallback((file: File, category: FileCategory): void => {
+    const config = UPLOAD_CONFIGS[category];
+    
+    if (!config.contentType.includes(file.type) && config.contentType[0] !== '*/*') {
+      throw new Error(
+        `Invalid file type for category ${category}. Allowed types: ${config.contentType.join(', ')}`
+      );
     }
 
-    const maxSize = isImage ? MAX_FILE_SIZE.image : MAX_FILE_SIZE.video;
-    if (file.size > maxSize) {
-      const errorMessage = 'File size exceeds limit';
-      setError(errorMessage);
-      messageHandler.error(errorMessage);
-      setIsUploading(false);
-      throw new Error(errorMessage);
+    if (file.size > config.maxSize) {
+      const maxSizeMB = config.maxSize / (1024 * 1024);
+      throw new Error(
+        `File size exceeds limit for category ${category}. Maximum size: ${maxSizeMB}MB`
+      );
     }
+  }, []);
 
+  const validateResponse = (response: any): UploadResponse => {
+    if (!response.trackingId || !response.fileUrl || !response.metadata) {
+      throw new Error('Invalid response format from upload API');
+    }
+    return response as UploadResponse;
+  };
+
+  const upload = useCallback(async (
+    file: File, 
+    category: FileCategory = UPLOAD_SETTINGS.DEFAULT_CATEGORY
+): Promise<UploadResponse> => {
     try {
-      const response = await uploadApi.upload(file, handleProgress);
+        setIsUploading(true);
+        setError(null);
+        setStatus(UPLOAD_STATUS.INITIALIZING);
+        validateFileForCategory(file, category);
 
-      if (!response.data?.url) {
-        throw new Error('Upload response missing URL');
-      }
+        // Add timeout promise
+        const uploadPromise = uploadApi.uploadFile(file, category);
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Upload timeout')), 30 * 60 * 1000);
+        });
 
-      console.log('Upload successful:', {
-        url: response.data.url,
-        type: response.data.type,
-        filename: response.data.filename,
-      });
-
-      if (file.type.startsWith('video/') && response.data.processingStatus) {
-        setIsProcessing(true);
-        setProcessingProgress(0);
+        setStatus(UPLOAD_STATUS.PROCESSING);
+        const response = await Promise.race([uploadPromise, timeoutPromise]) as UploadResponse;
         
-        monitoringManager.metrics.recordMetric(
-          MetricCategory.BUSINESS,
-          'media_processing',
-          'started',
-          1,
-          MetricType.COUNTER,
-          MetricUnit.COUNT,
-          {
-            fileType: file.type,
-            fileSize: file.size,
-            processingStatus: response.data.processingStatus,
-          }
-        );
-      }
-
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.BUSINESS,
-        'media_upload',
-        'success',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        {
-          type: 'single',
-          fileType: file.type,
-          fileSize: file.size,
-          duration: Date.now() - startTime,
-          hasUrl: Boolean(response.data.url),
-          mimeType: response.data.metadata.mimeType,
-        }
-      );
-
-      if (onSuccess) {
-        onSuccess(response);
-      }
-
-      return response;
+        const validatedResponse = validateResponse(response);
+        setStatus(validatedResponse.status);
+        setProgress(100);
+        return validatedResponse;
 
     } catch (err) {
-      const errorMessage = isApiError(err) ? extractErrorMessage(err) : 'Failed to upload media';
-      setError(errorMessage);
-      messageHandler.error(errorMessage);
+        setStatus(UPLOAD_STATUS.ERROR);
+        const errorMessage = err instanceof Error ? err.message : 'Upload failed';
+        setError(errorMessage);
+        throw err;
+    } finally {
+        setIsUploading(false);
+    }
+  }, [handleProgress, validateFileForCategory]);
+  
+  const resumeUpload = useCallback(async (
+    file: File,
+    trackingId: string,
+    lastChunk: number,
+    category: FileCategory
+  ): Promise<UploadResponse> => {
+    try {
+      setIsUploading(true);
+      setError(null);
+      setStatus(UPLOAD_STATUS.INITIALIZING);
+      validateFileForCategory(file, category);
 
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.BUSINESS,
-        'media_upload',
-        'failure',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        {
-          type: 'single',
-          fileType: file.type,
-          fileSize: file.size,
-          error: errorMessage,
-          errorType: err instanceof Error ? err.name : 'unknown',
-        }
+      // Calculate starting progress based on last chunk
+      const initialProgress = Math.min(
+        ((lastChunk * UPLOAD_SETTINGS.CHUNK_SIZE) / file.size) * 100,
+        99
+      );
+      setProgress(initialProgress);
+      
+      setStatus(UPLOAD_STATUS.PROCESSING);
+      const response = await uploadApi.resumeUpload(
+        file,
+        trackingId,
+        lastChunk,
+        category,
       );
 
+      const validatedResponse = validateResponse(response);
+      setStatus(validatedResponse.status);
+      setProgress(100);
+      return validatedResponse;
+
+    } catch (err) {
+      setStatus(UPLOAD_STATUS.ERROR);
+      const errorMessage = err instanceof Error ? err.message : 'Resume upload failed';
+      setError(errorMessage);
       throw err;
     } finally {
       setIsUploading(false);
-      if (!file.type.startsWith('video/')) {
-        setIsProcessing(false);
-      }
     }
-  }, [handleProgress, onSuccess]);
+  }, [handleProgress, validateFileForCategory]);
 
-  const uploadMultiple = useCallback(async (files: File[]): Promise<UploadResponse[]> => {
-    setIsUploading(true);
+  const resetUpload = useCallback(() => {
     setProgress(0);
     setError(null);
-    setProcessingProgress(0);
-
-    for (const file of files) {
-      const isImage = ALLOWED_TYPES.image.includes(file.type);
-      const isVideo = ALLOWED_TYPES.video.includes(file.type);
-
-      if (!isImage && !isVideo) {
-        const errorMessage = `Invalid file type for ${file.name}`;
-        setError(errorMessage);
-        messageHandler.error(errorMessage);
-        setIsUploading(false);
-        throw new Error(errorMessage);
-      }
-
-      const maxSize = isImage ? MAX_FILE_SIZE.image : MAX_FILE_SIZE.video;
-      if (file.size > maxSize) {
-        const errorMessage = `File size exceeds limit for ${file.name}`;
-        setError(errorMessage);
-        messageHandler.error(errorMessage);
-        setIsUploading(false);
-        throw new Error(errorMessage);
-      }
-    }
-
-    const startTime = Date.now();
-    const totalSize = files.reduce((acc, file) => acc + file.size, 0);
-
-    try {
-      const responses = await uploadApi.uploadMultiple(files, handleProgress);
-
-      responses.forEach((response) => {
-        if (!response.data?.url) {
-          throw new Error('Upload response missing URL');
-        }
-      });
-
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.BUSINESS,
-        'media_upload',
-        'success',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        {
-          type: 'multiple',
-          fileCount: files.length,
-          totalSize,
-          duration: Date.now() - startTime,
-          hasAllUrls: responses.every((r) => Boolean(r.data?.url)),
-        }
-      );
-
-      if (onMultipleSuccess) {
-        onMultipleSuccess(responses);
-      }
-
-      return responses;
-    } catch (err) {
-      const errorMessage = isApiError(err) ? extractErrorMessage(err) : 'Failed to upload multiple media files';
-      setError(errorMessage);
-      messageHandler.error(errorMessage);
-
-      monitoringManager.metrics.recordMetric(
-        MetricCategory.BUSINESS,
-        'media_upload',
-        'failure',
-        1,
-        MetricType.COUNTER,
-        MetricUnit.COUNT,
-        {
-          type: 'multiple',
-          fileCount: files.length,
-          totalSize,
-          error: errorMessage,
-          errorType: err instanceof Error ? err.name : 'unknown',
-        }
-      );
-
-      throw err;
-    } finally {
-      setIsUploading(false);
-      setIsProcessing(false);
-    }
-  }, [handleProgress, onMultipleSuccess]);
-
-  const resetError = useCallback(() => {
-    setError(null);
+    setIsUploading(false);
+    setStatus(UPLOAD_STATUS.INITIALIZING);
   }, []);
 
   return {
-    uploadSingle,
-    uploadMultiple,
-    isUploading,
-    isProcessing,
+    upload,
+    resumeUpload,
     progress,
-    processingProgress,
     error,
-    resetError,
+    isUploading,
+    status,
+    getStatus: uploadApi.getUploadStatus,
+    cancel: uploadApi.cancelUpload,
+    getHistory: uploadApi.getUploadHistory,
+    resetUpload
   };
-};
+}

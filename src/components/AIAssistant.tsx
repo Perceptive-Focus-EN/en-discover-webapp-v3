@@ -8,8 +8,8 @@ import VoiceSelector from './AI/VoiceSelector';
 import useClickOutside from '../hooks/useClickOutside';
 import { useAIAssistant } from '@/contexts/AIAssistantContext';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
-import generateResponseGenerator from '../lib/api_s/responseGenerator';
-import { audioApi } from '@/lib/api_s/audioGenerator';
+import generateResponseGenerator from '../lib/api/responseGenerator';
+import { audioApi } from '@/lib/api/audioGenerator';
 
 const AssistantContainer = styled.div`
   display: flex;

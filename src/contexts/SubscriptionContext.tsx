@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { SubscriptionPlanType } from '../types/Subscription/types';
 import { Subscription } from '../types/Subscription/interfaces';
-import { subscriptionsApi } from '../lib/api_s/stripe/subscriptions';
-import { invoicesApi } from '../lib/api_s/stripe/invoices';
-import { checkoutApi } from '../lib/api_s/stripe/checkout';
+import { subscriptionsApi } from '../lib/api/stripe/subscriptions';
+import { invoicesApi } from '../lib/api/stripe/invoices';
+import { checkoutApi } from '../lib/api/stripe/checkout';
 
 type SubscriptionState = {
   subscription: Subscription | null;

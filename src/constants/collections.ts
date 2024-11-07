@@ -33,5 +33,4 @@ export const COLLECTIONS = {
 
     KEY_VAULT: 'keyVault',
 
-
 } as const;

@@ -1,11 +1,11 @@
 // src/contexts/MoodBoardContext.tsx
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { moodboardApi, getStartDate, SaveMoodEntryPayload } from '../lib/api_s/moodboard/index';
+import { moodboardApi, getStartDate, SaveMoodEntryPayload } from '../lib/api/moodboard/index';
 import { MoodHistoryItem, MoodHistoryQuery, TimeRange, MoodEntry } from '../components/EN/types/moodHistory';
-import { emotionMappingsApi } from '../lib/api_s/reactions/emotionMappings';
+import { emotionMappingsApi } from '../lib/api/reactions/emotionMappings';
 import { Emotion } from '../components/EN/types/emotions';
-import { postReactionsApi } from '../lib/api_s/reactions/postReactions';
+import { postReactionsApi } from '../lib/api/reactions/postReactions';
 import { Post, PostType, TextContent } from '../feature/posts/api/types';
 import { EmotionId, PostReaction } from '@/feature/types/Reaction';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';

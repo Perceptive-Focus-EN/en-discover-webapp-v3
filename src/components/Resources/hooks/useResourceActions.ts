@@ -10,7 +10,7 @@ import {
   ResourcePermissions,
   ResourceStatus,
   ResourceVisibility
-} from '../../../types/Resources';
+} from '../../../types/ArticleMedia';
 
 export const useResourceActions = (
   permissions?: ResourcePermissions

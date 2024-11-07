@@ -20,6 +20,7 @@ import {
   Chat as ChatIcon,
   ShoppingBag as StoreIcon,
   Notifications as NotificationsIcon,
+  CloudUpload as CloudUploadIcon,
 } from '@mui/icons-material';
 import { useRouter } from 'next/router';
 import { ItemMenu, NavItem } from './ItemMenu'; // Import both ItemMenu and NavItem
@@ -28,6 +29,7 @@ import { ExtendedUserInfo } from '../types/User/interfaces';
 import ClientOnly from './ClientOnly';
 import AvatarComponent from './Uploads/AvatarComponent';
 import MessagingDrawer from './Messaging/MessagingDrawer';
+import { FileUploader } from './FileUploader';
 
 // Dynamic imports
 const SwipeableDrawer = dynamic(() => import('@mui/material/SwipeableDrawer'), { ssr: false });
@@ -131,7 +133,28 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
         setIsDrawerOpen(true);
       },
     },
+    {
+        id: 13,
+        name: 'Upload',
+        icon: <CloudUploadIcon />, // Import this from @mui/icons-material
+        onClick: () => {
+            setActiveDrawerComponent(
+                <Box sx={{ p: 2 }}>
+                    <Typography variant="h6" gutterBottom>
+                        Upload Files
+                    </Typography>
+                    <FileUploader 
+                        userId={currentAccount.userId} 
+                        tenantId={currentAccount.tenants.associations.tenantId.toString()}
+                    />
+                </Box>
+            );
+            setIsDrawerOpen(true);
+      },
+    },
   ], [isDrawerOpen, handleDrawerClose, setActiveDrawerComponent, currentAccount]);
+
+
 
   // Effects
   useEffect(() => {

@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { PostData, FeedPost } from '../types/Post';
-import { avatarApi } from '../../lib/api_s/uploads/avatar';
-import { photoApi } from '../../lib/api_s/uploads/photo';
-import { videoApi } from '../../lib/api_s/uploads/video';
-import { feedApi } from '../../lib/api_s/feed/index';
-import { postReactionsApi } from '../../lib/api_s/reactions/postReactions';
+import { avatarApi } from '../../lib/api/uploads/avatar';
+import { photoApi } from '../../lib/api/uploads/photo';
+import { videoApi } from '../../lib/api/uploads/video';
+import { feedApi } from '../../lib/api/feed/index';
+import { postReactionsApi } from '../../lib/api/reactions/postReactions';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
 

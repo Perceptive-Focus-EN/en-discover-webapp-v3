@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext } from 'react';
-import WebsiteService from '../lib/api_s/website';
+import WebsiteService from '../lib/api/website';
 
 // Types
 interface Component {
