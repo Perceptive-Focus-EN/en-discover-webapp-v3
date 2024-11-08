@@ -24,6 +24,7 @@ import { SOURCE_CATEGORIES, SourceCategoryId, SourceCategoryName } from './const
 import { VOLUME_LEVELS, VolumeLevelId, VolumeLevelName } from './constants/volume';
 import { MoodEntry, MoodHistoryItem, TimeRange, MoodHistoryQuery, convertSourceIdsToNames } from './types/moodHistory';
 import { EmotionName, EmotionId } from './constants/emotionsAndCategories';
+import { Mood } from '@mui/icons-material';
 
 
 const MoodIconView = dynamic(() => import('./MoodIconView'), {
@@ -476,6 +477,15 @@ type EmotionId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
                     </ToggleButton>
                   </ToggleButtonGroup>
                 </Box>
+                    <MoodHistoryChart
+                     emotion={emotions.find(e => e.emotionName === selectedEmotion) || emotions[0]}
+                     timeRange={timeRange}
+                  history={[]} />
+               <MoodIconView
+                     emotion={emotions.find(e => e.emotionName === selectedEmotion) || emotions[0]}
+                  timeRange={timeRange}
+                  history={[]}
+                />
               </Box>
             </>
           )}

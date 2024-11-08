@@ -185,10 +185,9 @@ const MoodBubbleChart: React.FC<MoodBubbleChartProps> = ({ emotions }) => {
                 <Typography color="error">{error}</Typography>
               ) : viewMode === 'chart' ? (
                 <MoodHistoryChart
-                  emotion={{ ...selectedEmotion, color: selectedEmotion?.color || theme.palette.grey[400] }}
-                  history={moodHistory}
-                  timeRange={timeRange}
-                />
+                      emotion={{ ...selectedEmotion, color: selectedEmotion?.color || theme.palette.grey[400] }}
+                      timeRange={timeRange}
+                      history={[]} />
               ) : (
                 <MoodIconView
                     emotion={{ ...selectedEmotion, 
