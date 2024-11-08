@@ -4,7 +4,6 @@ import { UserAccountType, UserAccountTypeEnum, Subscription_Type } from "@/const
 import { AllRoles } from "@/constants/AccessKey/AccountRoles/index";
 import { AccessLevel } from "@/constants/AccessKey/access_levels";
 import { PersonalPermission } from "@/constants/AccessKey/permissions/personal";
-import { TenantAssociation, TenantInfo } from "../types/Tenant/interfaces";
 import { SocialPermission } from "@/constants/socialMediaPermissions";
 
 export const USER_FIELDS = {

@@ -1,98 +1,22 @@
-import { DashboardMetrics, monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+import {  monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { UPLOAD_SETTINGS, UploadOptions } from '../constants/uploadConstants';
+import { UPLOAD_SETTINGS } from '../constants/uploadConstants';
 import { BlockBlobClient } from '@azure/storage-blob';
-import { Readable } from 'stream';
 import fs from 'fs';
 import { ErrorType, SystemError } from '@/MonitoringSystem/constants/errors';
-import { LRUCache } from 'lru-cache';
 
 // Add these imports
 import WebSocket, { Server as WebSocketServer } from 'ws';
 import { EventEmitter } from 'events';
-import {
-    CHUNKING_CONFIG,
-    UPLOAD_STATUS,
-    UPLOAD_WEBSOCKET,
-    type UploadProgress,
-    type ChunkingOptions
-} from '../constants/uploadConstants';
 import formidable from 'formidable';
+import { ChunkConfig, ChunkingOptions, ChunkMetadata, ChunkProgress, ChunkUploadResult, EnhancedProgress, UploadCleanupMetadata, UploadProgressEvent, UploadState } from '@/types/chunking';
+import { 
+    UPLOAD_STATUS,
+    CHUNKING_CONFIG 
+} from '../constants/uploadConstants';
+import {  UPLOAD_WEBSOCKET } from '../constants/uploadConstants';
+import { UploadOptions } from '@/types/upload';
 
-
-export interface ChunkConfig {
-    chunkSize: number;
-    maxRetries: number;
-    retryDelayBase: number;
-    maxConcurrent: number;
-}
-
-export interface ChunkMetadata {
-    id: number;
-    start: number;
-    end: number;
-    size: number;
-    etag?: string;
-    attempts: number;
-}
-
-export interface ChunkProgress {
-    chunkId: string;
-    progress: number;
-    status: 'pending' | 'uploading' | 'completed' | 'failed';
-    error?: string;
-}
-
-export interface UploadState {
-    completedChunks: Set<number>;
-    lastSuccessfulChunk: number;
-    uploadedBytes: number;
-    blockIds: string[];
-    locked?: boolean;
-    leaseId?: string;
-    blockBlobClient: BlockBlobClient;
-    startTime: number;
-}
-
-
-export interface UploadMetrics extends DashboardMetrics {
-    metadata: {
-        component: 'upload_system',
-        category: 'file_processing',
-        aggregationType: 'latest',
-        uploadStats: {
-            activeUploads: number,
-            queueSize: number,
-            memoryUsage: number,
-            chunkProgress: number
-        }
-    };
-}
-
-export interface UploadProgressEvent {
-    trackingId: string;
-    userId: string;
-    totalProgress: number;
-    chunksCompleted: number;
-    totalChunks: number;
-    uploadedBytes: number;
-    totalBytes: number;
-    status: 'initializing' | 'uploading' | 'paused' | 'completed' | 'failed';
-    error?: string;
-}
-
-export interface EnhancedProgress extends UploadProgressEvent {
-    estimatedTimeRemaining: number;
-    uploadSpeed: number;
-    serverLoad: number;
-}
-// At the class level, define the cache options type
-export interface CacheOptions {
-    max: number;
-    ttl: number;
-    updateAgeOnGet: boolean;
-    updateAgeOnHas: boolean;
-}
 
 export class ChunkingService extends EventEmitter {
 
@@ -100,6 +24,8 @@ export class ChunkingService extends EventEmitter {
     private readonly config: ChunkConfig;
     private currentUploadState: Map<string, UploadState> = new Map();
     private uploadControlState = new Map<string, {
+        retryCount: number;
+        lastRetryTimestamp: number;
         isPaused: boolean;
         isCancelled: boolean;
     }>();
@@ -114,7 +40,10 @@ export class ChunkingService extends EventEmitter {
             retryDelayBase: UPLOAD_SETTINGS.RETRY_DELAY_BASE,
             maxConcurrent: UPLOAD_SETTINGS.MAX_CONCURRENT_UPLOADS
         };
+            // Setup periodic cleanup
+        setInterval(() => this.performPeriodicCleanup(), 5 * 60 * 1000); // Every 5 minutes
     }
+
 
     private optimizeChunkSize(fileSize: number, connectionSpeed?: number): number {
     const baseSize = CHUNKING_CONFIG.CHUNK_SIZE;
@@ -129,6 +58,21 @@ export class ChunkingService extends EventEmitter {
             this.instance = new ChunkingService();
         }
         return this.instance;
+    }
+
+    protected async performPeriodicCleanup(): Promise<void> {
+        const now = Date.now();
+        const staleTimeout = 30 * 60 * 1000; // 30 minutes
+
+        for (const [trackingId, state] of this.currentUploadState.entries()) {
+            if (now - state.startTime > staleTimeout) {
+                await this.cleanupUploadState({
+                    trackingId,
+                    reason: 'cancellation',
+                    finalState: state
+                });
+            }
+        }
     }
 
     private calculateChunks(fileSize: number, chunkSize?: number): ChunkMetadata[] {
@@ -152,6 +96,170 @@ export class ChunkingService extends EventEmitter {
     return chunks;
     }
 
+       protected async cleanupUploadState(metadata: UploadCleanupMetadata): Promise<void> {
+        const { trackingId, reason, error, finalState } = metadata;
+        
+        try {
+            const state = finalState || this.currentUploadState.get(trackingId);
+            if (!state) return;
+
+            // Cleanup blob storage
+            if (state.blockBlobClient && reason !== 'completion') {
+                await this.cleanupFailedUpload(trackingId, state.blockBlobClient, state.leaseId);
+            }
+
+            // Release lease if exists
+            if (state.leaseId) {
+                try {
+                    const leaseClient = state.blockBlobClient.getBlobLeaseClient(state.leaseId);
+                    await leaseClient.releaseLease();
+                } catch (leaseError) {
+                    monitoringManager.logger.warn('Failed to release lease during cleanup', {
+                        trackingId,
+                        error: leaseError
+                    });
+                }
+            }
+
+            // Cleanup temporary files
+            if (state.tempFilePath) {
+                try {
+                    await fs.promises.unlink(state.tempFilePath);
+                } catch (fileError) {
+                    monitoringManager.logger.warn('Failed to cleanup temporary file', {
+                        trackingId,
+                        filePath: state.tempFilePath,
+                        error: fileError
+                    });
+                }
+            }
+
+            // Clear state
+            this.currentUploadState.delete(trackingId);
+            this.uploadControlState.delete(trackingId);
+
+            // Emit cleanup event
+            this.emit(UPLOAD_WEBSOCKET.EVENTS.CLEANUP, {
+                trackingId,
+                reason,
+                error: error?.message,
+                finalState: {
+                    uploadedBytes: state.uploadedBytes,
+                    totalBytes: state.totalBytes,
+                    chunksCompleted: state.completedChunks.size
+                }
+            });
+
+        } catch (cleanupError) {
+            monitoringManager.logger.error(cleanupError, SystemError.CHUNK_CLEANUP_FAILED, {
+                trackingId,
+                reason,
+                originalError: error
+            });
+        }
+    }
+
+
+        protected async retryFailedChunks(
+        trackingId: string,
+        failedChunks: ChunkMetadata[],
+        file: any,
+        blockBlobClient: BlockBlobClient,
+        leaseId?: string,
+        userId?: string
+    ): Promise<ChunkUploadResult[]> {
+        const control = this.getUploadControl(trackingId);
+        const maxRetryAttempts = this.config.maxRetries;
+        const results: ChunkUploadResult[] = [];
+
+        for (const chunk of failedChunks) {
+            if (control.isCancelled) break;
+
+            const retryResult = await this.retryChunkUpload(
+                chunk,
+                file,
+                blockBlobClient,
+                leaseId,
+                trackingId,
+                userId,
+                maxRetryAttempts
+            );
+
+            results.push(retryResult);
+
+            // Emit retry progress
+            this.emit(UPLOAD_WEBSOCKET.EVENTS.RETRY, {
+                trackingId,
+                chunkId: chunk.id,
+                attempt: retryResult.attempts,
+                success: retryResult.success,
+                error: retryResult.error?.message
+            });
+
+            if (!retryResult.success) {
+                throw new Error(`Failed to upload chunk ${chunk.id} after ${maxRetryAttempts} attempts`);
+            }
+        }
+
+        return results;
+    }
+
+    protected async retryChunkUpload(
+        chunk: ChunkMetadata,
+        file: any,
+        blockBlobClient: BlockBlobClient,
+        leaseId: string | undefined,
+        trackingId: string,
+        userId: string | undefined,
+        maxAttempts: number
+    ): Promise<ChunkUploadResult> {
+        const startTime = Date.now();
+        let attempts = 0;
+        let lastError: Error | undefined;
+
+        while (attempts < maxAttempts) {
+            attempts++;
+            try {
+                const blockId = await this.uploadChunk(
+                    chunk,
+                    file,
+                    blockBlobClient,
+                    progress => this.emitProgress(trackingId!, userId!, file, this.calculateChunks(file.size)),
+                    leaseId,
+                    trackingId,
+                    userId
+                );
+
+                return {
+                    chunkId: chunk.id,
+                    blockId,
+                    attempts,
+                    duration: Date.now() - startTime,
+                    success: true
+                };
+            } catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                
+                if (attempts < maxAttempts) {
+                    const delayMs = this.calculateRetryDelay(attempts);
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                }
+            }
+        }
+
+        return {
+            chunkId: chunk.id,
+            blockId: '',
+            attempts,
+            duration: Date.now() - startTime,
+            success: false,
+            error: lastError
+        };
+    }
+
+    private calculateRetryDelay(attempt: number): number {
+        return this.config.retryDelayBase * Math.pow(2, attempt);
+    }
 
     private async lockUploadState(trackingId: string): Promise<void> {
         while (this.currentUploadState.get(trackingId)?.locked) {
@@ -230,15 +338,16 @@ export class ChunkingService extends EventEmitter {
     }
 
     private async uploadChunk(
-        chunk: ChunkMetadata,
-        file: any,
-        blockBlobClient: BlockBlobClient,
-        onProgress: (progress: ChunkProgress) => void,
-        leaseId?: string,
-        trackingId?: string,
-        userId?: string
+    chunk: ChunkMetadata,
+    file: any,
+    blockBlobClient: BlockBlobClient,
+    onProgress: (progress: ChunkProgress) => void,
+    leaseId?: string,
+    trackingId?: string,
+    userId?: string
     ): Promise<string> {
-         // At the start of the method
+        
+     // At the start of the method
     if (trackingId) {
         const control = this.getUploadControl(trackingId);
         if (control.isCancelled) {
@@ -253,8 +362,11 @@ export class ChunkingService extends EventEmitter {
         }
     }
 
-        const chunkId = `block-${chunk.id.toString().padStart(6, '0')}`;
+    const chunkId = `block-${chunk.id.toString().padStart(6, '0')}`;
         const encodedChunkId = Buffer.from(chunkId).toString('base64');
+
+
+
 
         for (let attempt = 0; attempt < this.config.maxRetries; attempt++) {
             try {
@@ -279,29 +391,26 @@ export class ChunkingService extends EventEmitter {
                     attempt: attempt + 1
                 });
 
-                await blockBlobClient.stageBlock(
-                    encodedChunkId,
-                    buffer,
-                    buffer.length,
-                    {
-                        conditions: {
-                            leaseId
-                        }
-                    }
-                );
-
+                 await blockBlobClient.stageBlock(
+                encodedChunkId,
+                buffer,
+                buffer.length,
+                { conditions: { leaseId } }
+                 );
+                
                 onProgress({
-                    chunkId,
-                    progress: 100,
-                    status: 'completed'
-                });
+                chunkId,
+                progress: 100,
+                status: 'completed'
+            });
 
                 // Emit progress after successful chunk upload
-                if (trackingId && userId) {
-                    this.emitProgress(trackingId, userId, file, this.calculateChunks(file.size));
-                }
+            if (trackingId && userId) {
+                await this.updateUploadProgress(trackingId, chunk.id, encodedChunkId, chunk.size);
+                this.emitProgress(trackingId!, userId!, file, this.calculateChunks(file.size));
+            }
 
-                return encodedChunkId;
+            return encodedChunkId;
 
             } catch (error) {
                 const isLastAttempt = attempt === this.config.maxRetries - 1;
@@ -355,7 +464,7 @@ export class ChunkingService extends EventEmitter {
             control.isPaused = true;
             this.emit(UPLOAD_WEBSOCKET.EVENTS.PAUSED, {
                 trackingId: uploadId,
-                status: CHUNKING_CONFIG.STATES.PAUSED
+                status: UPLOAD_STATUS.PAUSED
             });
             break;
 
@@ -363,7 +472,7 @@ export class ChunkingService extends EventEmitter {
             control.isPaused = false;
             this.emit(UPLOAD_WEBSOCKET.EVENTS.RESUMED, {
                 trackingId: uploadId,
-                status: CHUNKING_CONFIG.STATES.UPLOADING
+                status: UPLOAD_STATUS.UPLOADING
             });
             break;
 
@@ -376,7 +485,7 @@ export class ChunkingService extends EventEmitter {
             }
             this.emit(UPLOAD_WEBSOCKET.EVENTS.RESUMED, {
                 trackingId: uploadId,
-                status: CHUNKING_CONFIG.STATES.UPLOADING
+                status: UPLOAD_STATUS.UPLOADING
             });
             break;
 
@@ -385,7 +494,7 @@ export class ChunkingService extends EventEmitter {
             await this.cleanupFailedUpload(uploadId, state.blockBlobClient, state.leaseId);
             this.emit(UPLOAD_WEBSOCKET.EVENTS.ERROR, {
                 trackingId: uploadId,
-                status: CHUNKING_CONFIG.STATES.FAILED,
+                status: UPLOAD_STATUS.FAILED,
                 error: 'Upload cancelled by user'
             });
             break;
@@ -445,7 +554,8 @@ export class ChunkingService extends EventEmitter {
             uploadedBytes: 0,
             blockIds: [],
             blockBlobClient: blockBlobClient,
-            startTime: Date.now()
+            startTime: Date.now(),
+            totalBytes: 0 // Add this line
         };
 
         this.currentUploadState.set(trackingId, newState);
@@ -491,13 +601,12 @@ export class ChunkingService extends EventEmitter {
         const event: EnhancedProgress = {
             trackingId,
             userId,
-            totalProgress: (state.uploadedBytes / file.size) * 100,
+            progress: (state.completedChunks.size / chunks.length) * 100,
             chunksCompleted: state.completedChunks.size,
             totalChunks: chunks.length,
             uploadedBytes: state.uploadedBytes,
             totalBytes: file.size,
-            status: state.uploadedBytes === file.size ? 
-                CHUNKING_CONFIG.STATES.COMPLETED : CHUNKING_CONFIG.STATES.UPLOADING,
+            status: state.uploadedBytes === file.size ? 'completed' : 'uploading',
             // Enhanced metrics
             estimatedTimeRemaining,
             uploadSpeed,
@@ -571,44 +680,38 @@ export class ChunkingService extends EventEmitter {
                 state.leaseId = leaseId;
             }
 
-            const uploadQueue = remainingChunks.map(chunk => async () => {
-                try {
-                    const blockId = await this.uploadChunk(chunk, file, blockBlobClient, progress => {
-                        if (progress.status === 'completed' && trackingId) {
-                            this.updateUploadProgress(trackingId, chunk.id, blockId, chunk.size);
-                            const totalProgress = (state?.uploadedBytes ?? 0) / file.size * 100;
-                            onProgress?.(Math.min(totalProgress, 100));
-                        }
-                    }, leaseId, trackingId, userId);
-                    return { chunkId: chunk.id, blockId };
-                } catch (error) {
-                    throw monitoringManager.error.createError(
-                        'system',
-                        'CHUNK_UPLOAD_FAILED',
-                        'Failed to upload chunk',
-                        {
-                            chunkId: chunk.id,
-                            error: error instanceof Error ? error.message : 'Unknown error'
-                        }
-                    );
-                }
-            });
+                // Execute the upload queue and get results
+    const results = await this.executeUploadQueue(
+        remainingChunks.map(chunk => () => this.uploadChunk(
+            chunk,
+            file,
+            blockBlobClient,
+            progress => onProgress?.(progress.progress),
+            leaseId,
+            trackingId,
+            userId
+        )),
+        config.maxConcurrent
+    );
 
-            const results = await this.executeUploadQueue(uploadQueue, config.maxConcurrent);
-            const blockIds = results.map(r => r.blockId);
+    // Verify we have all required blockIds
+    const blockIds = remainingChunks
+        .sort((a, b) => a.id - b.id)
+        .map((chunk, index) => results[index]);
 
-            await blockBlobClient.commitBlockList(blockIds, {
-                metadata: {
-                    originalName: file.originalFilename,
-                    contentType: file.mimetype,
-                    uploadTimestamp: new Date().toISOString(),
-                    resumeEnabled: 'true'
-                },
-                conditions: {
-                    leaseId
-                }
-            });
+    if (blockIds.length !== remainingChunks.length) {
+        throw new Error('Missing blockIds after upload');
+    }
 
+    await blockBlobClient.commitBlockList(blockIds, {
+        metadata: {
+            originalName: file.originalFilename,
+            contentType: file.mimetype,
+            uploadTimestamp: new Date().toISOString(),
+            resumeEnabled: 'true'
+        },
+        conditions: { leaseId }
+    });
         } catch (error) {
             if (trackingId) {
                 await this.cleanupFailedUpload(trackingId, blockBlobClient, leaseId);
@@ -714,6 +817,8 @@ private calculateOptimalConcurrency(maxConcurrent: number, fileSize: number): nu
 private getUploadControl(trackingId: string) {
     if (!this.uploadControlState.has(trackingId)) {
         this.uploadControlState.set(trackingId, {
+            lastRetryTimestamp: 0,
+            retryCount: 0,
             isPaused: false,
             isCancelled: false
         });
@@ -721,32 +826,68 @@ private getUploadControl(trackingId: string) {
     return this.uploadControlState.get(trackingId)!;
 }
 
+
     private async executeUploadQueue<T>(
-        queue: (() => Promise<T>)[],
-        maxConcurrent: number
-    ): Promise<T[]> {
-        const results: T[] = [];
-        let activeUploads = 0;
-        let queueIndex = 0;
+    queue: (() => Promise<T>)[],
+    maxConcurrent: number
+): Promise<T[]> {
+    const results: T[] = [];
+    let activeUploads = 0;
+    let queueIndex = 0;
 
-        while (queueIndex < queue.length || activeUploads > 0) {
-            while (activeUploads < maxConcurrent && queueIndex < queue.length) {
-                const currentIndex = queueIndex++;
-                activeUploads++;
+    // Create promises array to properly handle results
+    const promises: Promise<void>[] = [];
 
-                queue[currentIndex]()
-                    .then(result => {
-                        results[currentIndex] = result;
-                    })
-                    .finally(() => {
-                        activeUploads--;
+    while (queueIndex < queue.length || activeUploads > 0) {
+        while (activeUploads < maxConcurrent && queueIndex < queue.length) {
+            const currentIndex = queueIndex++;
+            activeUploads++;
+
+            // Create and store promise for each upload
+            const promise = queue[currentIndex]()
+                .then(result => {
+                    results[currentIndex] = result;
+                })
+                .catch(error => {
+                    // Handle error and ensure it's propagated
+                    monitoringManager.logger.error(error, SystemError.CHUNK_UPLOAD_FAILED as ErrorType, {
+                        chunkIndex: currentIndex,
+                        error: error instanceof Error ? error.message : 'Unknown error'
                     });
-            }
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
+                    throw error; // Rethrow to be caught by Promise.all
+                })
+                .finally(() => {
+                    activeUploads--;
+                });
 
-        return results;
+            promises.push(promise);
+        }
+        
+        // Wait for some promises to complete before continuing
+        if (activeUploads >= maxConcurrent || queueIndex >= queue.length) {
+            try {
+                await Promise.race(promises);
+            } catch (error) {
+                // If any promise fails, fail the entire upload
+                throw error;
+            }
+        }
     }
+
+    // Wait for all remaining promises
+    try {
+        await Promise.all(promises);
+    } catch (error) {
+        throw error;
+    }
+
+    // Verify all chunks were uploaded
+    if (results.some(r => !r)) {
+        throw new Error('Some chunks failed to upload');
+    }
+
+    return results;
+}
 }
 
 export const chunkingService = ChunkingService.getInstance();

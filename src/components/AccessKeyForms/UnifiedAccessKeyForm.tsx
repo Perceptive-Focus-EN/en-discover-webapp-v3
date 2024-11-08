@@ -53,7 +53,7 @@ const UnifiedAccessKeyForm: React.FC<UnifiedAccessKeyFormProps> = ({
     ACCESS_LEVEL: AccessLevel;
   }>({
     USER_ID: user?.userId || '',
-    ASSOCIATED_TENANT_ID: user?.currentTenantId || '',
+    ASSOCIATED_TENANT_ID: typeof user?.currentTenant === 'string' ? user.currentTenant : user?.currentTenant?.tenantId || '',
     SUBSCRIPTION_TYPE: 'TRIAL' as Subscription_Type,
     SYSTEM_LEVEL_ROLE: SYSTEM_LEVEL_ROLES.USER,
     ACCESS_LEVEL: AccessLevel.L4 as AccessLevel,

@@ -145,7 +145,7 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
                     </Typography>
                     <FileUploader 
                         userId={currentAccount.userId} 
-                        tenantId={currentAccount.tenants.associations.tenantId.toString()}
+                        tenantId={currentAccount.tenants.associations.tenantId?.toString() || ''}
                     />
                 </Box>
             );

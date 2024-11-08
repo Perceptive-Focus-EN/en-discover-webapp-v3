@@ -108,6 +108,9 @@ STORAGE_CONNECTION_FAILED = 'system/storage/connection_failed',
   LEASE_REQUIRED = 'system/storage/lease_required',
   INITIALIZATION_FAILED = 'system/initialization_failed',
   UPLOAD_CONTROL_FAILED = 'system/upload_control_failed',
+  CHUNK_UPLOAD_FAILED = 'system/chunk_upload_failed',
+  CHUNK_CLEANUP_FAILED = 'system/chunk_cleanup_failed',
+  VALIDATION_FAILED = 'system/validation_failed',
 
 
 

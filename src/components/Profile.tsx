@@ -79,7 +79,7 @@ const Profile: React.FC = () => {
             {user?.firstName || 'User Name'}
           </Typography>
           <Typography variant="subtitle1" color="textSecondary">
-            {user?.role || 'User Role'}
+            {user?.email || 'User Email'}
           </Typography>
         </Box>
         <IconButton onClick={handleEditOpen}>

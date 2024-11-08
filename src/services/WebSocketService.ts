@@ -1,5 +1,5 @@
 // src/services/WebSocketService.ts
-import { Server as WebSocketServer } from 'ws';
+import WebSocket, { Server as WebSocketServer } from 'ws';
 import { Server as HttpServer } from 'http';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 
@@ -18,6 +18,12 @@ export class WebSocketService {
             WebSocketService.instance = new WebSocketService(server);
         }
         return WebSocketService.instance;
+    }
+
+    private getUserIdFromUrl(url: string | undefined): string | null {
+        if (!url) return null;
+        const urlParams = new URLSearchParams(url.split('?')[1]);
+        return urlParams.get('userId');
     }
 
     private setupWebSocket() {
@@ -78,4 +84,7 @@ export class WebSocketService {
     }
 }
 
+import { createServer } from 'http';
+
+const server = createServer(); // Create your HTTP server instance
 export const wsService = WebSocketService.getInstance(server); // Initialize with your HTTP server

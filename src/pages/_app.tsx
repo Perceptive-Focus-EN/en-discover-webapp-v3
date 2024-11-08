@@ -1,4 +1,3 @@
-
 // src/pages/_app.tsx
 import 'regenerator-runtime/runtime';
 import type { AppProps } from 'next/app';
@@ -20,8 +19,9 @@ import { MoodBoardProvider } from '../contexts/MoodBoardContext';
 import { GlobalStateProvider } from '../contexts/GlobalStateContext';
 import { AIAssistantProvider } from '../contexts/AIAssistantContext';
 import { SystemMetricsCollector } from '@/MonitoringSystem/utils/SystemMetricsCollector';
-import { RouteGuard } from '@/components/RouteGuard';
-
+import { useRouter } from 'next/router';
+import { useAuth } from '../contexts/AuthContext';
+import { CircularProgress, Box } from '@mui/material';
 
 interface ThemeModeContextType {
   mode: 'light' | 'dark';
@@ -33,10 +33,17 @@ export const ThemeModeContext = createContext<ThemeModeContextType>({
   toggleThemeMode: () => {},
 });
 
+// Define public routes
+const publicRoutes = ['/login', '/signup', '/reset-password', '/magic-link', '/settings/faq', '/settings/privacy-policy', '/settings/terms'];
+
 function AppContent({ Component, pageProps }: AppProps) {
   const [mode, setMode] = useState<'light' | 'dark'>('light');
   const { settings } = useSettings();
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const [isInitialized, setIsInitialized] = useState(false);
 
+  // Theme initialization
   useEffect(() => {
     const savedMode = localStorage.getItem('themeMode') as 'light' | 'dark' | null;
     if (savedMode) {
@@ -46,16 +53,31 @@ function AppContent({ Component, pageProps }: AppProps) {
         window.matchMedia('(prefers-color-scheme: dark)').matches;
       setMode(systemPrefersDark ? 'dark' : 'light');
     }
+    setIsInitialized(true);
   }, []);
 
+  // Route protection logic
   useEffect(() => {
-    // Initialize SystemMetricsCollector if it's not already initialized
+    if (!loading && isInitialized) {
+      const isPublicRoute = publicRoutes.includes(router.pathname);
+      
+      if (!user && !isPublicRoute) {
+        // Redirect to login if not authenticated and not on a public route
+        router.replace('/login');
+      } else if (user && isPublicRoute) {
+        // Redirect to dashboard if authenticated and on a public route
+        router.replace('/dashboard');
+      }
+    }
+  }, [user, loading, router.pathname, isInitialized]);
+
+  // Metrics collector initialization
+  useEffect(() => {
     const metricsCollector = SystemMetricsCollector.getInstance();
     return () => {
-      // Cleanup to prevent memory leaks
       metricsCollector.destroy();
     };
-  }, []); // Ensure this runs only once
+  }, []);
 
   const toggleThemeMode = () => {
     setMode((prevMode) => {
@@ -74,15 +96,34 @@ function AppContent({ Component, pageProps }: AppProps) {
     },
   });
 
+  // Show loading state while initializing
+  if (!isInitialized || loading) {
     return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh' 
+      }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Determine if we should show the layout
+  const showLayout = !publicRoutes.includes(router.pathname);
+
+  return (
     <ThemeModeContext.Provider value={{ mode, toggleThemeMode }}>
       <ThemeProvider theme={muiTheme}>
         <CssBaseline />
-        <Layout>
-          <RouteGuard>
+        {showLayout ? (
+          <Layout>
             <Component {...pageProps} />
-          </RouteGuard>
-        </Layout>
+          </Layout>
+        ) : (
+          <Component {...pageProps} />
+        )}
       </ThemeProvider>
     </ThemeModeContext.Provider>
   );

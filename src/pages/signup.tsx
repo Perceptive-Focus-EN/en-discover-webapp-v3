@@ -6,6 +6,7 @@ import SignupForm from '../components/Auth/SignupForm';
 import NextLink from 'next/link';
 
 const SignupPage: NextPage = () => {
+    console.log('Signup page rendering');
   return (
     <Container component="main" maxWidth="xs">
       <Paper elevation={3}>

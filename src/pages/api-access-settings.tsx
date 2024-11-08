@@ -27,8 +27,9 @@ const ApiAccessSettingsPage: React.FC = () => {
     return (
         <ApiAccessSettings
             settings={initialSettings}
-            onUpdate={(newSettings: ApiAccessSettingsType) => {
+            onUpdate={async (newSettings: ApiAccessSettingsType) => {
                 console.log(newSettings);
+                return Promise.resolve();
             }}
         />
     );

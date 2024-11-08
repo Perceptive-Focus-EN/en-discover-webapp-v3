@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { WebSocketMessage } from '../types/upload';
 import { UPLOAD_WEBSOCKET } from '../constants/uploadConstants';
-import { EnhancedProgress } from '@/services/ChunkingService';
+import { EnhancedProgress } from '@/types/chunking';
+import { WebSocketMessage } from '@/types/websockets';
 
 interface UseUploadProgressReturn {
     progress: EnhancedProgress | null;

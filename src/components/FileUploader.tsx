@@ -2,6 +2,8 @@
 import { FC, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { UploadProgress } from './UploadProgress';
+import { api } from '@/lib/axiosSetup';
+import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 
 interface FileUploaderProps {
     userId: string;
@@ -21,22 +23,21 @@ export const FileUploader: FC<FileUploaderProps> = ({ userId, tenantId }) => {
         formData.append('file', file);
 
         try {
-            const response = await fetch('/api/uploads/enhancedSecurityUpload', { // Updated endpoint
-                method: 'POST',
-                body: formData,
+            const response = await api.post<{ trackingId: string }>('/api/uploads/enhancedSecurityUpload', formData, {
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('token')}`, // Add auth
+                    'Content-Type': 'multipart/form-data',
                 },
-                credentials: 'include' // Include cookies if needed
+                // Pass file type as query parameter
+                params: {
+                    type: file.type.startsWith('image/') ? 'image' : 
+                          file.type.startsWith('video/') ? 'video' : 'document'
+                }
             });
 
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.message || 'Upload failed');
-
-            setUploadId(data.trackingId);
-            toast.success('Upload started');
+            setUploadId(response.trackingId);
+            messageHandler.success('Upload started');
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Failed to start upload');
+            messageHandler.error('Failed to start upload');
             setIsUploading(false);
         }
     };
@@ -45,23 +46,10 @@ export const FileUploader: FC<FileUploaderProps> = ({ userId, tenantId }) => {
         if (!uploadId) return;
 
         try {
-            const response = await fetch(`/api/uploads/${uploadId}/${action}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${localStorage.getItem('token')}`,
-                },
-                credentials: 'include'
-            });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.message || `Failed to ${action} upload`);
-            }
-
-            toast.success(`Upload ${action} successful`);
+            await api.post(`/api/uploads/${uploadId}/${action}`);
+            messageHandler.success(`Upload ${action} successful`);
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : `Failed to ${action} upload`);
+            messageHandler.error(`Failed to ${action} upload`);
         }
     };
 
@@ -90,7 +78,7 @@ export const FileUploader: FC<FileUploaderProps> = ({ userId, tenantId }) => {
                         className="hidden" 
                         onChange={handleFileSelect}
                         disabled={isUploading}
-                        accept="image/*,video/*,application/pdf" // Add accepted file types
+                        accept="image/*,video/*,application/pdf"
                     />
                 </label>
             </div>
@@ -105,12 +93,12 @@ export const FileUploader: FC<FileUploaderProps> = ({ userId, tenantId }) => {
                     onRetry={() => handleControlAction('retry')}
                     onCancel={() => handleControlAction('cancel')}
                     onComplete={() => {
-                        toast.success('Upload completed successfully!');
+                        messageHandler.success('Upload completed successfully!');
                         setIsUploading(false);
                         setUploadId(null);
                     }}
                     onError={(error) => {
-                        toast.error(`Upload error: ${error.message}`);
+                        messageHandler.error(`Upload error: ${error.message}`);
                         setIsUploading(false);
                     }}
                 />

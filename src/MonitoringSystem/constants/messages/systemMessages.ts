@@ -61,6 +61,24 @@ export const SystemMessages = {
     info: 'Upload control attempted'
   },
 
+  [SystemError.CHUNK_UPLOAD_FAILED]: {
+    error: 'Failed to upload chunk',
+    warn: 'Chunk upload issues detected',
+    info: 'Chunk upload attempted'
+  },
+
+  [SystemError.CHUNK_CLEANUP_FAILED]: {
+    error: 'Failed to cleanup chunk',
+    warn: 'Chunk cleanup issues detected',
+    info: 'Chunk cleanup attempted'
+  },
+
+  [SystemError.VALIDATION_FAILED]: {
+    error: 'Validation failed',
+    warn: 'Validation issues detected',
+    info: 'Validation attempted'
+  },
+
 // <-------  Database Messages -------->
 
   [SystemError.DATABASE_CONNECTION]: {

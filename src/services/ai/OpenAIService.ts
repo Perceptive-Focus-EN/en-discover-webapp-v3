@@ -2,7 +2,6 @@
 
 import { AIService } from './AIService';
 import axios from 'axios';
-import { logger } from '../../MonitoringSystem/Loggers/logger';
 
 export class OpenAIService implements AIService {
   private apiKey: string;

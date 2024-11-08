@@ -1,5 +1,6 @@
 // src/components/Resources/components/FilterDrawer/styles.ts
-import { Theme } from '@mui/material';
+import { createTheme } from '@mui/material/styles';
+const theme = createTheme();
 
 export const FilterStyles = {
   drawer: {
@@ -39,5 +40,11 @@ export const FilterStyles = {
     display: 'flex',
     borderTop: 1,
     borderColor: 'divider'
-  }
+  },
+   activeFilters: {
+    padding: theme.spacing(2),
+    textAlign: 'center',
+
+  },
+
 } as const;

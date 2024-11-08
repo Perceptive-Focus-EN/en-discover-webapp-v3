@@ -35,14 +35,14 @@ const userSlice = createSlice({
         state.info.avatarUrl = action.payload;
       }
     },
-    updatePermissions: (state, action: PayloadAction<Partial<Record<Permissions, boolean>>>) => {
-      if (state.info && state.info.permissions) {
-        state.info.permissions = { 
-          ...state.info.permissions, 
-          ...action.payload 
-        };
-      }
-    },
+    // updatePermissions: (state, action: PayloadAction<Partial<Record<Permissions, boolean>>>) => {
+      // if (state.info) {
+        // state.info.permissions = {
+          // ...state.info.permissions,
+          // ...action
+        // };
+      // }
+    // },
     clearUserInfo: (state) => {
       state.info = null;
       state.avatarUrl = null;
@@ -54,7 +54,7 @@ export const {
   setUserInfo,
   updateUserInfo,
   setUserAvatar,
-  updatePermissions,
+  // updatePermissions,
   clearUserInfo
 } = userSlice.actions;
 

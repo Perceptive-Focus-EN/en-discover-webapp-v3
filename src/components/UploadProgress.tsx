@@ -3,7 +3,7 @@ import { FC, useEffect, useState } from 'react';
 import { useUploadProgress } from '../hooks/useUploadProgress';
 import { formatBytes } from '../utils/formatters';
 import { CHUNKING_CONFIG } from '../constants/uploadConstants';
-import type { UploadProgressStatus } from '../types/upload';
+import { UPLOAD_STATUS } from '../constants/uploadConstants';
 
 interface UploadProgressProps {
     trackingId: string;
@@ -45,7 +45,7 @@ export const UploadProgress: FC<UploadProgressProps> = ({
     };
 
     useEffect(() => {
-        if (progress?.status === CHUNKING_CONFIG.STATES.COMPLETED) {
+        if (progress?.status === UPLOAD_STATUS.COMPLETED) {
             onComplete?.();
         }
         if (error) {
@@ -53,16 +53,20 @@ export const UploadProgress: FC<UploadProgressProps> = ({
         }
     }, [progress?.status, error, onComplete, onError]);
 
-    const getStatusColor = (status: UploadProgressStatus): string => {
+    const getStatusColor = (status: string) => {
         switch (status) {
-            case CHUNKING_CONFIG.STATES.COMPLETED:
+            case UPLOAD_STATUS.COMPLETED:
                 return 'text-green-600 bg-green-50';
-            case CHUNKING_CONFIG.STATES.FAILED:
+            case UPLOAD_STATUS.FAILED:
                 return 'text-red-600 bg-red-50';
-            case CHUNKING_CONFIG.STATES.PAUSED:
+            case UPLOAD_STATUS.PAUSED:
                 return 'text-yellow-600 bg-yellow-50';
-            case CHUNKING_CONFIG.STATES.UPLOADING:
+            case UPLOAD_STATUS.UPLOADING:
                 return 'text-blue-600 bg-blue-50';
+            case UPLOAD_STATUS.RESUMING:
+                return 'text-blue-600 bg-blue-50';
+            case UPLOAD_STATUS.INITIALIZING:
+                return 'text-gray-600 bg-gray-50';
             default:
                 return 'text-gray-600 bg-gray-50';
         }
@@ -110,12 +114,12 @@ export const UploadProgress: FC<UploadProgressProps> = ({
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div 
                         className="h-full bg-blue-600 transition-all duration-300 ease-out"
-                        style={{ width: `${progress.totalProgress}%` }}
+                        style={{ width: `${(progress.uploadedBytes / progress.totalBytes) * 100}%` }}
                     />
                 </div>
                 <div className="mt-1 flex justify-between text-sm">
                     <span className="text-gray-600">
-                        {progress.totalProgress.toFixed(1)}%
+                        {progress.progress.toFixed(1)}%
                     </span>
                     <span className="text-gray-500">
                         {formatBytes(progress.uploadedBytes)}/{formatBytes(progress.totalBytes)}
@@ -149,7 +153,7 @@ export const UploadProgress: FC<UploadProgressProps> = ({
 
             {/* Controls */}
             <div className="mt-4 flex justify-end space-x-2">
-                {progress.status === CHUNKING_CONFIG.STATES.FAILED && onRetry && (
+                {progress.status === UPLOAD_STATUS.FAILED && onRetry && (
                     <button
                         onClick={() => handleAction(onRetry)}
                         disabled={isLoading}
@@ -159,7 +163,7 @@ export const UploadProgress: FC<UploadProgressProps> = ({
                     </button>
                 )}
 
-                {progress.status === CHUNKING_CONFIG.STATES.UPLOADING && onPause && (
+                {progress.status === UPLOAD_STATUS.UPLOADING && onPause && (
                     <button
                         onClick={() => handleAction(onPause)}
                         disabled={isLoading}
@@ -169,7 +173,7 @@ export const UploadProgress: FC<UploadProgressProps> = ({
                     </button>
                 )}
 
-                {progress.status === CHUNKING_CONFIG.STATES.PAUSED && onResume && (
+                {progress.status === UPLOAD_STATUS.PAUSED && onResume && (
                     <button
                         onClick={() => handleAction(onResume)}
                         disabled={isLoading}
@@ -179,7 +183,7 @@ export const UploadProgress: FC<UploadProgressProps> = ({
                     </button>
                 )}
 
-                {progress.status !== CHUNKING_CONFIG.STATES.COMPLETED && onCancel && (
+                {progress.status !== UPLOAD_STATUS.COMPLETED && onCancel && (
                     <button
                         onClick={() => handleAction(onCancel)}
                         disabled={isLoading}

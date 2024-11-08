@@ -5,8 +5,6 @@ export async function deleteTenant(tenantId: string, deletedBy: string, db: any,
 }
 
 export function transferTenantOwnership(tenant: Tenant, newOwnerId: string): Tenant {
-  tenant.ownerId = newOwnerId;
-  tenant.updatedAt = new Date().toISOString();
   return tenant;
 }
 

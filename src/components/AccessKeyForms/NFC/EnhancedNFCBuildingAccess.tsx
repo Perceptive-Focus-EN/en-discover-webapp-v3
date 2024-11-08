@@ -52,7 +52,7 @@ const EnhancedNFCBuildingAccess: React.FC = () => {
 
         try {
             const response = await api.post<NFCAccessResponse>(
-                `/api/tenant/${user?.currentTenantId}/nfc-access`,
+                `/api/tenant/${user?.currentTenant}/nfc-access`,
                 { nfcId }
             );
 
@@ -101,7 +101,7 @@ const EnhancedNFCBuildingAccess: React.FC = () => {
     return (
         <>
             <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' } }}>
-                NFC Building Access for {user?.currentTenantId}
+                NFC Building Access for {user?.currentTenant?.toString() || ''}
             </Typography>
             {/* NFC Scan Section */}
             <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' } }}>

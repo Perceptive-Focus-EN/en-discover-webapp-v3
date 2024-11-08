@@ -34,10 +34,13 @@ const getCacheKey = (uploadId: string) => `${CACHE_KEY_PREFIX}${uploadId}`;
 
 const isValidAction = (action: string, currentStatus: keyof typeof UPLOAD_STATUS): boolean => {
     const validTransitions: { [key in keyof typeof UPLOAD_STATUS]?: string[] } = {
+        INITIALIZING: ['cancel'],
         PROCESSING: ['pause', 'cancel'],
         PAUSED: ['resume', 'cancel'],
-        ERROR: ['retry', 'cancel'],
-        COMPLETE: []
+        FAILED: ['retry', 'cancel'],
+        UPLOADING: [],
+        RESUMING: [],
+        COMPLETED: []
     };
 
     return (validTransitions[currentStatus] ?? []).includes(action);
@@ -46,9 +49,9 @@ const isValidAction = (action: string, currentStatus: keyof typeof UPLOAD_STATUS
 const getNewStatus = (action: string): string => {
     switch (action) {
         case 'pause': return UPLOAD_STATUS.PAUSED;
-        case 'resume':
+        case 'resume': return UPLOAD_STATUS.RESUMING;
         case 'retry': return UPLOAD_STATUS.PROCESSING;
-        case 'cancel': return UPLOAD_STATUS.ERROR;
+        case 'cancel': return UPLOAD_STATUS.FAILED;
         default: throw new Error(`Invalid action: ${action}`);
     }
 };

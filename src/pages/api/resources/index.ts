@@ -4,11 +4,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { verifyAccessToken } from '@/utils/TokenManagement/serverTokenUtils';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { validateResource } from '@/types/ArticleMedia';
 import { getCosmosClient } from '@/config/azureCosmosClient';
 import { BusinessError, SecurityError, SystemError } from '@/MonitoringSystem/constants/errors';
 import { COLLECTIONS } from '@/constants/collections';
 import { AppError } from '@/MonitoringSystem/managers/AppError';
+import { validateResource } from '@/types/ArticleMedia';
 
 interface ApiResponse<T> {
     success: boolean;
@@ -241,6 +241,8 @@ async function handleGet(
     }
 }
 
+// In src/pages/api/resources/index.ts
+
 async function handlePost(
     req: NextApiRequest,
     res: NextApiResponse,
@@ -250,24 +252,17 @@ async function handlePost(
     const startTime = Date.now();
 
     try {
-        // Validate request body
+        // Validate request body first
         if (!req.body || Object.keys(req.body).length === 0) {
             throw monitoringManager.error.createError(
                 'business',
-              BusinessError.VALIDATION_FAILED,
+                BusinessError.VALIDATION_FAILED,
                 'Request body is required',
                 { operationId }
             );
         }
 
-        // Log incoming request
-        monitoringManager.logger.info('Resource creation initiated', {
-            operationId,
-            userId: decodedToken.userId,
-            tenantId: decodedToken.tenantId
-        });
-
-        // Prepare resource data
+        // Prepare resource data before validation
         const resourceData = {
             ...req.body,
             id: uuidv4(),
@@ -275,7 +270,7 @@ async function handlePost(
             createdBy: decodedToken.userId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            status: 'draft',
+            status: req.body.status || 'draft',
             rating: 0,
             votes: 0,
             interactions: {
@@ -286,38 +281,23 @@ async function handlePost(
             }
         };
 
-        // Validate resource data
-        try {
-            if (!validateResource(resourceData)) {
-                throw monitoringManager.error.createError(
-                    'business',
-                    BusinessError.VALIDATION_FAILED,
-                    'Resource validation failed',
-                    { 
-                        operationId,
-                        resourceData: {
-                            title: resourceData.title,
-                            category: resourceData.category
-                        }
-                    }
-                );
+        // Validate resource data with better error handling
+const isValid = validateResource(resourceData);
+if (!isValid) {
+    throw monitoringManager.error.createError(
+        'business',
+        BusinessError.VALIDATION_FAILED,
+        'Resource validation failed',
+        { 
+            operationId,
+            resourceData: {
+                title: resourceData.title,
+                category: resourceData.category
             }
-        } catch (validationError) {
-            throw monitoringManager.error.createError(
-                'business',
-                BusinessError.VALIDATION_FAILED,
-                'Resource validation failed',
-                {
-                    operationId,
-                    originalError: validationError,
-                    resourceData: {
-                        title: resourceData.title,
-                        category: resourceData.category
-                    }
-                }
-            );
         }
-
+    );
+}
+        
         // Database operations
         const { db } = await getCosmosClient();
         if (!db) {
@@ -361,6 +341,7 @@ async function handlePost(
             duration: Date.now() - startTime
         });
 
+        // Success response
         return res.status(201).json({
             success: true,
             data: {
@@ -368,7 +349,6 @@ async function handlePost(
                 _id: result.insertedId
             }
         });
-
     } catch (error) {
         // Record failure metrics
         monitoringManager.metrics.recordMetric(

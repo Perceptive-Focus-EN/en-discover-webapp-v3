@@ -16,11 +16,9 @@ import {
   Chip,
   Box,
   useMediaQuery,
-  useTheme,
+  useTheme
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import CloseIcon from '@mui/icons-material/Close';
 import { ChartType } from '../types';
 import { loadStripe } from '@stripe/stripe-js';
 
@@ -170,7 +168,7 @@ const ChartLibraryDialog: React.FC<ChartLibraryDialogProps> = ({
   >
     <Typography variant={isMobile ? 'h6' : 'h5'}>Chart Store</Typography>
     <IconButton onClick={onClose} size="small">
-      <CloseIcon />
+      {/* <CloseIcon /> */}
     </IconButton>
   </DialogTitle>
   <DialogContent sx={{ px: 3, py: isMobile ? 1 : 2 }}>
@@ -342,7 +340,7 @@ const ChartLibraryDialog: React.FC<ChartLibraryDialogProps> = ({
         <Button
           variant="contained"
           color="primary"
-          startIcon={<ShoppingCartIcon />}
+          // startIcon={<ShoppingCart/>}
           onClick={handleCheckout}
           sx={{
             borderRadius: '8px',

@@ -33,6 +33,7 @@ interface FilterDrawerProps {
   onClose: () => void;
   filters: ResourceFilters;
   onFilterChange: (filters: ResourceFilters) => void;
+
 }
 
 export const FilterDrawer: React.FC<FilterDrawerProps> = ({
@@ -49,7 +50,6 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     try {
       const emptyFilters: ResourceFilters = {
         category: [],
-        status: undefined,
         visibility: undefined,
         dateRange: undefined,
         readingLevel: undefined,

@@ -368,13 +368,15 @@ export function formatToTenantTimeZone(date: string, timeZone: string): string {
  * @param newOwnerId The ID of the new owner.
  * @returns The updated tenant object.
  */
-export function transferTenantOwnership(tenant: Tenant, newOwnerId: string): Tenant {
-    tenant.ownerId = newOwnerId;
-    tenant.updatedAt = new Date().toISOString();
-    return tenant;
-}
 
 
+// export function transferTenantOwnership(tenant: Tenant, newOwnerId: string): Tenant {
+    // tenant.ownerId = newOwnerId;
+    // tenant.updatedAt = new Date().toISOString();
+    // return tenant;
+// }
+// 
+// 
 
 /**
  * Migrates data in the database, such as adding new fields to collections.

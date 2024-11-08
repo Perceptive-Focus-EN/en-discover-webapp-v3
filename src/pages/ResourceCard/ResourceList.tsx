@@ -30,7 +30,7 @@ export const ResourceList: React.FC<ResourceListProps> = ({
                 });
                 
                 // Validate resources before setting
-                const validResources = response.data.filter(resource => {
+                const validResources = response.filter(resource => {
                     try {
                         return validateResource(resource);
                     } catch (error) {

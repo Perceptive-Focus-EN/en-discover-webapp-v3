@@ -108,7 +108,7 @@ const BubbleChart: React.FC<BubbleChartProps> = ({
   const [bubbles, setBubbles] = useState<BubbleData[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'chart' | 'icons'>('chart');
-  const [setMoodHistory] = useState<MoodHistoryItem[]>([]);
+  // const [setMoodHistory] = useState<
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTimeRange, setCurrentTimeRange] = useState<TimeRange>(timeRange);
@@ -477,19 +477,6 @@ type EmotionId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
                   </ToggleButtonGroup>
                 </Box>
               </Box>
-              {viewMode === 'chart' ? (
-              <MoodHistoryChart
-                  emotion={emotions.find(e => e.emotionName === selectedEmotion) || emotions[0]}
-                  history={moodHistory.filter(entry => entry.emotionName === selectedEmotion)}  // Use filtered emotions directly
-                  timeRange={currentTimeRange}
-                />
-                ) : (
-              <MoodIconView
-                emotion={emotions.find(e => e.emotionName === selectedEmotion) || emotions[0]}
-                history={moodHistory.filter(entry => entry.emotionName === selectedEmotion)}  // Use filtered emotions directly
-                timeRange={currentTimeRange}
-              />
-            )}
             </>
           )}
         </Paper>

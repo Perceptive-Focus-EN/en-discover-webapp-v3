@@ -158,7 +158,11 @@ const FeedPageContent: React.FC = () => {
 
       {/* Main Content */}
       <Grid item xs={12} md={6}>
-        <PostEditor onPostCreated={handlePostCreated} />
+        <PostEditor 
+          onPostCreated={handlePostCreated} 
+          onSuccess={() => messageHandler.success('Post action successful')}
+          onCancel={() => messageHandler.info('Post action cancelled')}
+        />
         <Suspense fallback={<CircularProgress />}>
           <Feed />
         </Suspense>

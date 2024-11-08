@@ -2,6 +2,7 @@
 # Mockdata
 src/mocks/db/*.json
 
+
 # Logs
 logs
 *.log

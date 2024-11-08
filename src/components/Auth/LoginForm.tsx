@@ -120,7 +120,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, onMagicLinkRequest, loa
       <StyledPaper>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
           <VideoLogoContainer>
-            <VideoLogoWithBackgroundRemoval />
+            <VideoLogoWithBackgroundRemoval
+            />
           </VideoLogoContainer>
           <Typography
             variant="h2"

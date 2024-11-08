@@ -15,13 +15,13 @@ export function withPermissionCheck<P extends object>(
   return function WithPermissionCheck(props: P) {
     const { user } = useAuth();
 
-    if (!user || !(user as UserWithPermissions).permissions) {
+    if (!user || !((user as unknown) as UserWithPermissions).permissions) {
       // Handle unauthenticated user
       return <div>Please log in to access this feature.</div>;
     }
 
     const hasRequiredPermissions = requiredPermissions.every(permission =>
-      hasPermission(user as UserWithPermissions, permission)
+      hasPermission((user as unknown) as UserWithPermissions, permission)
     );
 
     if (!hasRequiredPermissions) {

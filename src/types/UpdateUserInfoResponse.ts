@@ -1,6 +1,6 @@
-import { UserInfo } from './User/interfaces';
+import { ExtendedUserInfo } from "./User/interfaces";
 
 export interface UpdateUserInfoResponse {
-  user: UserInfo;
+  user: ExtendedUserInfo
   message: string;
 }

@@ -15,20 +15,13 @@ import {
     UPLOAD_PATHS,
     COSMOS_COLLECTIONS,
     UPLOAD_STATUS,
-    COLLECTIONS_SCHEMA,
     CHUNKING_CONFIG,
-    type UploadStatus,
-    type UploadDocument,
-    type UploadProgress,
-    UploadStatusDetails,
-    UploadSuccessResponse,
-    UploadErrorResponse,
-    ChunkingOptions,
-    UploadOptions
+    UploadStatus,
 } from '../../../constants/uploadConstants';
 import { chunkingService } from '../../../services/ChunkingService';
 import { getAzureStorageCredentials } from '@/config/azureStorage';
-import { COLLECTIONS } from '@/constants/collections';
+import { UploadErrorResponse, UploadOptions, UploadStatusDetails, UploadSuccessResponse } from '@/types/upload';
+import { ChunkingOptions } from '@/types/chunking';
 
 export const config = {
     api: {
@@ -37,13 +30,10 @@ export const config = {
     }
 };
 
-
-// At the top of the file, add interfaces
 export interface UploadState {
     leaseId?: string;
     uploadedChunks: number[];
 }
-
 
 interface UploadContext {
     userId: string;
@@ -85,18 +75,22 @@ class EnhancedUploadSystem {
                 await containerClient.create({ access: 'blob' });
             }
 
-            // Initialize database collection
             const { db } = await getCosmosClient();
             const collections = await db.collections();
-            
+
             if (!collections.find(c => c.collectionName === COSMOS_COLLECTIONS.UPLOADS)) {
                 await db.createCollection(COSMOS_COLLECTIONS.UPLOADS);
-                
-                // Create indexes
                 const collection = db.collection(COSMOS_COLLECTIONS.UPLOADS);
-                await collection.createIndex({ trackingId: 1 }, { unique: true });
-                await collection.createIndex({ status: 1 });
-                await collection.createIndex({ lastModified: 1 });
+
+                // Create indexes
+                await Promise.all([
+                    collection.createIndex({ trackingId: 1 }, { unique: true }),
+                    collection.createIndex({ userId: 1 }),
+                    collection.createIndex({ tenantId: 1 }),
+                    collection.createIndex({ status: 1 }),
+                    collection.createIndex({ lastModified: 1 }),
+                    collection.createIndex({ userId: 1, tenantId: 1 }) // Compound index for user+tenant queries
+                ]);
             }
 
             this.initialized = true;
@@ -235,49 +229,54 @@ class EnhancedUploadSystem {
 
             const blockBlobClient = await this.createBlobClient(file, context, configKey, credentials);
 
-           const uploadOptions: UploadOptions = {
-            onProgress: (progress, chunkIndex, totalChunks, uploadedBytes) => {
-                if (context) {
-                    this.currentUploadState.get(context.trackingId)?.uploadedChunks.push(chunkIndex);
-                }
-            },
-            userId: context.userId,
-            trackingId: context.trackingId,
-               fileSize: file.size
-           };
-            
-        const chunkingOptions: ChunkingOptions = {
-            chunkSize: CHUNKING_CONFIG.CHUNK_SIZE,
-            maxRetries: CHUNKING_CONFIG.MAX_RETRIES,
-            retryDelayBase: CHUNKING_CONFIG.RETRY_DELAY_BASE,
-            maxConcurrent: CHUNKING_CONFIG.MAX_CONCURRENT,
-            resumeFromChunk: req.query.resumeFrom ? 
-                parseInt(req.query.resumeFrom as string) : undefined
-        };
+            const uploadOptions: UploadOptions = {
+                onProgress: (progress, chunkIndex, totalChunks, uploadedBytes) => {
+                    if (context) {
+                        this.currentUploadState.get(context.trackingId)?.uploadedChunks.push(chunkIndex);
+                    }
+                },
+                userId: context.userId,
+                trackingId: context.trackingId,
+                fileSize: file.size
+            };
 
-    await chunkingService.uploadWithChunkingV2(  // Use V2 version CHANGE IF YOU PREFER V1
-            file,
-            blockBlobClient,
-            uploadOptions,
-            chunkingOptions
-        );
-            
+            const chunkingOptions: ChunkingOptions = {
+                chunkSize: CHUNKING_CONFIG.CHUNK_SIZE,
+                maxRetries: CHUNKING_CONFIG.MAX_RETRIES,
+                retryDelayBase: CHUNKING_CONFIG.RETRY_DELAY_BASE,
+                maxConcurrent: CHUNKING_CONFIG.MAX_CONCURRENT,
+                resumeFromChunk: req.query.resumeFrom ? parseInt(req.query.resumeFrom as string) : undefined
+            };
+
+            await chunkingService.uploadWithChunkingV2(
+                file,
+                blockBlobClient,
+                uploadOptions,
+                chunkingOptions
+            );
+
             const sasToken = await generateSasToken(blockBlobClient.name);
             const fileUrl = generateBlobUrl(blockBlobClient.name, sasToken);
 
             const duration = Date.now() - context.startTime;
-            await this.updateUploadStatus(context.trackingId, UPLOAD_STATUS.COMPLETE, {
-                completedAt: new Date(),
-                fileUrl,
-                duration,
-                processingSteps: config.processingSteps
-            });
+
+            await this.updateUploadStatus(
+                context.trackingId,
+                UPLOAD_STATUS.COMPLETED,
+                {
+                    completedAt: new Date(),
+                    fileUrl,
+                    duration,
+                    processingSteps: config.processingSteps
+                },
+                decodedToken // Pass the token here
+            );
 
             res.status(200).json({
                 message: 'Upload successful',
                 trackingId: context.trackingId,
                 fileUrl,
-                status: UPLOAD_STATUS.COMPLETE,
+                status: UPLOAD_STATUS.COMPLETED,
                 metadata: {
                     category: configKey,
                     accessLevel: config.accessLevel,
@@ -288,12 +287,17 @@ class EnhancedUploadSystem {
             });
         } catch (error) {
             if (context?.trackingId) {
-                await this.updateUploadStatus(context.trackingId, UPLOAD_STATUS.ERROR, {
-                    error: error instanceof Error ? error.message : 'Unknown error',
-                    completedAt: new Date(),
-                    lastSuccessfulChunk: chunkingService.getLastSuccessfulChunk(context.trackingId),
-                    uploadedBytes: chunkingService.getUploadedBytes(context.trackingId)
-                });
+                await this.updateUploadStatus(
+                    context.trackingId,
+                    UPLOAD_STATUS.FAILED,
+                    {
+                        error: error instanceof Error ? error.message : 'Unknown error',
+                        completedAt: new Date(),
+                        lastSuccessfulChunk: chunkingService.getLastSuccessfulChunk(context.trackingId),
+                        uploadedBytes: chunkingService.getUploadedBytes(context.trackingId)
+                    },
+                    decodedToken // Pass the token here too
+                );
             }
 
             monitoringManager.logger.error(error as Error, SystemError.STORAGE_UPLOAD_FAILED as ErrorType, {
@@ -317,28 +321,67 @@ class EnhancedUploadSystem {
         }
     }
 
+    async getUserUploads(userId: string, tenantId: string, options?: {
+    status?: UploadStatus;
+    limit?: number;
+    offset?: number;
+    sortBy?: 'createdAt' | 'lastModified';
+    sortOrder?: 'asc' | 'desc';
+}): Promise<any[]> {
+    const { db } = await getCosmosClient();
+    const collection = db.collection(COSMOS_COLLECTIONS.UPLOADS);
+
+    const query: { userId: string; tenantId: string; status?: UploadStatus } = { userId, tenantId };
+    if (options?.status) {
+        query.status = options.status;
+    }
+
+    const cursor = collection.find(query)
+        .sort({ [options?.sortBy || 'createdAt']: options?.sortOrder === 'asc' ? 1 : -1 })
+        .skip(options?.offset || 0)
+        .limit(options?.limit || 50);
+
+    return cursor.toArray();
+}
+
     private async updateUploadStatus(
-        trackingId: string, 
-        status: UploadStatus, 
-        details: UploadStatusDetails
+        trackingId: string,
+        status: UploadStatus,
+        details: UploadStatusDetails,
+        decodedToken: { userId: string; tenantId: string } // Add this parameter
     ): Promise<void> {
         try {
             const { db } = await getCosmosClient();
             const collection = db.collection(COSMOS_COLLECTIONS.UPLOADS);
-            
-            await collection.updateOne(
-                { id: trackingId },
-                { 
-                    $set: {
-                        status,
-                        lastModified: new Date(),
-                        ...details
-                    }
-                },
-                { upsert: true } // Create if doesn't exist
-            );
 
-            // Record metric for successful database operation
+            // Use trackingId as the query field instead of id
+            const existing = await collection.findOne({ trackingId });
+
+            if (existing) {
+                await collection.updateOne(
+                    { trackingId }, // Use trackingId in query
+                    {
+                        $set: {
+                            status,
+                            lastModified: new Date(),
+                            ...details
+                        }
+                    }
+                );
+            } else {
+                await collection.insertOne({
+                    id: uuidv4(),
+                    trackingId,
+                    userId: decodedToken.userId, // Add userId
+                    tenantId: decodedToken.tenantId, // Add tenantId
+                    status,
+                    lastModified: new Date(),
+                    createdAt: new Date(),
+                    ...details
+                });
+            }
+
+            // Record metric with user context
             monitoringManager.metrics.recordMetric(
                 MetricCategory.SYSTEM,
                 'database',
@@ -348,10 +391,37 @@ class EnhancedUploadSystem {
                 MetricUnit.COUNT,
                 {
                     status,
-                    trackingId
+                    trackingId,
+                    userId: decodedToken.userId,
+                    tenantId: decodedToken.tenantId,
+                    operation: existing ? 'update' : 'insert'
                 }
             );
+
         } catch (error) {
+            // If it's a duplicate key error, try updating instead
+            if ((error as any)?.code === 11000) {
+                try {
+                    const { db } = await getCosmosClient();
+                    const collection = db.collection(COSMOS_COLLECTIONS.UPLOADS);
+                    await collection.updateOne(
+                        { trackingId },
+                        {
+                            $set: {
+                                status,
+                                lastModified: new Date(),
+                                ...details
+                            }
+                        },
+                        { upsert: true }
+                    );
+                    return;
+                } catch (retryError) {
+                    // If retry fails, throw the original error
+                    throw error;
+                }
+            }
+
             monitoringManager.logger.error(error as Error, SystemError.DATABASE_OPERATION_FAILED as ErrorType, {
                 operation: 'updateUploadStatus',
                 trackingId,
@@ -384,7 +454,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let retryCount = 0;
 
     try {
-        // Extract and verify the authentication token
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
             throw monitoringManager.error.createError('security', 'AUTH_TOKEN_MISSING', 'Authentication required');
@@ -400,14 +469,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         while (retryCount < maxRetries) {
             try {
-                // Get Azure storage credentials for the current attempt
                 const credentials = await getAzureStorageCredentials();
                 await uploadSystem.handleUpload(req, res, decodedToken, operationId, credentials);
-                return; // Exit if upload succeeds
+                return;
             } catch (error) {
                 lastError = error;
 
-                // Check if error is related to authentication and handle retries
                 if (error.message?.includes('authenticate the request') && retryCount < maxRetries - 1) {
                     retryCount++;
                     monitoringManager.logger.warn('Retrying upload due to auth error', {
@@ -415,20 +482,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                         attempt: retryCount,
                         error: error.message
                     });
-                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
                     continue;
                 }
 
-                // Break out of retry loop for non-authentication errors
                 throw error;
             }
         }
 
-        // Throw the last encountered error if all retries fail
         throw lastError || new Error('Upload failed after maximum retries');
 
     } catch (error) {
-        // Log the error with detailed request and operation context
         monitoringManager.logger.error(error, SystemError.STORAGE_UPLOAD_FAILED as ErrorType, {
             operationId,
             method: req.method,
@@ -438,7 +502,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             duration: Date.now() - startTime
         });
 
-        // Return error response, including retry information for client
         res.status(500).json({
             error: 'UPLOAD_SYSTEM_ERROR',
             message: 'Failed to process upload',

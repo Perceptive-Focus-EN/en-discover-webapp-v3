@@ -1,4 +1,3 @@
-import { Role, AccessLevel, Permission } from '../constants/constants';
 import { OnboardingStatus } from '../constants/onboarding';
 
 export interface UpdateUserInfoRequest {
@@ -14,9 +13,9 @@ export interface UpdateUserInfoRequest {
   state?: string;
   zip?: string;
   country?: string;
-  role?: Role;
-  accessLevel?: AccessLevel;
-  permissions?: Permission;
+  role?: string;
+  accessLevel?: string;
+  permissions?: string[];
   onboardingStatus?: OnboardingStatus;
   avatar?: string;
 }

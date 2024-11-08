@@ -19,6 +19,7 @@ export interface ResourceFilters {
         end: Date;
     };
     searchTerm?: string;
+    status?: ResourceStatus;
 }
 
 export interface FilterOption {

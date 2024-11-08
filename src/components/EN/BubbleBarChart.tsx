@@ -9,6 +9,12 @@ import { VOLUME_LEVELS, VolumeLevelId, VolumeLevelName } from './constants/volum
 import { SOURCE_CATEGORIES, SourceCategoryId } from './constants/sources';
 import { convertSourceIdsToNames } from './types/moodHistory';
 
+// Define getVolumeName function
+const getVolumeName = (volumeId: VolumeLevelId): string => {
+  const volume = VOLUME_LEVELS.find(v => v.id === volumeId);
+  return volume ? volume.name : 'Unknown';
+};
+
 interface BubbleData {
   emotion: Emotion;
   x: number;
@@ -174,7 +180,7 @@ const BubbleBarChart: React.FC<BubbleBarChartProps> = ({
             sx={{ minWidth: 120 }}
           >
             {Array.from(new Set(history.map(item => 
-              getYear(item.timestamp instanceof Date ? item.timestamp : new Date(item.timestamp || item.createdAt))
+              getYear(item.timestamp instanceof Date ? item.timestamp : new Date(item.timestamp ?? item.createdAt ?? Date.now()))
             ))).sort().map((year) => (
               <MenuItem key={year} value={year}>{year}</MenuItem>
             ))}

@@ -11,6 +11,7 @@ import {
 } from '../../../types/ArticleMedia';
 import { ResourceStatus, ResourceVisibility } from '../../../types/ArticleMedia/resources';
 
+
 interface ResourceApiResponse<T> {
   data: T;
 }

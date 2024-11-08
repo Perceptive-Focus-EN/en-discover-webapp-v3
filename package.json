@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "npm run tunnel & npm run dev"
+    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=8192' next dev",
+    "tunnel": "npx localtunnel --port 3000",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=8192' next build",
+    "start": "concurrently \"npm run dev\" \"npm run tunnel\""
   },
   "dependencies": {
     "@azure/arm-appinsights": "^4.0.0",
@@ -33,6 +34,7 @@
     "@monaco-editor/react": "^4.6.0",
     "@mui/icons-material": "^5.15.10",
     "@mui/material": "^5.15.10",
+    "@mui/styles": "^6.1.6",
     "@mui/x-date-pickers": "^7.0.0",
     "@react-three/drei": "^9.97.6",
     "@react-three/fiber": "^8.15.16",
@@ -174,6 +176,8 @@
     "@types/topojson-client": "^3.1.4",
     "@types/uuid": "^9.0.8",
     "@types/xml2js": "^0.4.14",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.1.0",
     "postcss": "^8.4.35",

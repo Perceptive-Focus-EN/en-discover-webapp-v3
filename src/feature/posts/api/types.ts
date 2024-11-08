@@ -65,16 +65,19 @@ export interface Post {
     shareCount?: number;
     bookmarkCount?: number;
     originalPostId?: string;
-    version?: number;
+        version?: number;
     autoSaveHistory?: {
         version: number;
         timestamp: string;
     }[];
-} & Record<string, any>;
+    } & Record<string, any>;
 }
+
+
 
 // Post Content Types
 interface BaseContent {
+    title?: string; // Add this line
     caption?: string;
     fontSize?: 'small' | 'medium' | 'large';
     alignment?: 'left' | 'center' | 'right';
