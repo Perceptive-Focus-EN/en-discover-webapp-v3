@@ -1,32 +1,53 @@
-import { useState, useCallback } from 'react';
-import { uploadApi } from '@/lib/api/uploads';
+// src/hooks/useUploadMedia.ts
+
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { uploadApi, UploadResponse, UploadProgressInfo } from '@/lib/api/uploads';
 import { 
     FileCategory, 
     UPLOAD_CONFIGS,
     UPLOAD_STATUS,
     ProcessingStep,
     type UploadStatus 
-} from '@/constants/uploadConstants';
+} from '@/UploadingSystem/constants/uploadConstants';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { UploadResponse } from '@/lib/api/uploads';
 
-interface UseArticleMediaReturn {
+interface UseUploadMediaReturn {
     uploadMedia: (file: File, category: FileCategory) => Promise<UploadResponse>;
+    resumeUpload: (file: File, trackingId: string, lastChunk: number, category: FileCategory) => Promise<UploadResponse>;
+    cancelUpload: (trackingId: string) => Promise<void>;
+    resetUpload: () => void;
     progress: number;
     error: string | null;
     isUploading: boolean;
+    isProcessing: boolean;
     status: UploadStatus;
     processingStatus: ProcessingStep | null;
-    cancelUpload: typeof uploadApi.cancelUpload;
+    currentChunk?: number;
+    totalChunks?: number;
+    uploadSpeed?: number;
+    timeRemaining?: number;
 }
 
-export function useArticleMedia(): UseArticleMediaReturn {
+export function useUploadMedia(): UseUploadMediaReturn {
     const [progress, setProgress] = useState<number>(0);
     const [error, setError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const [status, setStatus] = useState<UploadStatus>(UPLOAD_STATUS.INITIALIZING);
     const [processingStatus, setProcessingStatus] = useState<ProcessingStep | null>(null);
+    const [uploadDetails, setUploadDetails] = useState<Partial<UploadProgressInfo>>({});
+
+    const pollIntervalRef = useRef<NodeJS.Timeout>();
+    const currentUploadRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+            }
+        };
+    }, []);
 
     const validateFile = useCallback((file: File, category: FileCategory): void => {
         const config = UPLOAD_CONFIGS[category];
@@ -45,11 +66,44 @@ export function useArticleMedia(): UseArticleMediaReturn {
         }
     }, []);
 
+    const startProcessingPoll = useCallback((trackingId: string) => {
+        if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+        }
+
+        pollIntervalRef.current = setInterval(async () => {
+            try {
+                const status = await uploadApi.getUploadStatus(trackingId);
+                
+                if ([UPLOAD_STATUS.COMPLETED, UPLOAD_STATUS.FAILED].includes(status.status as 'completed' | 'failed')) {
+                    if (pollIntervalRef.current) {
+                        clearInterval(pollIntervalRef.current);
+                    }
+                    setStatus(status.status);
+                    setIsProcessing(false);
+                }
+
+                if (status.processing?.currentStep) {
+                    setProcessingStatus(status.processing.currentStep);
+                }
+            } catch (error) {
+                console.error('Failed to check processing status:', error);
+                if (pollIntervalRef.current) {
+                    clearInterval(pollIntervalRef.current);
+                }
+            }
+        }, 5000);
+    }, []);
+
+    const handleProgress = useCallback((info: UploadProgressInfo) => {
+        setProgress(Math.min(info.percentage, 99));
+        setUploadDetails(info);
+    }, []);
+
     const uploadMedia = useCallback(async (
         file: File, 
         category: FileCategory
     ): Promise<UploadResponse> => {
-        let pollInterval: NodeJS.Timeout | null = null;
         const startTime = Date.now();
 
         try {
@@ -58,49 +112,21 @@ export function useArticleMedia(): UseArticleMediaReturn {
             setError(null);
             setStatus(UPLOAD_STATUS.INITIALIZING);
 
-            const response = await uploadApi.uploadFile(
-                file,
-                category,
-                (progress: number) => {
-                    setProgress(Math.min(progress * 100, 99));
-                }
-            );
-
+            const response = await uploadApi.uploadFile(file, category, handleProgress);
+            currentUploadRef.current = response.trackingId;
+            
             setStatus(response.status);
             setProgress(100);
 
-            // Start monitoring processing steps if needed
-            if (response.processing?.currentStep) {
-                setProcessingStatus(response.processing.currentStep);
-                
-                if (response.status === UPLOAD_STATUS.PROCESSING) {
-                    pollInterval = setInterval(async () => {
-                        try {
-                            const status = await uploadApi.getUploadStatus(response.trackingId);
-                            
-                            if (status.status === UPLOAD_STATUS.COMPLETE || 
-                                status.status === UPLOAD_STATUS.ERROR) {
-                                if (pollInterval) {
-                                    clearInterval(pollInterval);
-                                }
-                                setStatus(status.status);
-                            }
-
-                            if (status.processing?.currentStep) {
-                                setProcessingStatus(status.processing.currentStep);
-                            }
-                        } catch (error) {
-                            console.error('Failed to get processing status:', error);
-                            if (pollInterval) clearInterval(pollInterval);
-                        }
-                    }, 5000);
-                }
+            if (response.status === UPLOAD_STATUS.PROCESSING) {
+                setIsProcessing(true);
+                startProcessingPoll(response.trackingId);
             }
 
             // Record success metric
             monitoringManager.metrics.recordMetric(
                 MetricCategory.BUSINESS,
-                'article_media',
+                'media',
                 'upload_success',
                 1,
                 MetricType.COUNTER,
@@ -117,14 +143,14 @@ export function useArticleMedia(): UseArticleMediaReturn {
             return response;
 
         } catch (error) {
-            setStatus(UPLOAD_STATUS.ERROR);
+            setStatus(UPLOAD_STATUS.FAILED);
             const errorMessage = error instanceof Error ? error.message : 'Upload failed';
             setError(errorMessage);
 
             // Record failure metric
             monitoringManager.metrics.recordMetric(
                 MetricCategory.BUSINESS,
-                'article_media',
+                'media',
                 'upload_failure',
                 1,
                 MetricType.COUNTER,
@@ -140,23 +166,91 @@ export function useArticleMedia(): UseArticleMediaReturn {
 
             throw error;
         } finally {
-            if (!isUploading) {
-                setProgress(0);
-                setIsUploading(false);
-            }
-            if (pollInterval) {
-                clearInterval(pollInterval);
-            }
+            setIsUploading(false);
         }
-    }, [validateFile]);
+    }, [validateFile, handleProgress, startProcessingPoll]);
+
+    const resumeUpload = useCallback(async (
+        file: File,
+        trackingId: string,
+        lastChunk: number,
+        category: FileCategory
+    ): Promise<UploadResponse> => {
+        try {
+            validateFile(file, category);
+            setIsUploading(true);
+            setError(null);
+            setStatus(UPLOAD_STATUS.RESUMING);
+
+            const response = await uploadApi.resumeUpload(
+                file,
+                trackingId,
+                lastChunk,
+                category,
+                handleProgress
+            );
+
+            currentUploadRef.current = response.trackingId;
+            setStatus(response.status);
+
+            if (response.status === UPLOAD_STATUS.PROCESSING) {
+                setIsProcessing(true);
+                startProcessingPoll(response.trackingId);
+            }
+
+            return response;
+        } catch (error) {
+            setStatus(UPLOAD_STATUS.FAILED);
+            const errorMessage = error instanceof Error ? error.message : 'Resume failed';
+            setError(errorMessage);
+            throw error;
+        } finally {
+            setIsUploading(false);
+        }
+    }, [validateFile, handleProgress, startProcessingPoll]);
+
+    const cancelUpload = useCallback(async (trackingId: string) => {
+        try {
+            await uploadApi.cancelUpload(trackingId);
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+            }
+            resetUpload();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to cancel upload';
+            setError(message);
+            throw error;
+        }
+    }, []);
+
+    const resetUpload = useCallback(() => {
+        setProgress(0);
+        setError(null);
+        setIsUploading(false);
+        setIsProcessing(false);
+        setStatus(UPLOAD_STATUS.INITIALIZING);
+        setProcessingStatus(null);
+        setUploadDetails({});
+        currentUploadRef.current = null;
+        if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+        }
+    }, []);
 
     return {
         uploadMedia,
+        resumeUpload,
+        cancelUpload,
+        resetUpload,
         progress,
         error,
         isUploading,
+        isProcessing,
         status,
         processingStatus,
-        cancelUpload: uploadApi.cancelUpload
+        currentChunk: uploadDetails.currentChunk,
+        totalChunks: uploadDetails.totalChunks,
+        uploadSpeed: uploadDetails.speed,
+        timeRemaining: uploadDetails.remainingTime
     };
 }

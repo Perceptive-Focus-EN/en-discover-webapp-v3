@@ -135,7 +135,7 @@ export {
   UPLOAD_SETTINGS,
   UPLOAD_PATHS,
   COSMOS_COLLECTIONS
-} from '@/constants/uploadConstants';
+} from '@/UploadingSystem/constants/uploadConstants';
 
 export type {
   FileCategory,
@@ -143,4 +143,4 @@ export type {
   AccessLevel,
   ProcessingStep,
   UploadStatus
-} from '@/constants/uploadConstants';
+} from '@/UploadingSystem/constants/uploadConstants';

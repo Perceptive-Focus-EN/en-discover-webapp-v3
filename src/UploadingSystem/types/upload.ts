@@ -1,32 +1,19 @@
-// src/types/upload.ts
 import formidable from 'formidable';
-import { AccessLevel, FileCategory, ProcessingStep, RetentionType, UPLOAD_WEBSOCKET, UploadStatus } from '../constants/uploadConstants';
-import { EnhancedProgress } from './chunking';
+import { FileCategory, ProcessingStep, AccessLevel, RetentionType, UploadStatus } from '@/UploadingSystem/constants/uploadConstants';
+import { BaseProgress } from './progress';
 
-export interface UploadProgressData extends EnhancedProgress {
-    // Additional fields if needed
-}
-export interface UploadProgress {
-    trackingId: string;
-    progress: number;
-    chunksCompleted: number;
-    totalChunks: number;
-    uploadedBytes: number;
-    totalBytes: number;
-    status: UploadStatus;
-    error?: string;
-}
 
-export interface UploadStatusDetails {
-    completedAt?: Date;
-    fileUrl?: string;
-    duration?: number;
-    processingSteps?: string[];
-    error?: string;
-    lastSuccessfulChunk?: number;
-    uploadedBytes?: number;
-}
+export type UploadStatusDetails = Pick<UploadDocument, 
+    'completedAt' | 
+    'fileUrl' | 
+    'duration' | 
+    'processingSteps' | 
+    'error' | 
+    'lastSuccessfulChunk' | 
+    'uploadedBytes'
+    >;
 
+// API Response interfaces
 export interface UploadSuccessResponse {
     message: string;
     trackingId: string;
@@ -50,6 +37,7 @@ export interface UploadErrorResponse {
     retryCount?: number;
 }
 
+// Document interface for database
 export interface UploadDocument {
     id: string;
     userId: string;
@@ -75,6 +63,7 @@ export interface UploadDocument {
     };
 }
 
+// Form handling interfaces
 export interface UploadFormData {
     file: formidable.File;
     [key: string]: any;

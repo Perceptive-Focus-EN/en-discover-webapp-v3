@@ -1,6 +1,6 @@
 // src/types/ArticleMedia/interactions.ts
 import { ResourceAuthor } from './resources';
-import { ProcessingStep, UploadStatus } from '@/constants/uploadConstants';
+import { ProcessingStep, UploadStatus } from '@/UploadingSystem/constants/uploadConstants';
 
 // Base interaction types
 export interface BaseInteraction {

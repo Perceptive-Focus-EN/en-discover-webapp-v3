@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { PostData, FeedPost } from '../types/Post';
+import { Post } from '../posts/api/types';
 import { avatarApi } from '../../lib/api/uploads/avatar';
 import { photoApi } from '../../lib/api/uploads/photo';
 import { videoApi } from '../../lib/api/uploads/video';
@@ -68,7 +68,7 @@ type FeedAction =
 interface FeedContextType extends UploadHandlers {
   state: FeedState;
   fetchPosts: () => Promise<void>;
-  updatePost: (postId: string, updateData: Partial<PostData>) => Promise<void>;
+  updatePost: (postId: string, updateData: Partial<Post>) => Promise<void>;
   deletePost: (postId: string) => Promise<void>;
   fetchConnections: () => Promise<void>;
   fetchConnectionRequests: () => Promise<void>;
@@ -77,7 +77,7 @@ interface FeedContextType extends UploadHandlers {
   updateVideoProcessingStatus: (postId: string, status: string) => Promise<void>;
   fetchReactions: (postId: string) => Promise<void>;
   updateReaction: (postId: string, emotionId: string) => Promise<void>;
-  addNewPost: (newPost: PostData) => Promise<void>;
+  addNewPost: (newPost: Post) => Promise<void>;
 }
 
 const initialState: FeedState = {
@@ -197,7 +197,7 @@ const FeedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   // Add New Post
   // In FeedContext.tsx
-const addNewPost = useCallback(async (newPost: PostData) => {
+const addNewPost = useCallback(async (newPost: Post) => {
   const completePost: FeedPost = {
     ...newPost,
     id: Date.now().toString(), // Temporary ID until backend sync

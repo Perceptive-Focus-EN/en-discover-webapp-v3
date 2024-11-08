@@ -1,287 +1,237 @@
+
 // src/features/posts/utils/validation.ts
 
-import { ImageListType } from 'react-images-uploading';
-import { PostCreatorState, PostType, PostContent } from '../types';
-import { ValidationError } from '@/MonitoringSystem/errors/specific';
+import { 
+    PostType, 
+    PostContent,
+    TextContent,
+    PhotoContent,
+    VideoContent,
+    MoodContent,
+    SurveyContent,
+    Media
+} from '../api/types';
+import { UPLOAD_CONFIGS, FileCategory } from '@/UploadingSystem/constants/uploadConstants';
 
-interface ValidationRule {
-  validate: (value: any) => boolean;
-  message: string;
+export interface ValidationError {
+    field: string;
+    message: string;
 }
 
-type ValidationRules = {
-  [K in keyof PostCreatorState]?: ValidationRule[];
-};
+interface ValidationRule<T> {
+    validate: (value: T) => ValidationError[];
+}
 
-// File size constants
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_DURATION = 300; // 5 minutes in seconds
-
-// Content length limits
-const MAX_TEXT_LENGTH = 5000;
-const MAX_MOOD_LENGTH = 200;
-const MAX_SURVEY_QUESTION_LENGTH = 500;
-const MAX_SURVEY_OPTION_LENGTH = 100;
-const MIN_SURVEY_OPTIONS = 2;
-const MAX_SURVEY_OPTIONS = 10;
-const MAX_PHOTO_COUNT = 10;
-
-export const validationRules: ValidationRules = {
-  // Common validations
-  content: [
-    {
-      validate: (value: string) => typeof value === 'string' && value.trim().length > 0,
-      message: 'Content cannot be empty',
+// Constants aligned with UPLOAD_CONFIGS
+export const POST_LIMITS = {
+    TEXT: {
+        MAX_LENGTH: 5000,
+        MIN_LENGTH: 1
     },
-    {
-      validate: (value: string) => value.length <= MAX_TEXT_LENGTH,
-      message: `Content cannot exceed ${MAX_TEXT_LENGTH} characters`,
+    PHOTO: {
+        MAX_COUNT: 10,
+        MIN_COUNT: 1,
+        MAX_CAPTION_LENGTH: 1000
     },
-  ],
-
-  // Text post validations
-  backgroundColor: [
-    {
-      validate: (value: string) => /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(value),
-      message: 'Invalid background color format',
+    VIDEO: {
+        MAX_CAPTION_LENGTH: 1000,
+        MAX_DURATION: 300 // 5 minutes in seconds
     },
-  ],
-  textColor: [
-    {
-      validate: (value: string) => /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(value),
-      message: 'Invalid text color format',
+    MOOD: {
+        MAX_LENGTH: 200,
+        MIN_LENGTH: 1
     },
-  ],
-  fontSize: [
-    {
-      validate: (value: string) => ['small', 'medium', 'large'].includes(value),
-      message: 'Invalid font size',
-    },
-  ],
-  alignment: [
-    {
-      validate: (value: string) => ['left', 'center', 'right'].includes(value),
-      message: 'Invalid text alignment',
-    },
-  ],
-  fontWeight: [
-    {
-      validate: (value: string) => ['normal', 'bold'].includes(value),
-      message: 'Invalid font weight',
-    },
-  ],
-  padding: [
-    {
-      validate: (value: string) => ['small', 'medium', 'large'].includes(value),
-      message: 'Invalid padding size',
-    },
-  ],
-
-  // Mood post validations
-  mood: [
-    {
-      validate: (value: string) => value.trim().length > 0,
-      message: 'Mood cannot be empty',
-    },
-    {
-      validate: (value: string) => value.length <= MAX_MOOD_LENGTH,
-      message: `Mood description cannot exceed ${MAX_MOOD_LENGTH} characters`,
-    },
-  ],
-  moodColor: [
-    {
-      validate: (value: string) => /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(value),
-      message: 'Invalid mood color format',
-    },
-  ],
-
-  // Survey post validations
-  surveyOptions: [
-    {
-      validate: (value: string[]) => value.length >= MIN_SURVEY_OPTIONS,
-      message: `Survey must have at least ${MIN_SURVEY_OPTIONS} options`,
-    },
-    {
-      validate: (value: string[]) => value.length <= MAX_SURVEY_OPTIONS,
-      message: `Survey cannot have more than ${MAX_SURVEY_OPTIONS} options`,
-    },
-    {
-      validate: (value: string[]) => value.every(option => option.trim().length > 0),
-      message: 'Survey options cannot be empty',
-    },
-    {
-      validate: (value: string[]) => value.every(option => option.length <= MAX_SURVEY_OPTION_LENGTH),
-      message: `Survey options cannot exceed ${MAX_SURVEY_OPTION_LENGTH} characters`,
-    },
-  ],
-  surveyBackgroundColor: [
-    {
-      validate: (value: string) => /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(value),
-      message: 'Invalid survey background color format',
-    },
-  ],
-  surveyQuestionColor: [
-    {
-      validate: (value: string) => /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(value),
-      message: 'Invalid survey question color format',
-    },
-  ],
-  surveyOptionTextColor: [
-    {
-      validate: (value: string) => /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(value),
-      message: 'Invalid survey option text color format',
-    },
-  ],
-
-  // Photo post validations
-  images: [
-    {
-      validate: (value: ImageListType) => value.length > 0,
-      message: 'At least one photo is required',
-    },
-    {
-      validate: (value: ImageListType) => value.length <= MAX_PHOTO_COUNT,
-      message: `Cannot upload more than ${MAX_PHOTO_COUNT} photos`,
-    },
-    {
-      validate: (value: ImageListType) =>
-        value.every(img => (img.file ? img.file.size <= MAX_IMAGE_SIZE : true)),
-      message: `Each photo must be less than ${MAX_IMAGE_SIZE / (1024 * 1024)}MB`,
-    },
-  ],
-
-  // Video post validations
-  file: [
-    {
-      validate: (value: File | null) => !value || value.size <= MAX_FILE_SIZE,
-      message: `Video file must be less than ${MAX_FILE_SIZE / (1024 * 1024)}MB`,
-    },
-  ],
-  videoUrl: [
-    {
-      validate: (value: string | null) => !value || /^https?:\/\/.+/.test(value),
-      message: 'Invalid video URL format',
-    },
-  ],
-  autoplay: [
-    {
-      validate: (value: boolean) => typeof value === 'boolean',
-      message: 'Invalid autoplay setting',
-    },
-  ],
-  muted: [
-    {
-      validate: (value: boolean) => typeof value === 'boolean',
-      message: 'Invalid muted setting',
-    },
-  ],
-  loop: [
-    {
-      validate: (value: boolean) => typeof value === 'boolean',
-      message: 'Invalid loop setting',
-    },
-  ],
-};
-
-// Validation function implementations
-export const validateField = (field: keyof PostCreatorState, value: any): ValidationError[] => {
-  const rules = validationRules[field];
-  if (!rules) return [];
-
-  const errors: ValidationError[] = [];
-  rules.forEach(rule => {
-    if (!rule.validate(value)) {
-      errors.push({ field, message: rule.message });
+    SURVEY: {
+        MAX_QUESTION_LENGTH: 500,
+        MAX_OPTION_LENGTH: 100,
+        MIN_OPTIONS: 2,
+        MAX_OPTIONS: 10
     }
-  });
+} as const;
 
-  return errors;
-};
+export const validateMedia = async (media: Media | undefined, type: PostType): Promise<ValidationError[]> => {
+    const errors: ValidationError[] = [];
+    if (!media) {
+        if (type === PostType.PHOTO || type === PostType.VIDEO) {
+            return [{ field: 'media', message: `${type.toLowerCase()} is required` }];
+        }
+        return [];
+    }
 
-export const validateAllFields = (state: PostCreatorState): ValidationError[] => {
-  let errors: ValidationError[] = [];
+    if (!media) {
+        return errors;
+    }
+    const config = UPLOAD_CONFIGS[media.category as FileCategory];
 
-  // Validate common fields first
-  errors = errors.concat(validateField('content', state.content));
+    // Check URLs
+    if (!media.urls || media.urls.length === 0) {
+        errors.push({ field: 'media', message: 'Media URL is required' });
+    const config = UPLOAD_CONFIGS[media.category as keyof typeof FileCategory];
+        // Validate each URL
+        media.urls.forEach((url, index) => {
+            if (!url || !/^https?:\/\/.+/.test(url)) {
+                errors.push({ field: 'media', message: `Invalid URL for media ${index + 1}` });
+            }
+        });
 
-  // Validate type-specific fields
-  switch (state.postType) {
-    case 'TEXT':
-      errors = errors.concat([
-        ...validateField('backgroundColor', state.backgroundColor),
-        ...validateField('textColor', state.textColor),
-        ...validateField('fontSize', state.fontSize),
-        ...validateField('alignment', state.alignment),
-        ...validateField('fontWeight', state.fontWeight),
-        ...validateField('padding', state.padding),
-      ]);
-      break;
-
-    case 'MOOD':
-      errors = errors.concat([
-        ...validateField('mood', state.mood),
-        ...validateField('moodColor', state.moodColor),
-      ]);
-      break;
-
-    case 'SURVEY':
-      errors = errors.concat([
-        ...validateField('surveyOptions', state.surveyOptions),
-        ...validateField('surveyBackgroundColor', state.surveyBackgroundColor),
-        ...validateField('surveyQuestionColor', state.surveyQuestionColor),
-        ...validateField('surveyOptionTextColor', state.surveyOptionTextColor),
-      ]);
-      break;
-
-    case 'PHOTO':
-      errors = errors.concat(validateField('images', state.images));
-      break;
-
-    case 'VIDEO':
-      errors = errors.concat([
-        ...validateField('file', state.file),
-        ...validateField('videoUrl', state.videoUrl),
-        ...validateField('autoplay', state.autoplay),
-        ...validateField('muted', state.muted),
-        ...validateField('loop', state.loop),
-      ]);
-      break;
-  }
-
-  return errors;
-};
-
-export const validatePostContent = async (
-  content: PostContent,
-  postType: PostType
-): Promise<ValidationError[]> => {
-  const errors: ValidationError[] = [];
-
-  // Additional content-specific validations
-  if (postType === 'VIDEO' && content.videoUrl) {
-    try {
-      const video = document.createElement('video');
-      video.src = content.videoUrl;
-      await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => {
-          if (video.duration > MAX_VIDEO_DURATION) {
-            errors.push({
-              field: 'file',
-              message: `Video duration cannot exceed ${MAX_VIDEO_DURATION / 60} minutes`,
+        // Check count limits
+        if (type === PostType.PHOTO && media.urls.length > POST_LIMITS.PHOTO.MAX_COUNT) {
+            errors.push({ 
+                field: 'media', 
+                message: `Cannot upload more than ${POST_LIMITS.PHOTO.MAX_COUNT} photos` 
             });
-          }
-          resolve();
-        };
-        video.onerror = () => reject(new Error('Failed to load video'));
-      });
-    } catch {
-      errors.push({
-        field: 'file',
-        message: 'Failed to validate video content',
-      });
+        }
+        return errors;
     }
-  }
 
-  return errors;
+    // Check metadata
+    if (media.metadata) {
+        if (media.metadata?.fileSize > config.maxSize) {
+            const maxSizeMB = Math.floor(config.maxSize / (1024 * 1024));
+            errors.push({ 
+                field: 'media', 
+    if (media.metadata && media.metadata.fileSize) {
+        if (media.metadata.fileSize > config.maxSize) {
+            const maxSizeMB = Math.floor(config.maxSize / (1024 * 1024));
+            errors.push({ 
+                field: 'media', 
+                message: `File size exceeds the maximum limit of ${maxSizeMB}MB` 
+            });
+        }
+
+        if (!config.contentType.includes(media.metadata.contentType) && !config.contentType.includes('*/*')) {
+            errors.push({ 
+                field: 'media', 
+                message: `Invalid file type. Allowed types: ${config.contentType.join(', ')}` 
+            });
+        }
+    }
+
+    return errors;
+};
+
+export const validateContent = (content: PostContent, type: PostType): ValidationError[] => {
+    const errors: ValidationError[] = [];
+
+    switch (type) {
+        case PostType.TEXT: {
+            const textContent = content as TextContent;
+            if (!textContent.text || textContent.text.trim().length === 0) {
+                errors.push({ field: 'content', message: 'Text cannot be empty' });
+            }
+            if (textContent.text.length > POST_LIMITS.TEXT.MAX_LENGTH) {
+                errors.push({ 
+                    field: 'content', 
+                    message: `Text cannot exceed ${POST_LIMITS.TEXT.MAX_LENGTH} characters` 
+                });
+            }
+            break;
+        }
+
+        case PostType.PHOTO: {
+            const photoContent = content as PhotoContent;
+            if (photoContent.photos && photoContent.photos.length > POST_LIMITS.PHOTO.MAX_COUNT) {
+                errors.push({ 
+                    field: 'content', 
+                    message: `Cannot have more than ${POST_LIMITS.PHOTO.MAX_COUNT} photos` 
+                });
+            }
+            if (photoContent.caption && photoContent.caption.length > POST_LIMITS.PHOTO.MAX_CAPTION_LENGTH) {
+                errors.push({ 
+                    field: 'caption', 
+                    message: `Caption cannot exceed ${POST_LIMITS.PHOTO.MAX_CAPTION_LENGTH} characters` 
+                });
+            }
+            break;
+        }
+
+        case PostType.VIDEO: {
+            const videoContent = content as VideoContent;
+            if (videoContent.caption && videoContent.caption.length > POST_LIMITS.VIDEO.MAX_CAPTION_LENGTH) {
+                errors.push({ 
+                    field: 'caption', 
+                    message: `Caption cannot exceed ${POST_LIMITS.VIDEO.MAX_CAPTION_LENGTH} characters` 
+                });
+            }
+            break;
+        }
+
+        case PostType.MOOD: {
+            const moodContent = content as MoodContent;
+            if (!moodContent.mood || moodContent.mood.trim().length === 0) {
+                errors.push({ field: 'mood', message: 'Mood cannot be empty' });
+            }
+            if (moodContent.mood.length > POST_LIMITS.MOOD.MAX_LENGTH) {
+                errors.push({ 
+                    field: 'mood', 
+                    message: `Mood cannot exceed ${POST_LIMITS.MOOD.MAX_LENGTH} characters` 
+                });
+            }
+            break;
+        }
+
+        case PostType.SURVEY: {
+            const surveyContent = content as SurveyContent;
+            if (!surveyContent.question || surveyContent.question.trim().length === 0) {
+                errors.push({ field: 'question', message: 'Question cannot be empty' });
+            }
+            if (surveyContent.question.length > POST_LIMITS.SURVEY.MAX_QUESTION_LENGTH) {
+                errors.push({ 
+                    field: 'question', 
+                    message: `Question cannot exceed ${POST_LIMITS.SURVEY.MAX_QUESTION_LENGTH} characters` 
+                });
+            }
+            if (!surveyContent.options || surveyContent.options.length < POST_LIMITS.SURVEY.MIN_OPTIONS) {
+                errors.push({ 
+                    field: 'options', 
+                    message: `Must have at least ${POST_LIMITS.SURVEY.MIN_OPTIONS} options` 
+                });
+            }
+            if (surveyContent.options && surveyContent.options.length > POST_LIMITS.SURVEY.MAX_OPTIONS) {
+                errors.push({ 
+                    field: 'options', 
+                    message: `Cannot have more than ${POST_LIMITS.SURVEY.MAX_OPTIONS} options` 
+                });
+            }
+            surveyContent.options?.forEach((option, index) => {
+                if (option.text.length > POST_LIMITS.SURVEY.MAX_OPTION_LENGTH) {
+                    errors.push({ 
+                        field: `option_${index}`, 
+                        message: `Option cannot exceed ${POST_LIMITS.SURVEY.MAX_OPTION_LENGTH} characters` 
+                    });
+                }
+            });
+            break;
+        }
+    }
+
+    return errors;
+};
+
+export const validatePost = async (
+    type: PostType,
+    content: PostContent,
+    media?: Media
+): Promise<ValidationError[]> => {
+    let errors: ValidationError[] = [];
+
+    // Validate content
+    errors = errors.concat(validateContent(content, type));
+
+    // Validate media if present or required
+    const mediaErrors = await validateMedia(media, type);
+    errors = errors.concat(mediaErrors);
+
+    return errors;
+};
+
+export const isValidationError = (error: unknown): error is ValidationError => {
+    return (
+        typeof error === 'object' &&
+        error !== null &&
+        'field' in error &&
+        'message' in error &&
+        typeof (error as ValidationError).field === 'string' &&
+        typeof (error as ValidationError).message === 'string'
+    );
 };

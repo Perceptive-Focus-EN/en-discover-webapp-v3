@@ -9,10 +9,9 @@ import { redisService } from '@/services/cache/redisService';
 import { 
     COSMOS_COLLECTIONS, 
     UPLOAD_STATUS,
-    UPLOAD_WEBSOCKET,
-} from '@/constants/uploadConstants';
+} from '@/UploadingSystem/constants/uploadConstants';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { chunkingService } from '@/services/ChunkingService';
+import { chunkingService } from '@/UploadingSystem/services/ChunkingService';
 
 // Constants
 const CACHE_KEY_PREFIX = 'upload:state:';
@@ -48,6 +47,8 @@ const isValidAction = (action: string, currentStatus: keyof typeof UPLOAD_STATUS
 
 const getNewStatus = (action: string): string => {
     switch (action) {
+        case 'start': return UPLOAD_STATUS.INITIALIZING;
+        case 'upload': return UPLOAD_STATUS.UPLOADING;
         case 'pause': return UPLOAD_STATUS.PAUSED;
         case 'resume': return UPLOAD_STATUS.RESUMING;
         case 'retry': return UPLOAD_STATUS.PROCESSING;

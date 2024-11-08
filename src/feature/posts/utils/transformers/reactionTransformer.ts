@@ -1,7 +1,7 @@
-import { Reaction, ReactionResponse } from "@/feature/types/Reaction";
+import { ReactionResponse} from "@/feature/types/Reaction";
 
 // src/features/posts/utils/transformers/reactionTransformer.ts
-export const transformReactionResponse = (response: ReactionResponse): Reaction => {
+export const transformReactionResponse = (response: ReactionResponse): any => {
   const { data } = response;
   return {
     id: data.id,

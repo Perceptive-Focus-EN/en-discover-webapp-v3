@@ -13,12 +13,13 @@ export const transformDbPostToApi = (dbPost: any): Post => ({
   commentCount: dbPost.commentCount || 0,
   authorId: dbPost.authorId,
   timestamp: dbPost.timestamp,
-  userAccountType: dbPost.userAccountType,
+  accountType: dbPost.userAccountType,
   createdAt: dbPost.createdAt,
   updatedAt: dbPost.updatedAt,
   status: dbPost.status,
   visibility: dbPost.visibility,
   isEdited: dbPost.isEdited || false,
   lastEditedAt: dbPost.lastEditedAt,
-  metadata: dbPost.metadata
+  metadata: dbPost.metadata,
+  tenantId: dbPost.tenantId
 });

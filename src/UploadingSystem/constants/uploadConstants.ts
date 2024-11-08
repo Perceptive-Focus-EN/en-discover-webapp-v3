@@ -1,7 +1,7 @@
 // src/constants/uploadConstants.ts
 
 import formidable from 'formidable';
-import { AZURE_BLOB_STORAGE_CONFIG } from './azureConstants';
+import { AZURE_BLOB_STORAGE_CONFIG } from '../../constants/azureConstants';
 
 export const UPLOAD_STATUS = {
     INITIALIZING: 'initializing',
@@ -12,6 +12,7 @@ export const UPLOAD_STATUS = {
     COMPLETED: 'completed',
     FAILED: 'failed'
 } as const;
+
 
 export type UploadStatus = typeof UPLOAD_STATUS[keyof typeof UPLOAD_STATUS];
 
@@ -110,7 +111,20 @@ export const CHUNKING_CONFIG = {
     MAX_CONCURRENT: UPLOAD_SETTINGS.MAX_CONCURRENT_UPLOADS
 } as const;
 
-export type FileCategory = 'document' | 'image' | 'video' | 'temp';
+
+// Types that map to API/DB
+export const FileCategory = {
+    DOCUMENT: 'document',
+    IMAGE: 'image',
+    VIDEO: 'video',
+    AUDIO: 'audio',
+    OTHER: 'other',
+} as const;
+
+// Then derive the type from it
+export type FileCategory = typeof FileCategory[keyof typeof FileCategory];
+
+
 export type RetentionType = 'temporary' | 'permanent';
 export type AccessLevel = 'private' | 'shared' | 'public';
 export type ProcessingStep = 'compress' | 'thumbnail' | 'scan' | 'encrypt';
@@ -153,12 +167,20 @@ export const UPLOAD_CONFIGS: Record<FileCategory, FileConfig> = {
         maxSize: 500 * 1024 * 1024, // 500MB
         processingSteps: ['compress', 'thumbnail']
     },
-    temp: {
-        category: 'temp',
+    audio: {
+        category: 'audio',
+        accessLevel: 'private',
+        retention: 'permanent',
+        contentType: ['audio/mpeg', 'audio/wav', 'audio/ogg'],
+        maxSize: 50 * 1024 * 1024, // 50MB
+        processingSteps: []
+    },
+    other: {
+        category: 'other',
         accessLevel: 'private',
         retention: 'temporary',
         contentType: ['*/*'],
-        maxSize: 100 * 1024 * 1024, // 100MB
+        maxSize: 50 * 1024 * 1024, // 50MB
         processingSteps: []
     }
 } as const;

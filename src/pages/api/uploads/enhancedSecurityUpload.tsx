@@ -17,11 +17,13 @@ import {
     UPLOAD_STATUS,
     CHUNKING_CONFIG,
     UploadStatus,
-} from '../../../constants/uploadConstants';
-import { chunkingService } from '../../../services/ChunkingService';
+} from '../../../UploadingSystem/constants/uploadConstants';
+import { chunkingService } from '../../../UploadingSystem/services/ChunkingService';
 import { getAzureStorageCredentials } from '@/config/azureStorage';
-import { UploadErrorResponse, UploadOptions, UploadStatusDetails, UploadSuccessResponse } from '@/types/upload';
-import { ChunkingOptions } from '@/types/chunking';
+import { UploadErrorResponse, UploadOptions, UploadStatusDetails, UploadSuccessResponse } from '@/UploadingSystem/types/upload';
+import { ChunkingOptions } from '@/UploadingSystem/types/chunking';
+import { DecodedToken } from '@/utils/TokenManagement/clientTokenUtils';
+import { UploadState } from '@/UploadingSystem/types/state';
 
 export const config = {
     api: {
@@ -30,10 +32,6 @@ export const config = {
     }
 };
 
-export interface UploadState {
-    leaseId?: string;
-    uploadedChunks: number[];
-}
 
 interface UploadContext {
     userId: string;
@@ -152,9 +150,40 @@ class EnhancedUploadSystem {
             const lease = await leaseClient.acquireLease(60);
 
             if (context.trackingId) {
-                this.currentUploadState.set(context.trackingId, { leaseId: lease.leaseId, uploadedChunks: [] });
+                const newState: UploadState = {
+                    chunks: new Map(),
+                    control: {
+                        isPaused: false,
+                        isCancelled: false,
+                        retryCount: 0,
+                        lastRetryTimestamp: 0,
+                        locked: false,
+                        leaseId: lease.leaseId
+                    },
+                    metadata: {
+                        fileName: file.originalFilename || 'unnamed',
+                        fileSize: file.size,
+                        mimeType: file.mimetype || 'application/octet-stream',
+                        category: config.category,
+                        accessLevel: config.accessLevel,
+                        retention: config.retention,
+                        startTime: Date.now()
+                    },
+                    progress: {
+                        trackingId: context.trackingId,
+                        progress: 0,
+                        chunksCompleted: 0,
+                        totalChunks: 0,
+                        uploadedBytes: 0,
+                        totalBytes: file.size,
+                        status: UPLOAD_STATUS.INITIALIZING
+                    },
+                    blockBlobClient,
+                    blockIds: []
+                };
+                this.currentUploadState.set(context.trackingId, newState);
             }
-
+            
             return blockBlobClient;
         } catch (error) {
             monitoringManager.logger.error(error as Error, SystemError.STORAGE_UPLOAD_FAILED as ErrorType, {
@@ -232,14 +261,20 @@ class EnhancedUploadSystem {
             const uploadOptions: UploadOptions = {
                 onProgress: (progress, chunkIndex, totalChunks, uploadedBytes) => {
                     if (context) {
-                        this.currentUploadState.get(context.trackingId)?.uploadedChunks.push(chunkIndex);
+                        const state = this.currentUploadState.get(context.trackingId);
+                        if (state) {
+                            state.progress.chunksCompleted = chunkIndex;
+                            state.progress.totalChunks = totalChunks;
+                            state.progress.uploadedBytes = uploadedBytes;
+                            state.progress.progress = (uploadedBytes / state.metadata.fileSize) * 100;
+                        }
                     }
                 },
                 userId: context.userId,
                 trackingId: context.trackingId,
                 fileSize: file.size
             };
-
+            
             const chunkingOptions: ChunkingOptions = {
                 chunkSize: CHUNKING_CONFIG.CHUNK_SIZE,
                 maxRetries: CHUNKING_CONFIG.MAX_RETRIES,
@@ -342,13 +377,13 @@ class EnhancedUploadSystem {
         .limit(options?.limit || 50);
 
     return cursor.toArray();
-}
+    }
 
     private async updateUploadStatus(
         trackingId: string,
         status: UploadStatus,
         details: UploadStatusDetails,
-        decodedToken: { userId: string; tenantId: string } // Add this parameter
+        decodedToken: DecodedToken
     ): Promise<void> {
         try {
             const { db } = await getCosmosClient();

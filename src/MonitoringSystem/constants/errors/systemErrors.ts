@@ -111,6 +111,22 @@ STORAGE_CONNECTION_FAILED = 'system/storage/connection_failed',
   CHUNK_UPLOAD_FAILED = 'system/chunk_upload_failed',
   CHUNK_CLEANUP_FAILED = 'system/chunk_cleanup_failed',
   VALIDATION_FAILED = 'system/validation_failed',
+  SOCKET_CONNECTION_FAILED = 'system/socket/connection_failed',
+  METRICS_COLLECTION_FAILED = 'system/metrics/collection_failed',
+  HEALTH_CHECK_FAILED = 'system/health/check_failed',
+  NO_AVAILABLE_NODES = 'system/nodes/no_available',
+  CONNECTION_HANDLING_FAILED = 'system/connection/handling_failed',
+  REBALANCING_FAILED = 'system/rebalancing/failed',
+  NODE_HEALTH_CHECK_FAILED = 'system/nodes/health_check_failed',
+  NO_HEALTHY_NODES = 'system/nodes/no_healthy',
+  NODE_MIGRATION_FAILED = 'system/nodes/migration_failed',
+  CONNECTION_MIGRATION_FAILED = 'system/connection/migration_failed',
+
+  SOCKET_AUTH_FAILED = 'system/socket/auth_failed',
+  RATE_LIMIT_EXCEEDED = 'system/rate_limit_exceeded',
+
+
+
 
 
 

@@ -1,7 +1,7 @@
 // src/hooks/useUpload.ts
 import { useState, useCallback } from 'react';
 import { uploadApi } from '@/lib/api/uploads';
-import { FileCategory } from '@/constants/uploadConstants';
+import { FileCategory } from '@/UploadingSystem/constants/uploadConstants';
 
 export function useUpload() {
     const [progress, setProgress] = useState<number>(0);

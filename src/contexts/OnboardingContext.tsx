@@ -17,6 +17,7 @@ import {
 import { onboardingApi } from '../lib/api/onboarding';
 import { AllRoles } from '@/constants/AccessKey/AccountRoles';
 import { Subscription_Type } from '@/constants/AccessKey/accounts';
+import { User } from 'lucide-react';
 
 const ONBOARDING_STEP_INDEX = {
     Verification: 0,
@@ -51,7 +52,6 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         GoalsAndObjectives: 4,
         FinancialInfo: 5,
         Completed: 6,
-        title: authUser?.title ?? 'defaultTitle' as AllRoles, // Ensure title is not undefined
     };
 
     const [onboardingStage, setOnboardingStage] = useState<OnboardingStage>(ONBOARDING_STATUS[0]);
@@ -80,7 +80,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setError(null);
             console.log('Updating step:', stepName, data);
             const stepRequest: OnboardingStepRequest = {
-                userId: authUser!.userId,
+                userId: user.userId,
                 tenantId: authUser!.tenantId,
                 stage: onboardingStage.replace(/([A-Z])/g, '_$1').toLowerCase() as OnboardingStage,
                 step: stepName,

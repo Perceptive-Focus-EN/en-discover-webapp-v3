@@ -2,8 +2,8 @@
 import { FC, useEffect, useState } from 'react';
 import { useUploadProgress } from '../hooks/useUploadProgress';
 import { formatBytes } from '../utils/formatters';
-import { CHUNKING_CONFIG } from '../constants/uploadConstants';
-import { UPLOAD_STATUS } from '../constants/uploadConstants';
+import { CHUNKING_CONFIG } from '../UploadingSystem/constants/uploadConstants';
+import { UPLOAD_STATUS } from '../UploadingSystem/constants/uploadConstants';
 
 interface UploadProgressProps {
     trackingId: string;

@@ -50,7 +50,6 @@ const ReactionBar: React.FC<ReactionBarProps> = ({ postId, onReactionChange }) =
         emotions={emotions}
         isLoading={false}
         error={null}
-        postId={postId}
       />
     </Box>
   );

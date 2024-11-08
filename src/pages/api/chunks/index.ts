@@ -2,7 +2,7 @@
 
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
-import { UPLOAD_SETTINGS } from '../../../constants/uploadConstants';
+import { UPLOAD_SETTINGS } from '../../../UploadingSystem/constants/uploadConstants';
 import { BlockBlobClient } from '@azure/storage-blob';
 import { Readable } from 'stream';
 

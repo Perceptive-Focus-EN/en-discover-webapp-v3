@@ -4,10 +4,10 @@ import React from 'react';
 import { Card, CardContent } from '@mui/material';
 import { CardHeader } from '../CardHeader';
 import { CardFooter } from '../CardFooter';
-import { PostContent } from '../types/Post';
-import { Reaction, EmotionId } from '../types/Reaction';
+import { EmotionId } from '../types/Reaction';
 import { UserAccountTypeEnum } from '../../constants/AccessKey/accounts';
 import { UserTypeBadge } from './PostingUsersBadge';
+import { PostContent } from '../posts/api/types';
 
 interface PostCardProps {
   id: string;
@@ -16,7 +16,7 @@ interface PostCardProps {
   userAvatar: string;
   timestamp: string;
   content: PostContent;
-  reactions: Reaction[];
+  reactions: { emotionId: EmotionId; count: number }[];
   userType: UserAccountTypeEnum;
   onReactionSelect: (postId: string, emotionId: EmotionId) => void;
 }

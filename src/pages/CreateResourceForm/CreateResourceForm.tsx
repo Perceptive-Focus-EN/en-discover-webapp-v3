@@ -28,7 +28,7 @@ import {
     ResourcePermissions,
 } from '@/types/ArticleMedia';
 import ImageRenderer from '../ImageRenderer/ImageRenderer';
-import { FileCategory } from '@/constants/uploadConstants';
+import { FileCategory } from '@/UploadingSystem/constants/uploadConstants';
 import { useResources } from '@/hooks/useResources';
 
 const STEPS = ['Basic Info', 'Content', 'Metadata', 'Review'];

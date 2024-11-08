@@ -25,6 +25,7 @@ const nextConfig = {
         fs: false,
         net: false,
         tls: false,
+        'socket.io-client': require.resolve('socket.io-client'),
       };
     }
 
@@ -142,7 +143,7 @@ const nextConfig = {
   },
   api: {
     bodyParser: {
-      sizeLimit: '5mb',
+      sizeLimit: '50mb'
     },
   },
 

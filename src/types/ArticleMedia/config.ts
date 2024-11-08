@@ -8,7 +8,7 @@ import {
     FileCategory,
     ProcessingStep,
     UploadStatus 
-} from '@/constants/uploadConstants';
+} from '@/UploadingSystem/constants/uploadConstants';
 import { ResourceFormData } from './form';
 
 

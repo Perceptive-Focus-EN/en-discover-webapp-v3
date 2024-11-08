@@ -54,7 +54,7 @@ export const BaseCard: React.FC<BaseCardProps & {
     const loadPostData = async () => {
       try {
         const data = await fetchPostWithReactions(id);
-        setLocalReactionCounts(data.reactionCounts || []);
+        setLocalReactionCounts((data as any).reactionCounts || []);
       } catch (err) {
         setError('Failed to load post data');
         console.error(err);
@@ -84,7 +84,10 @@ export const BaseCard: React.FC<BaseCardProps & {
       }
 
       const updatedReactions = await updatePostReaction(postId, emotionId);
-      setLocalReactionCounts(updatedReactions);
+      setLocalReactionCounts(updatedReactions.map(reaction => ({
+        emotionId: reaction.emotionId,
+        count: reaction.count.count
+      })));
     } catch (err) {
       console.error('Failed to update reaction:', err);
     }

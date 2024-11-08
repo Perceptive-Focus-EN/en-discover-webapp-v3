@@ -1,5 +1,5 @@
-import { UPLOAD_WEBSOCKET } from "@/constants/uploadConstants";
-import { UploadProgressData } from "./upload";
+import { UPLOAD_WEBSOCKET } from "@/UploadingSystem/constants/uploadConstants";
+import { UploadProgressData } from "../UploadingSystem/types/upload";
 
 
 

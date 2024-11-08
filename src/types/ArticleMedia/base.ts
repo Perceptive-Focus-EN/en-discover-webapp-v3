@@ -7,7 +7,7 @@ import {
     AccessLevel, 
     ProcessingStep,
     UploadStatus 
-} from '@/constants/uploadConstants';
+} from '@/UploadingSystem/constants/uploadConstants';
 
 // Base types that match backend exactly
 export interface BaseMetadata {

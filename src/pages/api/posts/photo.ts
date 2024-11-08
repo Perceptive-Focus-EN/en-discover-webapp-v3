@@ -178,7 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Upload tracking
         const uploadStart = Date.now();
-        const blobName = `${user.tenantId}/posts/${decodedToken.userId}-${Date.now()}-${uuidv4()}.${fileExtension}`;
+        const blobName = `${user.tenants.associations.tenanId}/posts/${decodedToken.userId}-${Date.now()}-${uuidv4()}.${fileExtension}`;
         const fileContent = await fs.readFile(file.filepath);
 
         if (!azureBlobStorageInstance) {

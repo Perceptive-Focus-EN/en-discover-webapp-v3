@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect, useCallback } from 'react';
 import { useGlobalState } from './GlobalStateContext';
-import { TenantInfo } from '@/types/Tenant/interfaces';
+import { Tenant } from '@/types/Tenant/interfaces';
 
 // Types remain the same
 export interface AIAssistantState {
   isActive: boolean;
   currentPage: string;
-  currentTenant: TenantInfo | null;
+  currentTenant: Tenant | null;
   userId: string | null;
   showInput: boolean;
   generatedResponse: string;
@@ -24,7 +24,7 @@ export interface AIAssistantState {
 export type AIAssistantAction =
   | { type: 'SET_ACTIVE'; payload: boolean }
   | { type: 'SET_PAGE'; payload: string }
-  | { type: 'SET_TENANT'; payload: TenantInfo | null }
+  | { type: 'SET_TENANT'; payload: Tenant | null }
   | { type: 'SET_USER_ID'; payload: string | null }
   | { type: 'SET_SHOW_INPUT'; payload: boolean }
   | { type: 'SET_GENERATED_RESPONSE'; payload: string }

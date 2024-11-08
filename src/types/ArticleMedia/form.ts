@@ -5,7 +5,7 @@ import {
   AccessLevel, 
   ProcessingStep,
   UploadStatus 
-} from '@/constants/uploadConstants';
+} from '@/UploadingSystem/constants/uploadConstants';
 import { BaseMetadata, ProcessingMetadata } from './base';
 import { 
   ResourceMetadata,

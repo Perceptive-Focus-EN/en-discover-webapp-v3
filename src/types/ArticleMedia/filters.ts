@@ -1,6 +1,6 @@
 // Filters and Sorting
 
-import { FileCategory, UploadStatus } from "@/constants/uploadConstants";
+import { FileCategory, UploadStatus } from "@/UploadingSystem/constants/uploadConstants";
 import { Resource } from "./resources";
 
 

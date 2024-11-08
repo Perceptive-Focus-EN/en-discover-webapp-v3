@@ -40,7 +40,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({ children }) =>
   };
 
   const fetchBillingData = useCallback(async (tenantId: string) => {
-    if (!user || user.tenantId !== tenantId) {
+    if (!user || !user.currentTenant || user.currentTenant.tenantId !== tenantId) {
       setError(new Error('Unauthorized access'));
       return;
     }
@@ -67,7 +67,7 @@ export const BillingProvider: React.FC<BillingProviderProps> = ({ children }) =>
   }, [user]);
 
   const optimizeUserStorage = useCallback(async (request: OptimizeStorageRequest) => {
-    if (!user || user.tenantId !== request.tenantId) {
+    if (!user || !user.currentTenant || user.currentTenant.tenantId !== request.tenantId) {
       setError(new Error('Unauthorized access'));
       return;
     }

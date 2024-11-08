@@ -2,7 +2,7 @@
 import { api } from '../../axiosSetup';
 import { API_ENDPOINTS } from '../../../constants/endpointsConstants';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { FeedPost, BasePost } from '@/feature/types/Post';
+import { FeedPost, BasePost } from '@/feature/posts/api/types';
 
 interface FetchPostsParams {
   page: number;

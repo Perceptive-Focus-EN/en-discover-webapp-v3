@@ -4,6 +4,59 @@ import { SystemError } from "../errors/systemErrors";
 
 export const SystemMessages = {
 
+  // < !-- -- - Socket & Connection Messages -- -- - >
+  [SystemError.SOCKET_CONNECTION_FAILED]: {
+    error: 'Socket connection failed',
+    warn: 'Socket connection issues detected',
+    info: 'Socket connection attempt initiated'
+  },
+
+  [SystemError.SOCKET_AUTH_FAILED]: {
+    error: 'Socket authentication failed',
+    warn: 'Socket authentication issues detected',
+    info: 'Socket authentication attempted'
+  },
+
+  [SystemError.HEALTH_CHECK_FAILED]: {
+    error: 'Health check failed',
+    warn: 'Health check issues detected',
+    info: 'Health check initiated'
+  },
+  [SystemError.NO_AVAILABLE_NODES]: {
+    error: 'No available nodes',
+    warn: 'Node availability issues detected',
+    info: 'Node availability checked'
+  },
+  [SystemError.CONNECTION_HANDLING_FAILED]: {
+    error: 'Connection handling failed',
+    warn: 'Connection handling issues detected',
+    info: 'Connection handling attempted'
+  },
+  [SystemError.REBALANCING_FAILED]: {
+    error: 'Rebalancing failed',
+    warn: 'Rebalancing issues detected',
+    info: 'Rebalancing attempted'
+  },
+  [SystemError.NODE_HEALTH_CHECK_FAILED]: {
+    error: 'Node health check failed',
+    warn: 'Node health check issues detected',
+    info: 'Node health check initiated'
+  },
+  [SystemError.NO_HEALTHY_NODES]: {
+    error: 'No healthy nodes available',
+    warn: 'Node health issues detected',
+    info: 'Node health status checked'
+  },
+  [SystemError.NODE_MIGRATION_FAILED]: {
+    error: 'Node migration failed',
+    warn: 'Node migration issues detected',
+    info: 'Node migration attempted'
+  },
+  [SystemError.CONNECTION_MIGRATION_FAILED]: {
+    error: 'Connection migration failed',
+    warn: 'Connection migration issues detected',
+    info: 'Connection migration attempted'
+  },
   // < !-- -- - Storage Messages -- -- - >
 
 
@@ -78,6 +131,7 @@ export const SystemMessages = {
     warn: 'Validation issues detected',
     info: 'Validation attempted'
   },
+
 
 // <-------  Database Messages -------->
 
@@ -195,6 +249,12 @@ export const SystemMessages = {
     info: 'Server internal status checked'
   },
 
+  [SystemError.RATE_LIMIT_EXCEEDED]: {
+    error: 'Rate limit exceeded',
+    warn: 'Rate limit threshold reached',
+    info: 'Rate limit checked'
+  },
+
   // <-------  Performance Messages -------->
 
   [SystemError.PERFORMANCE_HIGH_LATENCY]: {
@@ -249,6 +309,13 @@ export const SystemMessages = {
     error: 'Metrics queue is full',
     warn: 'Metrics queue approaching capacity',
     info: 'Metrics queue status checked'
+  },
+
+
+  [SystemError.METRICS_COLLECTION_FAILED]: {
+    error: 'Failed to collect metrics',
+    warn: 'Metrics collection issues detected',
+    info: 'Metrics collection attempted'
   },
 
 // <-------  Logging Messages -------->

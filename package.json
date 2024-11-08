@@ -128,6 +128,7 @@
     "react-swipeable-views-utils": "^0.14.0",
     "react-timeago": "^7.2.0",
     "react-tooltip": "^5.26.0",
+    "react-virtual-scroll": "^1.0.9",
     "react-virtualized-auto-sizer": "^1.0.22",
     "react-window": "^1.8.10",
     "react-window-infinite-loader": "^1.0.9",

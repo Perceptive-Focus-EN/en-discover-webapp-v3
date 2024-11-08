@@ -66,7 +66,7 @@ function AppContent({ Component, pageProps }: AppProps) {
         router.replace('/login');
       } else if (user && isPublicRoute) {
         // Redirect to dashboard if authenticated and on a public route
-        router.replace('/dashboard');
+        router.replace('/moodboard');
       }
     }
   }, [user, loading, router.pathname, isInitialized]);
