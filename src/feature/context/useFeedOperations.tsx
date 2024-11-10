@@ -1,4 +1,3 @@
-import { useFeed } from './FeedContext';
 import { feedApi } from '@/lib/api/feed';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { videoApi } from '@/lib/api/uploads/video';

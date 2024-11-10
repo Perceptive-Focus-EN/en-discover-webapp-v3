@@ -5,11 +5,13 @@ import WebSocket from 'ws';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { SystemError } from '@/MonitoringSystem/constants/errors';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
+import { SubscriptionType } from '../services/SubscriptionService';
 
 export interface AuthenticatedWebSocket extends WebSocket {
     userId: string;
     tenantId: string;
     userTier: string;
+    subscriptionType: SubscriptionType; // Add this line
     isAuthenticated: boolean;
     token: string;
     session?: {

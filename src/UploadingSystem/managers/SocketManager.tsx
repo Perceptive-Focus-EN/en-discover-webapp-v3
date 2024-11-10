@@ -1,17 +1,12 @@
 // src/UploadingSystem/managers/SocketManager.ts
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { SystemError } from '@/MonitoringSystem/constants/errors';
-import { UploadRateLimiter } from '../services/RateLimiter';
 import { LoadBalancer } from '../services/LoadBalancer';
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import { socketAuthMiddleware, AuthenticatedWebSocket } from '../middleware/socketAuthMiddleware';
-import { ResourceLimiter } from '../services/ResourceLimiter';
-import { paymentGateway } from '../services/PaymentGateway';
-import { resourceQuotaManager } from '../services/ResourceQuotaManager';
-import { TIER_LIMITS } from '../services/ResourceLimiter';
-import { TierLimits } from '../services/ResourceLimiter';
 import { CircuitBreaker } from '@/MonitoringSystem/utils/CircuitBreaker';
+import { SubscriptionService, SubscriptionType } from '../services/SubscriptionService';
 
 export interface SocketManagerConfig {
     maxConnectionsPerNode: number;
@@ -28,6 +23,25 @@ export interface NodeMetrics {
     errors: number;
 }
 
+export interface Metadata {
+    component: string;
+    category: string;
+    aggregationType?: 'latest' | 'average' | 'sum';
+    uploadStats?: {
+        activeUploads: number;
+        queueSize: number;
+        memoryUsage: number;
+        chunkProgress: number;
+    };
+    circuitBreaker?: {
+        socket_connection: boolean;
+        resource_limit: boolean;
+        rate_limit: boolean;
+        payment_gateway: boolean;
+        node_migration: boolean;
+    };
+}
+
 export interface MigrationPlan {
     moves: Array<{
         connection: AuthenticatedWebSocket;
@@ -38,8 +52,7 @@ export interface MigrationPlan {
 
 export class SocketManager extends EventEmitter {
     private static instance: SocketManager | null = null;
-    private resourceLimiter = ResourceLimiter.getInstance();
-    private rateLimiter: UploadRateLimiter;
+    private subscriptionService: SubscriptionService;
     private loadBalancer: LoadBalancer;
     private circuitBreaker: CircuitBreaker;
     private nodeMetrics: Map<string, NodeMetrics> = new Map();
@@ -55,7 +68,7 @@ export class SocketManager extends EventEmitter {
             redistributionThreshold: 0.8
         };
 
-        this.rateLimiter = UploadRateLimiter.getInstance();
+        this.subscriptionService = SubscriptionService.getInstance();
         this.loadBalancer = LoadBalancer.getInstance({
             maxConnectionsPerNode: this.config.maxConnectionsPerNode,
             nodes: this.getAvailableNodes(),
@@ -103,16 +116,28 @@ export class SocketManager extends EventEmitter {
         // Logic to stop all services gracefully, such as cleaning up any ongoing operations or releasing resources
     }
 
+    private async gatherNodeMetrics(): Promise<any> {
+        // Implement the logic to gather node metrics here
+        return {
+            totalConnections: 0,
+            activeUploads: 0,
+            queueSize: 0,
+            memoryUsage: 0,
+            chunkProgress: 0
+        };
+    }
+
     private async collectMetrics(): Promise<void> {
         try {
             const metrics = await this.gatherNodeMetrics();
 
             const circuitStatuses = {
                 socket_connection: this.circuitBreaker.isOpen('socket_connection'),
+                subscription_check: this.circuitBreaker.isOpen('subscription_check'),
+                node_migration: this.circuitBreaker.isOpen('node_migration'),
                 resource_limit: this.circuitBreaker.isOpen('resource_limit'),
                 rate_limit: this.circuitBreaker.isOpen('rate_limit'),
-                payment_gateway: this.circuitBreaker.isOpen('payment_gateway'),
-                node_migration: this.circuitBreaker.isOpen('node_migration')
+                payment_gateway: this.circuitBreaker.isOpen('payment_gateway')
             };
 
             monitoringManager.recordDashboardMetric({
@@ -144,6 +169,11 @@ export class SocketManager extends EventEmitter {
         }
     }
 
+    private async checkNodesHealth(): Promise<string[]> {
+        // Implement the logic to check the health of nodes and return an array of unhealthy node IDs
+        return [];
+    }
+
     private async performHealthChecks(): Promise<void> {
         try {
             const unhealthyNodes = await this.checkNodesHealth();
@@ -157,60 +187,73 @@ export class SocketManager extends EventEmitter {
         }
     }
 
+    private async handleUnhealthyNodes(unhealthyNodes: string[]): Promise<void> {
+        for (const nodeId of unhealthyNodes) {
+            monitoringManager.logger.warn(`Node ${nodeId} is unhealthy. Taking necessary actions.`);
+            // Implement the logic to handle unhealthy nodes, such as redistributing connections or notifying administrators
+        }
+    }
+
     public async handleConnection(ws: AuthenticatedWebSocket, request: any): Promise<boolean> {
         return this.executeWithCircuitBreaker('socket_connection', async () => {
             const isAuthenticated = await socketAuthMiddleware(ws, request);
             if (!isAuthenticated) return false;
 
-            const resourceCheck = await this.executeWithCircuitBreaker(
-                'resource_limit',
-                () => this.resourceLimiter.checkResourceLimit(
+            // Use SubscriptionService for checking limits
+            const subscriptionCheck = await this.executeWithCircuitBreaker(
+                'subscription_check',
+                async () => this.subscriptionService.checkUploadAllowed(
                     ws.userId,
                     ws.tenantId,
-                    ws.userTier as 'free' | 'premium' | 'enterprise',
-                    'uploads',
-                    1
+                    0, // Initial connection doesn't have file size
+                    ws.subscriptionType as SubscriptionType
                 )
             );
 
-            if (!resourceCheck.allowed) {
-                if (resourceCheck.upgrade) {
-                    await this.executeWithCircuitBreaker(
-                        'payment_gateway',
-                        () => paymentGateway.handleQuotaUpgrade(
-                            ws,
-                            'uploads',
-                            TIER_LIMITS[ws.userTier as keyof TierLimits].uploads.concurrent
-                        )
-                    );
+            if (!subscriptionCheck.allowed) {
+                if (subscriptionCheck.shouldUpgrade) {
+                    // Send upgrade suggestion via WebSocket
+                    ws.send(JSON.stringify({
+                        type: 'UPGRADE_SUGGESTED',
+                        reason: subscriptionCheck.reason,
+                        currentType: ws.subscriptionType,
+                        suggestedType: this.getNextSubscriptionTier(ws.subscriptionType as SubscriptionType)
+                    }));
                 }
-                ws.close(4004, resourceCheck.reason || 'Resource limit exceeded');
+                ws.close(4004, subscriptionCheck.reason || 'Subscription limit exceeded');
                 return false;
             }
 
-            const canConnect = await this.executeWithCircuitBreaker(
-                'rate_limit',
-                () => this.rateLimiter.tryAcquireWithTenant(
-                    ws.userId,
-                    ws.tenantId,
-                    0,
-                    ws.userTier
-                )
-            );
-
-            if (!canConnect) {
-                monitoringManager.logger.warn('Rate limit exceeded for user', {
-                    userId: ws.userId,
-                    userTier: ws.userTier
-                });
-                ws.close(4004, 'Rate limit exceeded');
-                return false;
-            }
-
+            // Manage connection in pool
             this.manageConnectionPool(ws);
-            this.updateNodeMetrics(await this.loadBalancer.getBestNode(), ws);
+
+            // Get best node for connection
+            const bestNode = await this.loadBalancer.getBestNode(ws.subscriptionType as SubscriptionType);
+            if (bestNode) {
+                this.updateNodeMetrics(bestNode, ws);
+            } else {
+                monitoringManager.logger.warn('No available nodes for connection', {
+                    userId: ws.userId,
+                    subscriptionType: ws.subscriptionType
+                });
+                ws.close(4004, 'No available nodes');
+                return false;
+            }
+
             return true;
         });
+    }
+
+    private getNextSubscriptionTier(currentTier: SubscriptionType): SubscriptionType {
+        const tiers = [
+            SubscriptionType.TRIAL,
+            SubscriptionType.DISCOUNTED,
+            SubscriptionType.PAID,
+            SubscriptionType.UNLOCKED
+        ];
+        
+        const currentIndex = tiers.indexOf(currentTier);
+        return currentIndex < tiers.length - 1 ? tiers[currentIndex + 1] : currentTier;
     }
 
     private manageConnectionPool(ws: AuthenticatedWebSocket): void {

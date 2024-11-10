@@ -17,16 +17,16 @@ async function tenantHandler(req: NextApiRequest, res: NextApiResponse) {
     case 'POST':
       return await sendJoinRequest(req, res, decodedToken);
     default:
-      const appError = monitoringManager.error.createError(
+      const appError2 = monitoringManager.error.createError(
         'business',
         'METHOD_NOT_ALLOWED',
         'Method not allowed',
         { method: req.method }
       );
-      const errorResponse = monitoringManager.error.handleError(appError);
-      return res.status(errorResponse.statusCode).json({
-        error: errorResponse.userMessage,
-        reference: errorResponse.errorReference
+      const errorResponse2 = monitoringManager.error.handleError(appError2);
+      return res.status(errorResponse2.statusCode).json({
+        error: errorResponse2.userMessage,
+        reference: errorResponse2.errorReference
       });
   }
 }
@@ -172,8 +172,9 @@ async function sendJoinRequest(req: NextApiRequest, res: NextApiResponse, decode
       });
     }
 
-    if (Array.isArray(user.tenants) && user.tenants.includes(tenantId) ||
-      Array.isArray(user.connectionRequests.sent) && user.connectionRequests.sent.includes(tenantId)) {
+    if ((Array.isArray(user.tenants) && user.tenants.includes(tenantId)) ||
+      (user.tenants && user.tenants[tenantId as keyof typeof user.tenants])) { // Check if user is already a member or has a pending request for the tenant 
+      
       const appError = monitoringManager.error.createError(
         'business',
         'REQUEST_INVALID',
@@ -190,11 +191,11 @@ async function sendJoinRequest(req: NextApiRequest, res: NextApiResponse, decode
     await Promise.all([
       usersCollection.updateOne(
         { userId: decodedToken.userId },
-        { $addToSet: { 'connectionRequests.sent': tenantId } }
+        { $addToSet: { tenants: tenantId } }
       ),
       tenantsCollection.updateOne(
         { tenantId },
-        { $addToSet: { pendingUserRequests: decodedToken.userId } }
+        { $addToSet: { joinRequests: decodedToken.userId } }
       )
     ]);
 

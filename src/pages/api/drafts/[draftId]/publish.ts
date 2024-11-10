@@ -103,6 +103,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
       newPost = {
+        tenantId: draft.tenantId,
         id: new ObjectId().toString(),
         userId: draft.userId,
         username: draft.username,
@@ -114,7 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         commentCount: 0,
         authorId: draft.userId,
         timestamp: new Date().toISOString(),
-        userAccountType: draft.userAccountType,
+        accountType: draft.accountType,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         status: 'published',

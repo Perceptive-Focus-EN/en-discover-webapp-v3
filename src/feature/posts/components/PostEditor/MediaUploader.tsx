@@ -1,5 +1,3 @@
-// src/features/posts/components/PostEditor/MediaUploader.tsx
-
 import React, { useEffect, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { IconButton, CircularProgress, Typography, Box, LinearProgress } from '@mui/material';

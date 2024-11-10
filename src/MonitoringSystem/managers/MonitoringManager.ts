@@ -1,7 +1,7 @@
 // src/MonitoringSystem/managers/MonitoringManager.ts
 
 import { ServiceBus } from '../core/ServiceBus';
-import { CircuitBreaker } from '../utils/CircuitBreaker';
+import { CircuitBreaker, CircuitBreakerStatus } from '../utils/CircuitBreaker';
 import { ErrorManager } from './ErrorManager';
 import { LoggerManager } from './LoggerManager';
 import { MetricsManager } from './MetricsManager';
@@ -12,21 +12,31 @@ import { ErrorType, SystemError } from '../constants/errors';
 
 // Add specific metric types for monitoring dashboard
 
+// src/MonitoringSystem/managers/MonitoringManager.ts
+
 export interface DashboardMetrics {
-  type: 'SYSTEM_HEALTH' | 'API_PERFORMANCE';
-  timestamp: number;
-  value: number;
-  metadata: {
-    component: string;
-    category: string;
-    aggregationType?: 'average' | 'sum' | 'latest';
-    uploadStats?: {
-      activeUploads: number;
-      queueSize: number;
-      memoryUsage: number;
-      chunkProgress: number;
+    type: 'SYSTEM_HEALTH' | 'API_PERFORMANCE';
+    timestamp: number;
+    value: number;
+    metadata: {
+        component: string;
+        category: string;
+        aggregationType?: 'average' | 'sum' | 'latest';
+        uploadStats?: {
+            activeUploads: number;
+            queueSize: number;
+            memoryUsage: number;
+            chunkProgress: number;
+        };
+      circuitBreaker?: CircuitBreakerStatus;
+    globalStats?: {
+        activeConnections: number;
+        avgLatency: number;
+        hotspots: string[];
+        potentialThreats: string[];
+
     };
-  };
+    };
 }
 
 class MonitoringManager {

@@ -124,6 +124,17 @@ STORAGE_CONNECTION_FAILED = 'system/storage/connection_failed',
 
   SOCKET_AUTH_FAILED = 'system/socket/auth_failed',
   RATE_LIMIT_EXCEEDED = 'system/rate_limit_exceeded',
+  PAYMENT_SESSION_FAILED = 'system/payment/session_failed',
+  RECURRING_BILLING_FAILED = 'system/payment/recurring_failed',
+  PAYMENT_RETRY_FAILED = 'system/payment/retry_failed',
+  PAYMENT_FAILED = 'system/payment/failed',
+  SUBSCRIPTION_STATUS_CHECK_FAILED = 'system/payment/status_check_failed',
+  SUBSCRIPTION_UPGRADE_FAILED = 'system/payment/upgrade_failed',
+  AUTO_SCALING_FAILED = 'system/auto_scaling_failed',
+  FRONT_DOOR_ERROR = 'system/front_door_error',
+  FAILOVER_ERROR = 'system/failover_error',
+  GLOBAL_STRESS_TEST_FAILED = 'system/global_stress_test_failed',
+  CLEANUP_FAILED = 'system/cleanup_failed',
 
 
 

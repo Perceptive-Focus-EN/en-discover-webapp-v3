@@ -389,4 +389,70 @@ export const SystemMessages = {
     info: 'Video processing queue attempted'
   },
 
+  // < !-- -- - Payment Messages-- -- - >
+    
+  [SystemError.PAYMENT_SESSION_FAILED]: {
+    error: 'Failed to create payment session',
+    warn: 'Payment session creation issues detected',
+    info: 'Payment session creation attempted'
+},
+  [SystemError.RECURRING_BILLING_FAILED]: {
+    error: 'Recurring billing failed',
+    warn: 'Recurring billing issues detected',
+    info: 'Recurring billing attempted'
+},
+
+  [SystemError.SUBSCRIPTION_UPGRADE_FAILED]: {
+    error: 'Subscription upgrade failed',
+    warn: 'Subscription upgrade issues detected',
+    info: 'Subscription upgrade attempted'
+  },
+
+  [SystemError.PAYMENT_RETRY_FAILED]: {
+    error: 'Payment retry failed',
+    warn: 'Payment retry issues detected',
+    info: 'Payment retry attempted'
+  },
+  [SystemError.PAYMENT_FAILED]: {
+    error: 'Payment failed',
+    warn: 'Payment issues detected',
+    info: 'Payment attempted'
+  },
+  [SystemError.SUBSCRIPTION_STATUS_CHECK_FAILED]: {
+    error: 'Failed to check subscription status',
+    warn: 'Subscription status check issues detected',
+    info: 'Subscription status check attempted'
+  },
+
+  // < !-- -- - Load Disctribution Messages-- -- - >
+    
+  [SystemError.AUTO_SCALING_FAILED]: {
+    error: 'Auto-scaling failed',
+    warn: 'Auto-scaling issues detected',
+    info: 'Auto-scaling attempted'
+  },
+  [SystemError.FRONT_DOOR_ERROR]: {
+    error: 'Front door error',
+    warn: 'Front door issues detected',
+    info: 'Front door status checked'
+  },
+
+  [SystemError.FAILOVER_ERROR]: {
+    error: 'Failover error',
+    warn: 'Failover issues detected',
+    info: 'Failover status checked'
+  },
+
+  [SystemError.GLOBAL_STRESS_TEST_FAILED]: {
+    error: 'Global stress test failed',
+    warn: 'Global stress test issues detected',
+    info: 'Global stress test attempted'
+  },
+
+  [SystemError.CLEANUP_FAILED]: {
+    error: 'Cleanup failed',
+    warn: 'Cleanup issues detected',
+    info: 'Cleanup attempted'
+  },
+
 } as const;

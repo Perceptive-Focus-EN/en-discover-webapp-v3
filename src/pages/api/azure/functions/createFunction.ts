@@ -4,7 +4,6 @@ import { WebSiteManagementClient } from '@azure/arm-appservice';
 import { DefaultAzureCredential } from '@azure/identity';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { logger } from '@/MonitoringSystem/Loggers/logger';
 
 async function createFunctionHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -25,7 +24,6 @@ async function createFunctionHandler(req: NextApiRequest, res: NextApiResponse) 
         ]
       }
     });
-    logger.info(`Function App ${name} created successfully`);
     res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create Function App' });

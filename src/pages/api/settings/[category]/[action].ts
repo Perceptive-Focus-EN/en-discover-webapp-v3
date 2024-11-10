@@ -7,7 +7,6 @@ import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/const
 import { SystemError } from '@/MonitoringSystem/constants/errors';
 import { ErrorType } from '@/MonitoringSystem/constants/errors';
 import { AppError } from '@/MonitoringSystem/managers/AppError';
-import { current } from 'immer';
 
 // Enhanced type definitions
 interface AuthenticatedRequest extends NextApiRequest {

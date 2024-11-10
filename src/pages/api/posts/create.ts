@@ -1,8 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
-import { User } from '../../../types/User/interfaces';
-import { ObjectId } from 'mongodb';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
 import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/constants/metrics';
 import { AppError } from '@/MonitoringSystem/managers/AppError';
@@ -60,7 +58,7 @@ async function createPostHandler(req: NextApiRequest, res: NextApiResponse) {
     const postsCollection = db.collection(COLLECTIONS.POSTS);
     const usersCollection = db.collection(COLLECTIONS.USERS);
 
-    const userData = await usersCollection.findOne({ userId: user.userId }) as User | null;
+    const userData = await usersCollection.findOne({ userId: user.userId }) 
     if (!userData) {
       const appError = monitoringManager.error.createError(
         'business',
@@ -75,7 +73,7 @@ async function createPostHandler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
-    if (!userData.currentTenantId) {
+    if (!userData.currentTenant) {
       const appError = monitoringManager.error.createError(
         'business',
         'TENANT_NOT_FOUND',
@@ -91,7 +89,6 @@ async function createPostHandler(req: NextApiRequest, res: NextApiResponse) {
 
     const newPost = {
       userId: userData.userId,
-      tenantId: userData.currentTenantId,
       username: `${userData.firstName} ${userData.lastName}`,
       userAvatar: userData.avatarUrl || '',
       type,
@@ -126,7 +123,6 @@ async function createPostHandler(req: NextApiRequest, res: NextApiResponse) {
       MetricUnit.COUNT,
       {
         userId: user.userId,
-        tenantId: userData.currentTenantId,
         postType: type,
         duration: Date.now() - startTime
       }

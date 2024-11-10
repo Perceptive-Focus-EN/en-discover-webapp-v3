@@ -19,23 +19,28 @@ export interface ProcessingMetadata {
     error?: string;
 }
 
+export interface UploadHistoryResponse {
+    items: UploadResponse[];
+    totalItems: number;
+    currentPage: number;
+    totalPages: number;
+    hasMore: boolean;
+}
+
+
 export interface UploadResponse {
-    message: string;
     trackingId: string;
-    fileUrl: string;
     status: UploadStatus;
     metadata: {
         originalName: string;
-        mimeType: string;
-        uploadedAt: string;
         fileSize: number;
         category: FileCategory;
-        accessLevel: AccessLevel;
-        retention: RetentionType;
-        processingSteps: ProcessingStep[];
-        duration: number;
+        uploadedAt: Date;
     };
-    processing?: ProcessingMetadata;
+    fileUrl?: string;
+    lastModified: Date;
+    duration?: number;
+    processingSteps?: ProcessingStep[];
 }
 
 export interface UploadProgressInfo {
@@ -165,28 +170,38 @@ export const uploadApi = {
     /**
      * Get upload history with pagination
      */
-    getUploadHistory: async (
-        page: number = 1,
-        limit: number = 10,
-        filter?: {
-            status?: UploadStatus;
-            category?: FileCategory;
+        getUploadHistory: async (
+        page: number, 
+        limit: number, 
+        options?: { 
+            status?: string; 
+            userId?: string 
         }
-    ): Promise<{
-        items: UploadResponse[];
-        totalItems: number;
-        currentPage: number;
-        totalPages: number;
-    }> => {
+    ): Promise<UploadHistoryResponse> => {
         const params = new URLSearchParams({
             page: page.toString(),
             limit: limit.toString(),
-            ...(filter?.status && { status: filter.status }),
-            ...(filter?.category && { category: filter.category }),
+            ...(options?.status && { status: options.status }),
+            ...(options?.userId && { userId: options.userId })
         });
 
-        return api.get(`/api/uploads/enhancedSecurityUpload/history?${params}`);
+        const response = await api.get<UploadHistoryResponse>(
+            `/api/uploads/enhancedSecurityUpload/history?${params}`
+        );
+        return response;
     },
+
+    /**
+     * Download a file
+     */
+        
+    downloadFile: async (trackingId: string) => {
+        const response = await api.get<Blob>(
+            `/api/uploads/enhancedSecurityUpload/download/${trackingId}`,
+            { responseType: 'blob' }
+        );
+        return response;
+    }
 };
 
 // Utility functions remain the same as they're still needed

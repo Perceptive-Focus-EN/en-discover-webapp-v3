@@ -1,0 +1,7 @@
+{
+  "totalRequests": 16000,
+  "failedRequests": 14421,
+  "peakConcurrent": 1,
+  "avgLatency": 0,
+  "regionalStats": {}
+}

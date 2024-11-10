@@ -1,6 +1,4 @@
-// src/features/posts/components/PostEditor/PostEditor.tsx
-
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     TextField, 
     Button, 
@@ -21,26 +19,19 @@ import {
     People, 
     Save, 
     Delete,
-    Warning
 } from '@mui/icons-material';
 import { usePost } from '../../hooks/usePost';
-import { MediaUploader } from './MediaUploader';
 import { 
     PostType, 
     PostContent,
     TextContent, 
-    PhotoContent, 
-    VideoContent,
-    MoodContent,
-    SurveyContent,
     Visibility,
-    ProcessingStatus,
     Post,
-    Media
+    Media,
 } from '../../api/types';
-import { usePostMedia } from '../../hooks/usePostMedia';
+import { useUploadMedia } from '../../hooks/useUploadMedia';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
-import { FileCategory, UPLOAD_STATUS } from '@/UploadingSystem/constants/uploadConstants';
+import { FileCategory } from '@/UploadingSystem/constants/uploadConstants';
 
 interface FormState {
     type: PostType;
@@ -104,22 +95,9 @@ export const PostEditor: React.FC<PostEditorProps> = ({
     isDraft,
     onPostCreated
 }) => {
-    const { createPost, isLoading } = usePost();
-    const { 
-        upload,
-        progress,
-        error: uploadError,
-        isUploading,
-        isProcessing: isMediaProcessing,
-        uploadStatus,
-        processingStatus,
-        currentChunk,
-        totalChunks,
-        speed,
-        remainingTime,
-        cancelUpload,
-        resetUpload
-    } = usePostMedia();
+    const { createPost } = usePost();
+    const [isUploading, setIsUploading] = useState(false);
+    const [isMediaProcessing, setIsMediaProcessing] = useState(false);
 
     const [formState, setFormState] = useState<FormState>({
         type: initialData?.type || PostType.TEXT,
@@ -128,6 +106,8 @@ export const PostEditor: React.FC<PostEditorProps> = ({
         isProcessing: false,
         media: initialData?.media
     });
+
+    const { uploadMedia, progress, status, error, resetUpload } = useUploadMedia();
 
     const handleTypeChange = (type: PostType) => {
         setFormState(prev => ({
@@ -147,9 +127,47 @@ export const PostEditor: React.FC<PostEditorProps> = ({
         }));
     };
 
-    const handleSubmit = (event: React.FormEvent) => {
-        event.preventDefault();
+    const handleMediaUpload = async (file: File, category: FileCategory) => {
+        setIsUploading(true);
+        try {
+            const mediaResponse = await uploadMedia(file, category);
+            setFormState(prev => ({
+                ...prev,
+                media: {
+                    urls: [mediaResponse.fileUrl],
+                    fileCategory: category,
+                    metadata: {
+                        fileSize: file.size,
+                        contentType: file.type,
+                    },
+                }
+            }));
+            setIsUploading(false);
+        } catch (uploadError) {
+            console.error('Upload failed:', uploadError);
+            messageHandler.error(error || 'Upload failed');
+            setIsUploading(false);
+        }
+    };
 
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
+        setFormState(prev => ({ ...prev, isProcessing: true }));
+
+        try {
+            const newPost = await createPost({
+                type: formState.type,
+                content: formState.content,
+                media: formState.media,
+            });
+
+            onPostCreated(newPost);
+            onSuccess();
+        } catch (error) {
+            console.error('Failed to create post:', error);
+        } finally {
+            setFormState(prev => ({ ...prev, isProcessing: false }));
+        }
     };
 
     return (
@@ -198,43 +216,40 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                         <MenuItem value={PostType.SURVEY}>Survey Post</MenuItem>
                     </Select>
 
+                    {/* Media Upload Handlers for Photo and Video */}
                     {formState.type === PostType.PHOTO && (
-                        <MediaUploader
-                            type="photo"
-                            files={[]}
-                            onUpload={async (files: FileList) => {
-                                // Add your upload logic here
-                                return Promise.resolve();
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleMediaUpload(file, FileCategory.IMAGE);
                             }}
-                            onRemove={() => {}}
-                            maxFiles={5}
-                            isUploading={false}
-                            isProcessing={false}
+                            disabled={isUploading}
                         />
                     )}
 
                     {formState.type === PostType.VIDEO && (
-                        <MediaUploader
-                            type="video"
-                            files={[]}
-                            onUpload={async (files: FileList) => {
-                                // Add your upload logic here
-                                return Promise.resolve();
+                        <input
+                            type="file"
+                            accept="video/*"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleMediaUpload(file, FileCategory.VIDEO);
                             }}
-                            onRemove={() => {}}
-                            maxFiles={1}
-                            isUploading={false}
-                            isProcessing={false}
+                            disabled={isUploading}
                         />
                     )}
 
-                    <TextField
-                        label="Text"
-                        value={(formState.content as TextContent).text}
-                        onChange={(e) => handleContentUpdate(e.target.value)}
-                        fullWidth
-                        multiline
-                    />
+                    {formState.type === PostType.TEXT && (
+                        <TextField
+                            label="Text"
+                            value={(formState.content as TextContent).text}
+                            onChange={(e) => handleContentUpdate(e.target.value)}
+                            fullWidth
+                            multiline
+                        />
+                    )}
 
                     <Divider />
                 
@@ -242,10 +257,10 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                         <Button
                             type="submit"
                             variant="contained"
-                            disabled={isLoading || isUploading || isMediaProcessing}
+                            disabled={isUploading || isMediaProcessing || formState.isProcessing}
                             fullWidth
                         >
-                            {isLoading || isUploading || isMediaProcessing ? (
+                            {isUploading || isMediaProcessing || formState.isProcessing ? (
                                 <CircularProgress size={24} />
                             ) : (
                                 'Publish'
@@ -254,7 +269,7 @@ export const PostEditor: React.FC<PostEditorProps> = ({
                         {!isDraft && (
                             <Button
                                 variant="outlined"
-                                disabled={isLoading || isUploading || isMediaProcessing}
+                                disabled={isUploading || isMediaProcessing || formState.isProcessing}
                                 onClick={() => {/* Save as draft logic */}}
                                 startIcon={<Save />}
                             >

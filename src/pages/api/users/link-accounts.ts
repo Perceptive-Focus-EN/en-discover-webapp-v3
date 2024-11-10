@@ -2,7 +2,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getCosmosClient } from '../../../config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
 import { authMiddleware } from '../../../middlewares/authMiddleware';
-import { User, ExtendedUserInfo } from '../../../types/types/User/interfaces';
+import { User, ExtendedUserInfo } from '../../../types/User/interfaces';
+import { Tenant } from '../../../types/Tenant/interfaces';
 import { ROLES } from '@/constants/AccessKey/AccountRoles';
 import { MongoClient, Db } from 'mongodb';
 import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
@@ -141,23 +142,25 @@ async function linkAccountsHandler(req: NextApiRequest, res: NextApiResponse) {
         { session }
       );
 
-      const tenantInfo = await tenantsCollection.findOne(
-        { tenantId: updatedUser.currentTenantId },
+      const tenant = await tenantsCollection.findOne(
+        { tenantId: Array.isArray(updatedUser.tenants) ? updatedUser.tenants[0].associates.tenantId : null },
         { session }
-      ) as TenantInfo | null;
+      ) as Tenant | null;
 
       const extendedUserInfo: ExtendedUserInfo = {
         ...updatedUser,
-        tenant: tenantInfo,
-        softDelete: null,
-        reminderSent: false,
-        reminderSentAt: '',
+        currentTenant: tenant ? { 
+          ...tenant, 
+          ownership: tenant.ownership, 
+          members: tenant.members, 
+          membersCount: tenant.membersCount, 
+          details: tenant.details, 
+          createdAt: tenant.createdAt, 
+          updatedAt: tenant.updatedAt 
+        } : undefined,
         profile: updatedUser.profile || {},
-        connections: updatedUser.connections || [],
-        connectionRequests: updatedUser.connectionRequests || { sent: [], received: [] },
-        privacySettings: updatedUser.privacySettings || { profileVisibility: 'public' },
-        role: ROLES.Business.CHIEF_EXECUTIVE_OFFICER
-      };
+        socialProfile: updatedUser.socialProfile || {}
+        };
 
       // Record success metrics
       monitoringManager.metrics.recordMetric(

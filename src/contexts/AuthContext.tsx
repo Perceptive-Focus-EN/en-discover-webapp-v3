@@ -96,14 +96,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
   };
 
-  const signup = async (data: SignupRequest) => {
-    try {
-      await authorizationApi.signup(data);
+  const signup = async (data: SignupRequest): Promise<void> => {
+  try {
+    const response = await authorizationApi.signup(data);
+    
+    // Since signup response includes all needed auth context, store it
+    if (response.success) {
+      // Store auth session data
+      authManager.setTokens(
+        response.session.accessToken,
+        response.session.refreshToken,
+        response.session.sessionId
+      );
+
+      // Store user data without password
+      const userWithoutPassword = { ...response.user, password: '' };
+      setUserAndStore(userWithoutPassword);
+
+      // Redirect to login for first auth
       router.push('/login');
-    } catch (error) {
-      console.error('Signup failed:', error);
-      throw error; // Re-throw the error to handle it in the UI
     }
+  } catch (error) {
+    console.error('Signup failed:', error);
+    throw error;
+  }
   };
 
   const login = async (loginData: LoginRequest) => {

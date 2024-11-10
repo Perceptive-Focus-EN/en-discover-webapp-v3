@@ -1,0 +1,33 @@
+{
+  "duration": 77.289,
+  "totalRequests": 16000,
+  "failedRequests": 14421,
+  "successRate": "9.87%",
+  "peakConcurrent": 1,
+  "regionalStats": {
+    "East Asia": {
+      "success": 0,
+      "failed": 0,
+      "avgLatency": 0,
+      "activeUsers": 0,
+      "peakLoad": 0,
+      "ddosAttempts": 0
+    },
+    "Europe": {
+      "success": 0,
+      "failed": 0,
+      "avgLatency": 0,
+      "activeUsers": 0,
+      "peakLoad": 0,
+      "ddosAttempts": 1
+    },
+    "North America": {
+      "success": 1579,
+      "failed": 14421,
+      "avgLatency": 514.9701874664931,
+      "activeUsers": 0,
+      "peakLoad": 0,
+      "ddosAttempts": 2
+    }
+  }
+}

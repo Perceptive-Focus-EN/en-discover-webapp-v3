@@ -26,7 +26,7 @@ const axiosInstance: AxiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   async (config: CustomAxiosRequestConfig) => {
     // Don't make requests if we're not authenticated (unless it's a public route)
-    const publicRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/forgot-password'];
+    const publicRoutes = ['/api/auth/login', '/api/auth/signup', '/api/auth/forgot-password'];
     if (!publicRoutes.includes(config.url || '') && !authManager.isAuthenticated()) {
       return Promise.reject(new Error('Not authenticated'));
     }

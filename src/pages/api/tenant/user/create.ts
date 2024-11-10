@@ -3,7 +3,7 @@ import { verifyAccessToken } from '../../../../utils/TokenManagement/serverToken
 import { generateUniqueUserId, hashPassword } from '../../../../utils/utils';
 import { getCosmosClient, closeCosmosClient } from '../../../../config/azureCosmosClient';
 import { COLLECTIONS } from '@/constants/collections';
-import { User, ExtendedUserInfo } from '@/types/User/interfaces';
+import { User, ExtendedUserInfo, UserTenantRelationship } from '@/types/User/interfaces';
 import { Db, MongoClient, ClientSession } from 'mongodb';
 import { validateUser } from '../../../../validation/validation';
 import { AllRoles, ROLES } from '@/constants/AccessKey/AccountRoles';
@@ -12,20 +12,8 @@ import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/const
 import { AppError } from '@/MonitoringSystem/managers/AppError';
 import { AccessLevel } from '@/constants/AccessKey/access_levels';
 import { Subscription_TypeEnum, UserAccountType, UserAccountTypeEnum } from '../../../../constants/AccessKey/accounts';
-import { BaseTenant } from '@/types/Tenant/interfaces';
-import { BusinessIndustryRoles } from '@/constants/AccessKey/AccountRoles/business-roles';
-// import { OnboardingStatusDetails } from '@/types/Onboarding/interfaces';
+import { DecodedToken } from '../../../../utils/TokenManagement/clientTokenUtils';
 
-interface TenantUserCreateResponse {
-  message: string;
-  user: Partial<ExtendedUserInfo> | null;
-}
-
-interface DecodedToken {
-  tenantId: string;
-  userId: string;
-  [key: string]: any;
-}
 
 function ensureDbInitialized(db: Db | undefined): asserts db is Db {
   if (!db) {
@@ -87,7 +75,7 @@ async function validateAndDecodeToken(authorization: string | undefined): Promis
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<TenantUserCreateResponse>
+  res: NextApiResponse
 ) {
   const startTime = Date.now();
   const requestId = generateUniqueUserId();
@@ -113,7 +101,7 @@ export default async function handler(
 
     // Database connection
     const dbConnectStart = Date.now();
-    const result = await getCosmosClient(undefined, true);
+    const result = await getCosmosClient();
     client = result.client;
     db = result.db;
     
@@ -147,7 +135,15 @@ export default async function handler(
 
       // User validation
       const validationStart = Date.now();
-      const userData = validateUser(req.body);
+      const userData = validateUser(req.body) as {
+        email: string;
+        password: string;
+        firstName: string;
+        lastName: string;
+        role?: string;
+        accessLevel?: string;
+        tenantId: string;
+      };
       
       monitoringManager.metrics.recordMetric(
         MetricCategory.PERFORMANCE,
@@ -193,53 +189,70 @@ export default async function handler(
       const createStart = Date.now();
       const hashedPassword = await hashPassword(userData.password);
       const newUserId = generateUniqueUserId();
+
       const newUser: ExtendedUserInfo = {
+  socialProfile: {
+    connections: {
+      active: [],
+      pending: [],
+      blocked: []
+    },
+    connectionRequests: {
+      sent: [],
+      received: []
+    },
+    privacySettings: {
+      profileVisibility: 'public',
+      connectionVisibility: 'public',
+      activityVisibility: 'public'
+    }
+  },
   onboardingStatus: {
     steps: [],
     isOnboardingComplete: false,
-    lastUpdated: '',
+    lastUpdated: new Date().toISOString(),
     currentStepIndex: 0,
     stage: 'initial'
   },
   ...userData,
   userId: newUserId,
+  email: userData.email,
   password: hashedPassword,
-  tenantId: adminTenantId,
-  tenants: [adminTenantId],
-  currentTenantId: adminTenantId,
-  tenantAssociations: [{
-    tenantId: adminTenantId,
-    role: userData.role as AllRoles || 'defaultRole', // Replace 'defaultRole' with an appropriate default value
-    accessLevel: AccessLevel[userData.accessLevel as keyof typeof AccessLevel] ?? AccessLevel.L4,
-    accountType: UserAccountTypeEnum.BUSINESS as UserAccountType,
-    permissions: [], // Add appropriate permissions if needed
-    tenant: {} as BaseTenant // Add tenant details if needed
-  }],
+  firstName: userData.firstName,
+  lastName: userData.lastName,
+  tenants: {
+    associations: {
+      [userData.tenantId]: {
+        tenantId: userData.tenantId,
+        role: userData.role as AllRoles || 'defaultRole',
+        accessLevel: AccessLevel[userData.accessLevel as keyof typeof AccessLevel] || AccessLevel.L4,
+        accountType: UserAccountTypeEnum.BUSINESS,
+        permissions: [],  // Define default permissions or add logic to fetch them
+        joinedAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        status: 'active',
+        statusUpdatedAt: new Date().toISOString()
+      }
+    },
+    context: {
+      personalTenantId: '',  // Optional initialization; adjust as needed
+      currentTenantId: userData.tenantId  // Ensure tenant context is accurately assigned
+    }
+  },
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   isActive: true,
-  connections: [],
-  connectionRequests: { sent: [], received: [] },
   profile: {},
-  privacySettings: { profileVisibility: 'public' },
-  tenant: null,
-  softDelete: null,
-  role: userData.role as AllRoles || ROLES.Business.VIEWER,
   accountType: UserAccountTypeEnum.BUSINESS,
-  permissions: [],
   subscriptionType: Subscription_TypeEnum.TRIAL,
   isVerified: false,
-  personalTenantId: '',
   department: '',
   lastLogin: '',
-  isDeleted: false,
-  title: BusinessIndustryRoles.CHIEF_EXECUTIVE_OFFICER,
-  accessLevel: AccessLevel[userData.accessLevel as keyof typeof AccessLevel] ?? AccessLevel.L4 // Ensure accessLevel is always set
+  isDeleted: false
 };
+      const insertResult = await usersCollection.insertOne(newUser as any, { session });
 
-      const result = await usersCollection.insertOne(newUser as any, { session });
-
-      if (!result.insertedId) {
+      if (!insertResult.insertedId) {
         throw monitoringManager.error.createError(
           'system',
           'DATABASE_OPERATION_FAILED',
@@ -271,7 +284,7 @@ export default async function handler(
         {
           tenantId: adminTenantId,
           userRole: userData.role,
-          requestId
+          requestId: requestId
         }
       );
 
@@ -290,13 +303,21 @@ export default async function handler(
 
       const userInfo: Partial<ExtendedUserInfo> = {
         userId: newUserId,
-        email: newUser.email,
-        firstName: newUser.firstName,
-        lastName: newUser.lastName,
-        role: newUser.role,
-        accessLevel: newUser.accessLevel,
-        tenantId: newUser.tenantId,
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        avatarUrl: '',
+        tenants: newUser.tenants,
+        accountType: newUser.accountType,
+        subscriptionType: newUser.subscriptionType,
+        isActive: newUser.isActive,
+        isVerified: newUser.isVerified,
+        isDeleted: newUser.isDeleted,
+        createdAt: newUser.createdAt,
+        updatedAt: newUser.updatedAt,
+        lastLogin: newUser.lastLogin,
         department: newUser.department,
+        onboardingStatus: newUser.onboardingStatus
       };
 
       return res.status(201).json({

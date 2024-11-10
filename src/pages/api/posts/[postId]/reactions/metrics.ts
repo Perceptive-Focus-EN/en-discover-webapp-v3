@@ -108,7 +108,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       averageEngagementRate: metrics.totalReactions ? metrics.reactionVelocity : 0,
       peakReactionTime: metrics.peakReactionTime,
       reactionDistribution: metrics.reactionDistribution as Record<EmotionName, number>,
-      reactionVelocity: metrics.reactionVelocity
+      reactionVelocity: metrics.reactionVelocity,
+      recentReactions: [] // Add appropriate logic to populate recentReactions
     };
 
     monitoringManager.metrics.recordMetric(

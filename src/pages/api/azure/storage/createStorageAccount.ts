@@ -2,8 +2,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import { createStorageAccount } from '@/config/azureStorage';
 import { AZURE_RESOURCE_GROUP } from '@/constants/azureConstants';
+import { DefaultAzureCredential } from '@azure/identity';
+import { StorageManagementClient } from '@azure/arm-storage';
 
 async function createStorageAccountHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -20,3 +21,22 @@ async function createStorageAccountHandler(req: NextApiRequest, res: NextApiResp
 }
 
 export default authMiddleware(rbacMiddleware('azureAdministrator')(createStorageAccountHandler));
+async function createStorageAccount(name: string, location: string, replication: string) {
+  const credential = new DefaultAzureCredential();
+  const subscriptionId = process.env.AZURE_SUBSCRIPTION_ID;
+  if (!subscriptionId) {
+    throw new Error('AZURE_SUBSCRIPTION_ID is not defined');
+  }
+  const client = new StorageManagementClient(credential, subscriptionId);
+
+  const resourceGroupName = AZURE_RESOURCE_GROUP;
+  const parameters = {
+    sku: {
+      name: replication,
+    },
+    kind: 'StorageV2',
+    location: location,
+  };
+
+  await client.storageAccounts.beginCreate(resourceGroupName, name, parameters);
+}

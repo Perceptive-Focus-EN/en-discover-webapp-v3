@@ -1,6 +1,7 @@
 
 // src/features/posts/utils/validation.ts
 
+import { ValidationError } from '@/lib/api/client/utils';
 import { 
     PostType, 
     PostContent,
@@ -13,12 +14,7 @@ import {
 } from '../api/types';
 import { UPLOAD_CONFIGS, FileCategory } from '@/UploadingSystem/constants/uploadConstants';
 
-export interface ValidationError {
-    field: string;
-    message: string;
-}
-
-interface ValidationRule<T> {
+export interface ValidationRule<T> {
     validate: (value: T) => ValidationError[];
 }
 
@@ -58,15 +54,12 @@ export const validateMedia = async (media: Media | undefined, type: PostType): P
         return [];
     }
 
-    if (!media) {
-        return errors;
-    }
-    const config = UPLOAD_CONFIGS[media.category as FileCategory];
+    // const config = UPLOAD_CONFIGS[media.fileCategory as FileCategory];
 
     // Check URLs
     if (!media.urls || media.urls.length === 0) {
         errors.push({ field: 'media', message: 'Media URL is required' });
-    const config = UPLOAD_CONFIGS[media.category as keyof typeof FileCategory];
+    } else {
         // Validate each URL
         media.urls.forEach((url, index) => {
             if (!url || !/^https?:\/\/.+/.test(url)) {
@@ -81,35 +74,29 @@ export const validateMedia = async (media: Media | undefined, type: PostType): P
                 message: `Cannot upload more than ${POST_LIMITS.PHOTO.MAX_COUNT} photos` 
             });
         }
-        return errors;
     }
 
     // Check metadata
-    if (media.metadata) {
-        if (media.metadata?.fileSize > config.maxSize) {
-            const maxSizeMB = Math.floor(config.maxSize / (1024 * 1024));
-            errors.push({ 
-                field: 'media', 
-    if (media.metadata && media.metadata.fileSize) {
-        if (media.metadata.fileSize > config.maxSize) {
-            const maxSizeMB = Math.floor(config.maxSize / (1024 * 1024));
-            errors.push({ 
-                field: 'media', 
-                message: `File size exceeds the maximum limit of ${maxSizeMB}MB` 
-            });
-        }
-
-        if (!config.contentType.includes(media.metadata.contentType) && !config.contentType.includes('*/*')) {
-            errors.push({ 
-                field: 'media', 
-                message: `Invalid file type. Allowed types: ${config.contentType.join(', ')}` 
-            });
-        }
-    }
-
+    // if (media.metadata) {
+        // if (media.metadata.fileSize > config.maxSize) {
+            // const maxSizeMB = Math.floor(config.maxSize / (1024 * 1024));
+            // errors.push({ 
+                // field: 'media', 
+                // message: `File size exceeds the maximum limit of ${maxSizeMB}MB` 
+            // });
+        // }
+// 
+        // if (!config.contentType.includes(media.metadata.contentType) && !config.contentType.includes('*/*')) {
+            // errors.push({ 
+                // field: 'media', 
+                // message: `Invalid file type. Allowed types: ${config.contentType.join(', ')}` 
+            // });
+        // }
+    // }
+// 
     return errors;
 };
-
+// 
 export const validateContent = (content: PostContent, type: PostType): ValidationError[] => {
     const errors: ValidationError[] = [];
 
@@ -235,3 +222,4 @@ export const isValidationError = (error: unknown): error is ValidationError => {
         typeof (error as ValidationError).message === 'string'
     );
 };
+    

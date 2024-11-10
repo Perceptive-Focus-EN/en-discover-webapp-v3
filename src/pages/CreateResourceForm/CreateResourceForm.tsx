@@ -19,7 +19,6 @@ import {
 import {
     CloudUpload as CloudUploadIcon,
 } from '@mui/icons-material';
-import { useArticleMedia } from '@/hooks/useArticleMedia';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import {
     Resource,
@@ -30,6 +29,7 @@ import {
 import ImageRenderer from '../ImageRenderer/ImageRenderer';
 import { FileCategory } from '@/UploadingSystem/constants/uploadConstants';
 import { useResources } from '@/hooks/useResources';
+import { useUploadMedia } from '@/hooks/useArticleMedia';
 
 const STEPS = ['Basic Info', 'Content', 'Metadata', 'Review'];
 const PREDEFINED_CATEGORIES = ['Technology', 'Health', 'Science', 'Education'];
@@ -80,7 +80,7 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({ open, onClose, 
     const [errors, setErrors] = useState<Record<string, string>>({});
     console.log('Initial errors:', errors);
 
-const { uploadMedia, isUploading, progress, processingStatus } = useArticleMedia();
+const { uploadMedia, isUploading, progress, processingStatus } = useUploadMedia();
     console.log('useArticleMedia hook:', { uploadMedia, isUploading, progress });
 
     const validateStep = (step: number): boolean => {

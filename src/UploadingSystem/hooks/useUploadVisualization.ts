@@ -4,7 +4,7 @@ import {
     UploadStatus, 
     UPLOAD_STATUS,  
 } from "../constants/uploadConstants";
-import { WebSocketProgress } from "../types/progress";
+import { SocketIOProgress } from "../types/progress";
 import { 
     VisualizationStep, 
     STATUS_STEP_MAPPING,
@@ -16,11 +16,13 @@ import { LogCategory, LogLevel } from '@/MonitoringSystem/constants/logging';
 
 interface UseUploadVisualizationProps {
     trackingId: string;
-    onProgress: (progress: WebSocketProgress) => void;
+    onProgress: (progress: SocketIOProgress) => void;
+    socket?: Socket | null;
 }
 
-const initialProgress: WebSocketProgress = {
+const initialProgress: SocketIOProgress = {
     userId: '',
+    tenantId: '',
     trackingId: '',
     progress: 0,
     chunksCompleted: 0,
@@ -53,10 +55,11 @@ const initialMetrics: UploadMetrics = {
 
 export const useUploadVisualization = ({
     trackingId,
-    onProgress
+    onProgress,
+    socket: existingSocket
 }: UseUploadVisualizationProps) => {
-    const [socket, setSocket] = useState<Socket | null>(null);
-    const [progress, setProgress] = useState<WebSocketProgress>(initialProgress);
+    const [socket, setSocket] = useState<Socket | null>(existingSocket || null);
+    const [progress, setProgress] = useState<SocketIOProgress>(initialProgress);
     const [activeSteps, setActiveSteps] = useState<Set<VisualizationStep>>(new Set());
     const [metrics, setMetrics] = useState<UploadMetrics>(initialMetrics);
 
@@ -65,7 +68,7 @@ export const useUploadVisualization = ({
         setActiveSteps(new Set(steps));
     }, []);
 
-    const recordMetric = useCallback((data: WebSocketProgress) => {
+    const recordMetric = useCallback((data: SocketIOProgress) => {
         // Record upload progress metrics
         monitoringManager.metrics.recordMetric(
             MetricCategory.PERFORMANCE,
@@ -98,7 +101,7 @@ export const useUploadVisualization = ({
         );
     }, []);
 
-    const updateProgress = useCallback((newProgress: WebSocketProgress) => {
+    const updateProgress = useCallback((newProgress: SocketIOProgress) => {
         setProgress(newProgress);
         updateActiveSteps(newProgress.status);
         onProgress?.(newProgress);
@@ -138,7 +141,7 @@ export const useUploadVisualization = ({
     const handleSimulateUpload = useCallback(() => {
         if (progress.status === UPLOAD_STATUS.UPLOADING) {
             // Reset
-            const resetProgress: WebSocketProgress = {
+            const resetProgress: SocketIOProgress = {
                 ...initialProgress,
                 trackingId,
                 timestamp: Date.now()
@@ -152,7 +155,7 @@ export const useUploadVisualization = ({
             });
         } else {
             // Start Upload
-            const startProgress: WebSocketProgress = {
+            const startProgress: SocketIOProgress = {
                 ...progress,
                 status: UPLOAD_STATUS.UPLOADING,
                 totalChunks: 100,
@@ -176,20 +179,29 @@ export const useUploadVisualization = ({
     }, [progress.status, trackingId, updateProgress, socket]);
 
     useEffect(() => {
+        if (existingSocket) {
+            setSocket(existingSocket);
+            return;
+        }
+
         const initSocket = async () => {
+            if (!trackingId) return;
+            
             try {
-                await fetch('/api/socketServer');
+                // Initialize socket connection
+                await fetch('/api/socketio');
                 
                 const socketIo = io(process.env.NEXT_PUBLIC_WS_URL!, {
-                    query: { trackingId },
                     path: '/api/socketio',
+                    query: { trackingId },
+                    transports: ['websocket', 'polling'],
                     reconnectionAttempts: 5,
                     reconnectionDelay: 1000,
-                    timeout: 20000
+                    reconnectionDelayMax: 5000
                 });
 
                 socketIo.on('connect', () => {
-                    monitoringManager.logger.info('WebSocket connected', {
+                    monitoringManager.logger.info('SocketIO connected', {
                         category: LogCategory.SYSTEM,
                         trackingId
                     });
@@ -201,7 +213,8 @@ export const useUploadVisualization = ({
                     }));
                 });
 
-                socketIo.on('progress', (data: WebSocketProgress) => {
+                // Listen for progress updates
+                socketIo.on('progress', (data: SocketIOProgress) => {
                     updateProgress(data);
                 });
 
@@ -215,7 +228,7 @@ export const useUploadVisualization = ({
                     monitoringManager.error.handleError(
                         monitoringManager.error.createError(
                             'system',
-                            'WEBSOCKET_ERROR',
+                            'SOCKETIO_ERROR',
                             error.message,
                             errorMetadata
                         )
@@ -229,14 +242,14 @@ export const useUploadVisualization = ({
                 });
 
                 socketIo.on('disconnect', () => {
-                    monitoringManager.logger.warn('WebSocket disconnected', {
+                    monitoringManager.logger.warn('SocketIO disconnected', {
                         category: LogCategory.SYSTEM,
                         trackingId
                     });
                 });
 
                 socketIo.on('reconnect', (attemptNumber: number) => {
-                    monitoringManager.logger.info(`WebSocket reconnected after ${attemptNumber} attempts`, {
+                    monitoringManager.logger.info(`SocketIO reconnected after ${attemptNumber} attempts`, {
                         category: LogCategory.SYSTEM,
                         trackingId,
                         attemptNumber
@@ -257,23 +270,25 @@ export const useUploadVisualization = ({
                 monitoringManager.error.handleError(
                     monitoringManager.error.createError(
                         'system',
-                        'WEBSOCKET_INIT_FAILED',
-                        'Failed to initialize WebSocket connection',
+                        'SOCKETIO_INIT_FAILED',
+                        'Failed to initialize SocketIO connection',
                         { trackingId, error }
                     )
                 );
             }
         };
 
-        if (trackingId) {
+        if (!socket && !existingSocket) {
             initSocket();
         }
 
         return () => {
-            socket?.disconnect();
-            setSocket(null);
+            if (!existingSocket && socket) {
+                socket.disconnect();
+                setSocket(null);
+            }
         };
-    }, [trackingId, updateProgress]);
+    }, [trackingId, existingSocket, updateProgress]);
 
     return {
         progress,

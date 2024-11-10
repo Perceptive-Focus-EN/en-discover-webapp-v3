@@ -1,19 +1,19 @@
-// src/utils/settingsPlugins.ts
-import React from 'react';
-import { Settings } from '../interfaces/ISettings';
+// // src/utils/settingsPlugins.ts
+// import React from 'react';
+// import { Settings } from '../interfaces/ISettings';
 
-type SettingsPlugin = {
-  name: string;
-  component: React.ComponentType<{
-    settings: Settings;
-    updateSettings: (newSettings: Partial<Settings>) => Promise<void>;
-  }>;
-};
+// type SettingsPlugin = {
+//   name: string;
+//   component: React.ComponentType<{
+//     settings: Settings;
+//     updateSettings: (newSettings: Partial<Settings>) => Promise<void>;
+//   }>;
+// };
 
-const settingsPlugins: SettingsPlugin[] = [];
+// const settingsPlugins: SettingsPlugin[] = [];
 
-export const registerSettingsPlugin = (plugin: SettingsPlugin) => {
-  settingsPlugins.push(plugin);
-};
+// export const registerSettingsPlugin = (plugin: SettingsPlugin) => {
+//   settingsPlugins.push(plugin);
+// };
 
-export const getSettingsPlugins = () => settingsPlugins;
+// export const getSettingsPlugins = () => settingsPlugins;

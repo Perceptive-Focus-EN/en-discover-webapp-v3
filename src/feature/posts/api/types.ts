@@ -97,7 +97,6 @@ export interface TextContent extends BaseContent {
     maxLines?: number; // For text truncation
     isRichText?: boolean; // For rich text editor support
 }
-
 export interface VideoContent extends BaseContent {
     videoUrl: string;
     thumbnailUrl?: string;
@@ -107,6 +106,14 @@ export interface VideoContent extends BaseContent {
     muted?: boolean;
     loop?: boolean;
     quality?: 'auto' | 'low' | 'medium' | 'high';
+}
+
+export interface PhotoContent extends BaseContent {
+    photos: string[];
+    layout?: 'grid' | 'carousel' | 'masonry'; // Display layout
+    aspectRatio?: string; // For photo display
+    tags?: string[]; // Photo tags
+    locations?: { lat: number; lng: number }[]; // Photo locations
 }
 
 export interface MoodContent extends BaseContent {
@@ -128,14 +135,6 @@ export interface SurveyContent extends BaseContent {
     endDate?: string; // Survey end date
     showResults?: boolean;
     totalVotes?: number;
-}
-
-export interface PhotoContent extends BaseContent {
-    photos: string[];
-    layout?: 'grid' | 'carousel' | 'masonry'; // Display layout
-    aspectRatio?: string; // For photo display
-    tags?: string[]; // Photo tags
-    locations?: { lat: number; lng: number }[]; // Photo locations
 }
 
 export type PostContent = 

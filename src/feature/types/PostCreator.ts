@@ -1,9 +1,8 @@
 // src/components/Feed/types/PostCreator.ts
 
-import { PostType, PostContent, BasePost} from './Post';
+import { PostType, PostContent} from '../posts/api/types';
 import { ImageListType } from 'react-images-uploading';
 import { UserAccountTypeEnum } from '@/constants/AccessKey/accounts';
-import { Reaction } from './Reaction';
 
 
 export interface PostCreatorActions {

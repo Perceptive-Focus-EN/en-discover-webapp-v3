@@ -29,8 +29,9 @@ import { ExtendedUserInfo } from '../types/User/interfaces';
 import ClientOnly from './ClientOnly';
 import AvatarComponent from './Uploads/AvatarComponent';
 import MessagingDrawer from './Messaging/MessagingDrawer';
-import { FileUploader } from './FileUploader';
-
+// import { FileUploader } from './FileUploader';
+import UploadVisualizationPage from '@/pages/upload/visualization';
+import UploadPage  from '@/pages/upload/index';
 // Dynamic imports
 const SwipeableDrawer = dynamic(() => import('@mui/material/SwipeableDrawer'), { ssr: false });
 const Dialog = dynamic(() => import('@mui/material/Dialog'), { ssr: false });
@@ -133,27 +134,57 @@ const Footer: React.FC<FooterProps> = ({ currentAccount }) => {
         setIsDrawerOpen(true);
       },
     },
+    // {
+        // id: 13,
+        // name: 'Upload',
+        // icon: <CloudUploadIcon />,
+        // onClick: () => {
+            // setActiveDrawerComponent(
+                // <Box sx={{ p: 2 }}>
+                    // {/* <Typography variant="h6" gutterBottom> */}
+                        // {/* Upload Files */}
+                    // {/* </Typography> */}
+                    // {/* <FileUploader  */}
+                        // userId={currentAccount.userId} 
+                        // tenantId={currentAccount.tenants.associations.tenantId?.toString() || ''}
+                    // />
+                // {/* </Box> */}
+            // );
+            // setIsDrawerOpen(true);
+      // },
+    // },
     {
-        id: 13,
-        name: 'Upload',
-        icon: <CloudUploadIcon />, // Import this from @mui/icons-material
-        onClick: () => {
-            setActiveDrawerComponent(
-                <Box sx={{ p: 2 }}>
-                    <Typography variant="h6" gutterBottom>
-                        Upload Files
-                    </Typography>
-                    <FileUploader 
-                        userId={currentAccount.userId} 
-                        tenantId={currentAccount.tenants.associations.tenantId?.toString() || ''}
-                    />
-                </Box>
-            );
-            setIsDrawerOpen(true);
-      },
+      id: 14,
+      name: 'Upload Page',
+      icon: <CloudUploadIcon />,
+      onClick: () => {
+        setActiveDrawerComponent(
+          <Box sx={{ p: 2 }}>
+            <UploadPage />
+          </Box>
+        );
+        setIsDrawerOpen(true);
+      }
     },
-  ], [isDrawerOpen, handleDrawerClose, setActiveDrawerComponent, currentAccount]);
-
+// 
+    {
+      id: 15,
+      name: 'Upload Visualization',
+      icon: <CloudUploadIcon />,
+      onClick: () => {
+        setActiveDrawerComponent(
+          <Box sx={{ p: 2 }}>
+             <UploadVisualizationPage defaultTrackingId={
+              'defaultTrackingId' 
+      } />
+          </Box>
+        );
+        setIsDrawerOpen(true);
+      }
+// 
+    }
+    // 
+  ] as NavItem[], [isDrawerOpen, handleDrawerClose, setActiveDrawerComponent, currentAccount]);
 
 
   // Effects

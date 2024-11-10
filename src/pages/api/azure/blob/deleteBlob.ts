@@ -2,7 +2,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { authMiddleware } from '@/middlewares/authMiddleware';
 import rbacMiddleware from '@/middlewares/rbacMiddleware';
-import azureBlobStorageInstance from '@/config/azureStorage';
+import azureBlobStorageInstance from '@/config/azureBlobStorage';
 
 async function deleteBlobHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'DELETE') {

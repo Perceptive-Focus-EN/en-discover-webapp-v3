@@ -2,6 +2,8 @@
 
 import formidable from 'formidable';
 import { AZURE_BLOB_STORAGE_CONFIG } from '../../constants/azureConstants';
+import { CANCELLED } from 'dns';
+
 
 export const UPLOAD_STATUS = {
     INITIALIZING: 'initializing',
@@ -10,11 +12,15 @@ export const UPLOAD_STATUS = {
     PAUSED: 'paused',
     RESUMING: 'resuming',
     COMPLETED: 'completed',
+    CANCELLED: 'CANCELLED',
     FAILED: 'failed'
 } as const;
 
-
 export type UploadStatus = typeof UPLOAD_STATUS[keyof typeof UPLOAD_STATUS];
+
+
+
+
 
 export const CHUNK_STATUS = {
     PENDING: 'pending',      // Waiting to start
@@ -27,19 +33,20 @@ export type ChunkStatus = typeof CHUNK_STATUS[keyof typeof CHUNK_STATUS];
 
 export const UPLOAD_EVENTS = {
     PROGRESS: 'UPLOAD_PROGRESS',
-    ERROR: 'UPLOAD_ERROR',
+    FAILED: 'UPLOAD_FAILED',
     COMPLETE: 'UPLOAD_COMPLETE',
     PAUSED: 'UPLOAD_PAUSED',
     RESUMED: 'UPLOAD_RESUMED',
     CLEANUP: 'UPLOAD_CLEANUP',
     RETRY: 'UPLOAD_RETRY',
+    CANCELLED: 'UPLOAD_CANCELLED',
     // Chunk-specific events
     CHUNK_COMPLETE: 'CHUNK_COMPLETE',
     CHUNK_ERROR: 'CHUNK_ERROR',
     CHUNK_RETRY: 'CHUNK_RETRY'
 } as const;
 
-export const UPLOAD_WEBSOCKET = {
+export const UPLOAD_SOCKET_IO = {
     EVENTS: UPLOAD_EVENTS,  // Use the consolidated events
     RECONNECT: {
         MAX_ATTEMPTS: 5,

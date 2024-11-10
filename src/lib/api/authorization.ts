@@ -7,46 +7,36 @@ import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandl
 
 export const authorizationApi = {
 
-  // Remove error handling from signup meth
+  // Remove error handling from signup method
   signup: async (data: SignupRequest): Promise<SignupResponse> => {
-    const response = await api.post<SignupResponse>(
-      API_ENDPOINTS.USER_SIGNUP, 
-      data,
-      {
-        headers: {
-          'Content-Type': 'application/json'
+    try {
+      const response = await api.post<SignupResponse>(
+        API_ENDPOINTS.USER_SIGNUP, 
+        data,
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          skipAuthRefresh: true  // Skip auth refresh for signup
         }
-      }
-    );
-
-    if (response.success) {
-      // Store auth tokens and session info
-      if (response.session) {
-        localStorage.setItem('accessToken', response.session.accessToken);
-        localStorage.setItem('refreshToken', response.session.refreshToken);
-        localStorage.setItem('sessionId', response.session.sessionId);
-      }
-
-      // Store initial user context with tenant relationships
-      if (response.user && response.context) {
-        localStorage.setItem('user', JSON.stringify({
-          ...response.user,
-          currentTenantId: response.user.tenants.context.currentTenantId,
-          personalTenantId: response.user.tenants.context.personalTenantId,
-          tenantAssociations: response.user.tenants.associations
-        }));
-      }
-
-      messageHandler.success(
-        response.message || 
-        'Account created successfully. Please check your email for verification.'
       );
 
-      return response;
+      if (response.success) {
+        // No need to check verification - account is ready to use
+        messageHandler.success('Account created successfully. Please log in.');
+        return response;
+      }
+      
+      throw new Error('Signup failed');
+    } catch (error) {
+      messageHandler.error(
+        error instanceof Error ? error.message : 'Failed to create account'
+      );
+      throw error;
     }
-
-    throw new Error('Signup response indicated failure');
   },
+
+
   login: async (data: LoginRequest): Promise<AuthResponse> => {
     const response = await api.post<AuthResponse>(
       API_ENDPOINTS.USER_LOGIN, 

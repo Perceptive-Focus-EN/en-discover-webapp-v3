@@ -1,4 +1,14 @@
 
+
+
+// src/MonitoringSystem/types/metrics.ts
+export interface CircuitBreakerStatus {
+    socket_connection: boolean;
+    resource_limit: boolean;
+    rate_limit: boolean;
+    payment_gateway: boolean;
+    node_migration: boolean;
+}
 export class CircuitBreaker {
   private readonly MAX_ERRORS = 3;
   private readonly RESET_TIMEOUT = 5000;

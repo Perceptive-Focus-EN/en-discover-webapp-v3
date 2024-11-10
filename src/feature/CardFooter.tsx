@@ -37,9 +37,9 @@ export const CardFooter: React.FC<CardFooterProps> = ({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <MoodBubbleLikeButton
           postId={postId}
-          reactions={reactions}
+          // reactions={reactions}
           onReactionSelect={handleReactionSelect}
-          useDynamicSizing={true} // Set to true for development, false for production
+          // useDynamicSizing={true} // Set to true for development, false for production
         />
         <Typography variant="caption" color="text.secondary">
           {totalReactions} reaction(s)

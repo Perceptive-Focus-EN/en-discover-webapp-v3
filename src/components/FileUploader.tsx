@@ -1,108 +1,262 @@
-// src/components/FileUploader.tsx
-import { FC, useState } from 'react';
-import { toast } from 'react-hot-toast';
-import { UploadProgress } from './UploadProgress';
-import { api } from '@/lib/axiosSetup';
-import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
+// import React, { useEffect, useState, useCallback } from 'react';
+// import { monitoringManager } from '@/MonitoringSystem/managers/MonitoringManager';
+// import { 
+//   Box, 
+//   Card, 
+//   CardHeader, 
+//   CardContent,
+//   LinearProgress,
+//   Grid,
+//   Typography,
+//   IconButton,
+//   Alert,
+  
+// } from '@mui/material';
+// import { UploadState } from '@/UploadingSystem/types/state';
+// import { Play, Pause, RotateCcw, X, Shield, AlertTriangle } from 'lucide-react';
 
-interface FileUploaderProps {
-    userId: string;
-    tenantId: string;
-}
+// interface MonitoredFileUploaderProps {
+//   userId: string;
+//   tenantId: string;
+//   onProgress?: (progress: number) => void;
+//   onComplete?: () => void;
+//   onError?: (error: Error) => void;
+// }
 
-export const FileUploader: FC<FileUploaderProps> = ({ userId, tenantId }) => {
-    const [uploadId, setUploadId] = useState<string | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
+// export const MonitoredFileUploader: React.FC<MonitoredFileUploaderProps> = ({
+//   userId,
+//   tenantId,
+//   onProgress,
+//   onComplete,
+//   onError
+// }) => {
+//   const [uploadId, setUploadId] = useState<string | null>(null);
+//   const [isUploading, setIsUploading] = useState(false);
+//   const [uploadMetrics, setUploadMetrics] = useState({
+//     progress: 0,
+//     speed: 0,
+//     memoryUsage: 0,
+//     queuePosition: 0,
+//     securityStatus: 'secure',
+//     activeThreats: 0
+//   });
 
-    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
+//   // Setup real-time monitoring subscription
+//   useEffect(() => {
+//     if (!uploadId) return;
 
-        setIsUploading(true);
-        const formData = new FormData();
-        formData.append('file', file);
 
-        try {
-            const response = await api.post<{ trackingId: string }>('/api/uploads/enhancedSecurityUpload', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-                // Pass file type as query parameter
-                params: {
-                    type: file.type.startsWith('image/') ? 'image' : 
-                          file.type.startsWith('video/') ? 'video' : 'document'
-                }
-            });
 
-            setUploadId(response.trackingId);
-            messageHandler.success('Upload started');
-        } catch (error) {
-            messageHandler.error('Failed to start upload');
-            setIsUploading(false);
-        }
-    };
+//     const subscription = monitoringManager.metrics.subscribe(
+//         'upload_system',
+//         (metric: Metric) => {
+//             if (metric.metadata?.trackingId === uploadId) {
+//                 setUploadMetrics(prev => ({
+//                     ...prev,
+//                     progress: metric.metadata?.uploadStats?.chunkProgress || 0,
+//                     speed: metric.metadata?.uploadStats?.uploadSpeed || 0,
+//                     memoryUsage: metric.metadata?.uploadStats?.memoryUsage || 0,
+//                     queuePosition: metric.metadata?.uploadStats?.queueSize || 0
+//                 }));
 
-    const handleControlAction = async (action: string) => {
-        if (!uploadId) return;
+//                 onProgress?.(metric.metadata?.uploadStats?.chunkProgress || 0);
+//             }
+//         },
+//         {
+//             component: 'upload_system',
+//             isDashboardMetric: true
+//         }
+//     );
 
-        try {
-            await api.post(`/api/uploads/${uploadId}/${action}`);
-            messageHandler.success(`Upload ${action} successful`);
-        } catch (error) {
-            messageHandler.error(`Failed to ${action} upload`);
-        }
-    };
+//     const securitySubscription = monitoringManager.metrics.subscribe(
+//       'upload_security',
+//       (metric) => {
+//         if (metric.metadata?.trackingId === uploadId) {
+//           setUploadMetrics(prev => ({
+//             ...prev,
+//             securityStatus: metric.metadata?.securityStatus || 'secure',
+//             activeThreats: metric.metadata?.activeThreats || 0
+//           }));
+//         }
+//       },
+//       {
+//         component: 'upload_security',
+//         isDashboardMetric: true
+//       }
+//     );
 
-    return (
-        <div className="space-y-4">
-            {/* File Input */}
-            <div className="flex items-center justify-center w-full">
-                <label 
-                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg 
-                        ${isUploading 
-                            ? 'cursor-not-allowed bg-gray-100 border-gray-300' 
-                            : 'cursor-pointer bg-gray-50 hover:bg-gray-100 border-gray-300 hover:border-gray-400'
-                        }`}
-                >
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-                        </svg>
-                        <p className="mb-2 text-sm text-gray-500">
-                            <span className="font-semibold">Click to upload</span> or drag and drop
-                        </p>
-                        {isUploading && <p className="text-xs text-gray-400">Upload in progress...</p>}
-                    </div>
-                    <input 
-                        type="file" 
-                        className="hidden" 
-                        onChange={handleFileSelect}
-                        disabled={isUploading}
-                        accept="image/*,video/*,application/pdf"
-                    />
-                </label>
-            </div>
+//     return () => {
+//       subscription.unsubscribe();
+//       securitySubscription.unsubscribe();
+//     };
+//   }, [uploadId, onProgress]);
 
-            {/* Upload Progress */}
-            {uploadId && (
-                <UploadProgress
-                    trackingId={uploadId}
-                    userId={userId}
-                    onPause={() => handleControlAction('pause')}
-                    onResume={() => handleControlAction('resume')}
-                    onRetry={() => handleControlAction('retry')}
-                    onCancel={() => handleControlAction('cancel')}
-                    onComplete={() => {
-                        messageHandler.success('Upload completed successfully!');
-                        setIsUploading(false);
-                        setUploadId(null);
-                    }}
-                    onError={(error) => {
-                        messageHandler.error(`Upload error: ${error.message}`);
-                        setIsUploading(false);
-                    }}
-                />
-            )}
-        </div>
-    );
-};
+//   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+//     const file = event.target.files?.[0];
+//     if (!file) return;
+
+//     setIsUploading(true);
+//     const formData = new FormData();
+//     formData.append('file', file);
+
+//     try {
+//       // Record upload start metric
+//       monitoringManager.recordDashboardMetric({
+//         type: 'SYSTEM_HEALTH',
+//         timestamp: Date.now(),
+//         value: 1,
+//         metadata: {
+//           component: 'upload_system',
+//           category: 'file_upload',
+//           aggregationType: 'sum',
+//           uploadStats: {
+//             activeUploads: 1,
+//             fileSize: file.size,
+//             fileType: file.type
+//           }
+//         }
+//       });
+
+//       const response = await fetch('/api/uploads/enhancedSecurityUpload', {
+//         method: 'POST',
+//         body: formData,
+//       });
+//       const data = await response.json();
+//       setUploadId(data.trackingId);
+//     } catch (error) {
+//       onError?.(error as Error);
+//       setIsUploading(false);
+//     }
+//   };
+
+//   const handleControlAction = async (action: 'pause' | 'resume' | 'retry' | 'cancel') => {
+//     if (!uploadId) return;
+
+//     try {
+//       await fetch(`/api/uploads/${uploadId}/${action}`, { method: 'POST' });
+      
+//       // Record control action metric
+//       monitoringManager.recordDashboardMetric({
+//         type: 'SYSTEM_HEALTH',
+//         timestamp: Date.now(),
+//         value: 1,
+//         metadata: {
+//           component: 'upload_system',
+//           category: 'control_action',
+//           aggregationType: 'sum',
+//           uploadStats: {
+//             action,
+//             trackingId: uploadId
+//           }
+//         }
+//       });
+//     } catch (error) {
+//       onError?.(error as Error);
+//     }
+//   };
+
+//   return (
+//     <Card className="w-full">
+//       <CardHeader title="Secure File Upload" />
+//       <CardContent>
+//         <Grid container spacing={2}>
+//           {/* File Input */}
+//           <Grid item xs={12}>
+//             <Box className="border-2 border-dashed rounded-lg p-4 text-center">
+//               <input
+//                 type="file"
+//                 onChange={handleFileSelect}
+//                 disabled={isUploading}
+//                 className="hidden"
+//                 id="file-upload"
+//               />
+//               <label
+//                 htmlFor="file-upload"
+//                 className={`cursor-pointer ${isUploading ? 'opacity-50' : ''}`}
+//               >
+//                 <Box className="flex flex-col items-center">
+//                   <Upload className="h-8 w-8 mb-2" />
+//                   <Typography>
+//                     {isUploading ? 'Upload in progress...' : 'Click to upload or drag and drop'}
+//                   </Typography>
+//                 </Box>
+//               </label>
+//             </Box>
+//           </Grid>
+
+//           {/* Upload Progress */}
+//           {uploadId && (
+//             <>
+//               <Grid item xs={12}>
+//                 <Box className="space-y-2">
+//                   <Typography variant="subtitle2">Upload Progress</Typography>
+//                   <LinearProgress
+//                     variant="determinate"
+//                     value={uploadMetrics.progress}
+//                     className="h-2 rounded"
+//                   />
+//                   <Box className="flex justify-between text-sm">
+//                     <span>{uploadMetrics.progress.toFixed(1)}%</span>
+//                     <span>{(uploadMetrics.speed / 1024 / 1024).toFixed(2)} MB/s</span>
+//                   </Box>
+//                 </Box>
+//               </Grid>
+
+//               {/* Control Buttons */}
+//               <Grid item xs={12}>
+//                 <Box className="flex space-x-2 justify-center">
+//                   <IconButton 
+//                     onClick={() => handleControlAction(isUploading ? 'pause' : 'resume')}
+//                     size="small"
+//                   >
+//                     {isUploading ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+//                   </IconButton>
+//                   <IconButton 
+//                     onClick={() => handleControlAction('retry')}
+//                     size="small"
+//                   >
+//                     <RotateCcw className="h-4 w-4" />
+//                   </IconButton>
+//                   <IconButton 
+//                     onClick={() => handleControlAction('cancel')}
+//                     size="small"
+//                   >
+//                     <X className="h-4 w-4" />
+//                   </IconButton>
+//                 </Box>
+//               </Grid>
+
+//               {/* Security Status */}
+//               <Grid item xs={12}>
+//                 {uploadMetrics.securityStatus !== 'secure' && (
+//                   <Alert variant="destructive">
+//                     <AlertTriangle className="h-4 w-4" />
+//                     <AlertDescription>
+//                       Security check in progress. Active threats detected: {uploadMetrics.activeThreats}
+//                     </AlertDescription>
+//                   </Alert>
+//                 )}
+//               </Grid>
+
+//               {/* Resource Usage */}
+//               <Grid item xs={12}>
+//                 <Box className="space-y-2">
+//                   <Typography variant="subtitle2">Resource Usage</Typography>
+//                   <LinearProgress
+//                     variant="determinate"
+//                     value={(uploadMetrics.memoryUsage / 1024 / 1024 / 1024) * 100}
+//                     color={uploadMetrics.memoryUsage > 1024 * 1024 * 1024 ? "warning" : "primary"}
+//                     className="h-2 rounded"
+//                   />
+//                   <Typography variant="caption">
+//                     Memory: {Math.round(uploadMetrics.memoryUsage / 1024 / 1024)}MB
+//                   </Typography>
+//                 </Box>
+//               </Grid>
+//             </>
+//           )}
+//         </Grid>
+//       </CardContent>
+//     </Card>
+//   );
+// };

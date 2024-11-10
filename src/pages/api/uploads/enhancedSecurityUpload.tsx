@@ -151,16 +151,27 @@ class EnhancedUploadSystem {
 
             if (context.trackingId) {
                 const newState: UploadState = {
+                    userId: context.userId,
+                    tenantId: context.tenantId,
                     chunks: new Map(),
                     control: {
+                        userId: context.userId,
+                        tenantId: context.tenantId,
+                        isRunning: true,
+                        isCompleted: false,
                         isPaused: false,
                         isCancelled: false,
+                        isFailed: false,
+                        isRetrying: false,
                         retryCount: 0,
                         lastRetryTimestamp: 0,
                         locked: false,
                         leaseId: lease.leaseId
                     },
                     metadata: {
+                        userId: context.userId,
+                        tenantId: context.tenantId,
+                        trackingId: context.trackingId,
                         fileName: file.originalFilename || 'unnamed',
                         fileSize: file.size,
                         mimeType: file.mimetype || 'application/octet-stream',
@@ -170,6 +181,8 @@ class EnhancedUploadSystem {
                         startTime: Date.now()
                     },
                     progress: {
+                        userId: context.userId,
+                        tenantId: context.tenantId,
                         trackingId: context.trackingId,
                         progress: 0,
                         chunksCompleted: 0,
@@ -183,7 +196,7 @@ class EnhancedUploadSystem {
                 };
                 this.currentUploadState.set(context.trackingId, newState);
             }
-            
+
             return blockBlobClient;
         } catch (error) {
             monitoringManager.logger.error(error as Error, SystemError.STORAGE_UPLOAD_FAILED as ErrorType, {
@@ -274,7 +287,7 @@ class EnhancedUploadSystem {
                 trackingId: context.trackingId,
                 fileSize: file.size
             };
-            
+
             const chunkingOptions: ChunkingOptions = {
                 chunkSize: CHUNKING_CONFIG.CHUNK_SIZE,
                 maxRetries: CHUNKING_CONFIG.MAX_RETRIES,

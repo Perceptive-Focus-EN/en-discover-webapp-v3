@@ -46,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             username: decodedToken.username,
             userAvatar: decodedToken.userAvatar,
             timestamp: new Date().toISOString(),
-            userAccountType: decodedToken.userAccountType,
+            accountType: decodedToken.accountType,
             visibility: 'private' // Drafts are always private
             ,
             authorId: decodedToken.userId

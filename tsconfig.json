@@ -1,13 +1,10 @@
 {
   "compilerOptions": {
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": false,  // Enabled strict mode for better type safety
+    "strict": false, // Enabled strict mode for better type safety
     "noEmit": true,
     "incremental": true,
     "module": "esnext",
@@ -16,28 +13,34 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "strictNullChecks": true,  // Added strict null checks
-    "noImplicitAny": true,  // Added to avoid implicit 'any' type
-    "forceConsistentCasingInFileNames": true,  // Added for consistent casing in imports
-    "noFallthroughCasesInSwitch": true,  // Added to prevent fallthrough in switch statements
-    "downlevelIteration": true,  // Added to enable ES6 iteration syntax for ES3/ES5 targets
+    "strictNullChecks": true, // Added strict null checks
+    "noImplicitAny": true, // Added to avoid implicit 'any' type
+    "forceConsistentCasingInFileNames": true, // Added for consistent casing in imports
+    "noFallthroughCasesInSwitch": true, // Added to prevent fallthrough in switch statements
+    "downlevelIteration": true, // Added to enable ES6 iteration syntax for ES3/ES5 targets
     "plugins": [
-          {
-            "name": "next"
-          }
-        ],
-        "paths": {
-          "@/*": ["./src/*"]
-        }
-      }, // Added to enable absolute imports from the src directory using @ alias 
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }, // Added to enable absolute imports from the src directory using @ alias 
   "include": [
     "next-env.d.ts",
     ".next/types/**/*.ts",
     "src/pages/api/[...nextauth].ts",
     "**/*.ts",
     "**/*.tsx"
-, "src/IDE/webSocketServer.ts", "next.config.mjs"  ],
+, "src/IDE/webSocketServer.ts", "next.config.mjs", "src/tests/runStressTest.ts"  ],
   "exclude": [
     "node_modules"
-  ]
+  ],
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  }
 }

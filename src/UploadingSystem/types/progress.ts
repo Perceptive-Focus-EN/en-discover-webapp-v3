@@ -2,6 +2,8 @@ import { UploadStatus } from '@/UploadingSystem/constants/uploadConstants';
 
 // Base progress interface
 export interface BaseProgress {
+    userId: string;
+    tenantId: string;
     trackingId: string;
     progress: number;
     chunksCompleted: number;
@@ -14,7 +16,7 @@ export interface BaseProgress {
 
 // Standard upload progress
 export interface UploadProgress extends BaseProgress {
-    userId: string;
+    timestamp: number;
 }
 
 // Enhanced progress with metrics
@@ -26,7 +28,8 @@ export interface EnhancedProgress extends UploadProgress {
 }
 
 // WebSocket specific progress
-export interface WebSocketProgress extends EnhancedProgress {
+export interface SocketIOProgress extends EnhancedProgress {
     timestamp: number;
     connectionId?: string;
 }
+

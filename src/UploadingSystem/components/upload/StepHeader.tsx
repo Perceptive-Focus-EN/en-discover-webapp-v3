@@ -1,6 +1,5 @@
-// src/UploadingSystem/components/upload/StepHeader.tsx
 import { UploadMetrics } from "@/UploadingSystem/types/chunking";
-import { Box, Chip, Typography } from "@mui/material";
+import { Box, Chip, Typography, Tooltip } from "@mui/material";
 
 interface StepHeaderProps {
     Icon: React.ComponentType<{
@@ -18,7 +17,7 @@ export const StepHeader: React.FC<StepHeaderProps> = ({
     isActive,
     metrics
 }) => (
-    <Box className="flex items-center justify-between">
+    <Box className="flex items-center justify-between p-2">
         <Box className="flex items-center gap-2">
             <Icon 
                 size={20} 
@@ -33,11 +32,13 @@ export const StepHeader: React.FC<StepHeaderProps> = ({
             </Typography>
         </Box>
         {metrics?.metadata?.uploadStats?.chunkProgress !== undefined && (
-            <Chip 
-                size="small"
-                label={`${Math.round(metrics.metadata.uploadStats.chunkProgress)}%`}
-                color={isActive ? "primary" : "default"}
-            />
+            <Tooltip title="Upload Progress">
+                <Chip 
+                    size="small"
+                    label={`${Math.round(metrics.metadata.uploadStats.chunkProgress)}%`}
+                    color={isActive ? "primary" : "default"}
+                />
+            </Tooltip>
         )}
     </Box>
 );

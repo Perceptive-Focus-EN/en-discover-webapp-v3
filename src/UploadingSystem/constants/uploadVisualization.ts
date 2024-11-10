@@ -114,7 +114,8 @@ export const STATUS_STEP_MAPPING: Record<UploadStatus, VisualizationStep[]> = {
   ],
   [UPLOAD_STATUS.FAILED]: [],
   [UPLOAD_STATUS.PAUSED]: [],
-  [UPLOAD_STATUS.RESUMING]: []
+  [UPLOAD_STATUS.RESUMING]: [],
+  [UPLOAD_STATUS.CANCELLED]: []
 } as const;
 
 // Utility type for component props

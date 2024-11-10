@@ -3,7 +3,6 @@ import { MetricCategory, MetricType, MetricUnit } from '@/MonitoringSystem/const
 import { BlockBlobClient } from '@azure/storage-blob';
 import { ErrorType, SystemError } from '@/MonitoringSystem/constants/errors';
 import fs from 'fs';
-import WebSocket, { Server as WebSocketServer } from 'ws';
 import { EventEmitter } from 'events';
 import formidable from 'formidable';
 import {
@@ -12,6 +11,9 @@ import {
     ChunkUploadResult,
     UploadCleanupMetadata
 } from '@/UploadingSystem/types/chunking';
+import { blobLeaseService, LEASE_EVENTS } from './BlobLeaseService';
+
+
 
 import { ChunkState, UploadState, } from '@/UploadingSystem/types/state';
 import {
@@ -23,8 +25,13 @@ import {
     CHUNKING_CONFIG, 
     UPLOAD_SETTINGS, 
     UPLOAD_STATUS, 
-    UPLOAD_WEBSOCKET 
+    UPLOAD_EVENTS, 
+    UPLOAD_SOCKET_IO
 } from '../constants/uploadConstants';
+import { Server as SocketIOServer } from 'socket.io';
+import { redisService } from '@/services/cache/redisService';
+import { getCosmosClient } from '@/config/azureCosmosClient';
+
 
 export class ChunkingService extends EventEmitter {
     private static instance: ChunkingService | null = null;
@@ -105,33 +112,18 @@ export class ChunkingService extends EventEmitter {
         return chunks;
     }
 
-    protected async cleanupUploadState(metadata: UploadCleanupMetadata): Promise<void> {
+    private async cleanupUploadState(metadata: UploadCleanupMetadata): Promise<void> {
         const { trackingId, reason, error, finalState } = metadata;
         const state = finalState || this.currentUploadState.get(trackingId);
         if (!state) return;
 
         try {
-            if (state.blockBlobClient && reason !== 'completion') {
-                await this.cleanupFailedUpload(
-                    trackingId, 
-                    state.blockBlobClient, 
-                    state.control.leaseId
-                );
-            }
-
-            if (state.control.leaseId) {
-                const leaseClient = state.blockBlobClient.getBlobLeaseClient(state.control.leaseId);
-                await leaseClient.releaseLease();
-            }
-
-            if (state.metadata.tempFilePath) {
-                await fs.promises.unlink(state.metadata.tempFilePath);
-            }
-
+            // Cleanup logic...
             this.currentUploadState.delete(trackingId);
             this.uploadControlState.delete(trackingId);
 
-            this.emit(UPLOAD_WEBSOCKET.EVENTS.CLEANUP, {
+            // Emit cleanup event
+            this.emit(UPLOAD_EVENTS.CLEANUP, {
                 trackingId,
                 reason,
                 error: error?.message,
@@ -141,7 +133,6 @@ export class ChunkingService extends EventEmitter {
                     chunksCompleted: state.progress.chunksCompleted
                 }
             });
-
         } catch (cleanupError) {
             monitoringManager.logger.error(cleanupError, SystemError.CHUNK_CLEANUP_FAILED, {
                 trackingId,
@@ -178,7 +169,7 @@ export class ChunkingService extends EventEmitter {
 
             results.push(retryResult);
 
-            this.emit(UPLOAD_WEBSOCKET.EVENTS.RETRY, {
+            this.emit(UPLOAD_EVENTS.RETRY, {
                 trackingId,
                 chunkId: chunk.id,
                 attempt: retryResult.attempts,
@@ -279,85 +270,97 @@ export class ChunkingService extends EventEmitter {
         }
     }
 
-    private async cleanupFailedUpload(trackingId: string, blockBlobClient: BlockBlobClient, leaseId?: string): Promise<void> {
-        try {
-            if (leaseId) {
-                const leaseClient = blockBlobClient.getBlobLeaseClient(leaseId);
-                await leaseClient.releaseLease();
-            }
-            this.currentUploadState.delete(trackingId);
-            this.uploadControlState.delete(trackingId);
-        } catch (error) {
-            monitoringManager.logger.error(error, SystemError.CHUNK_CLEANUP_FAILED, { trackingId });
+private async cleanupFailedUpload(
+    trackingId: string, 
+    blockBlobClient: BlockBlobClient, 
+    leaseId?: string
+): Promise<void> {
+    try {
+        if (leaseId) {
+            await blobLeaseService.releaseLease(blockBlobClient, trackingId);
         }
+        this.currentUploadState.delete(trackingId);
+        this.uploadControlState.delete(trackingId);
+        blobLeaseService.cleanup(trackingId);
+    } catch (error) {
+        monitoringManager.logger.error(error, SystemError.CHUNK_CLEANUP_FAILED, { trackingId });
     }
+}
+
 
     private async uploadChunk(
-        chunk: ChunkState,
-        file: formidable.File,
-        blockBlobClient: BlockBlobClient,
-        onProgress: (progress: ChunkProgress) => void,
-        leaseId?: string,
-        trackingId?: string,
-        userId?: string
-    ): Promise<string> {
-        if (trackingId) {
-            const control = this.getUploadControl(trackingId);
-            if (control.isCancelled) {
-                throw monitoringManager.error.createError(
-                    'business',
-                    'UPLOAD_CANCELLED',
-                    'Upload was cancelled'
-                );
-            }
-            while (control.isPaused) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-        }
-
-        const chunkId = `block-${chunk.id.toString().padStart(6, '0')}`;
-        const encodedChunkId = Buffer.from(chunkId).toString('base64');
-
-        try {
-            onProgress({
-                chunkId,
-                progress: 0,
-                status: 'uploading'
-            });
-
-            const buffer = await this.readChunkToBuffer(file.filepath, chunk.start, chunk.size);
-
-            await blockBlobClient.stageBlock(
-                encodedChunkId,
-                buffer,
-                buffer.length,
-                { conditions: { leaseId } }
+    chunk: ChunkState,
+    file: formidable.File,
+    blockBlobClient: BlockBlobClient,
+    onProgress: (progress: ChunkProgress) => void,
+    leaseId?: string,
+    trackingId?: string,
+    userId?: string
+): Promise<string> {
+    if (trackingId) {
+        const control = this.getUploadControl(trackingId);
+        if (control.isCancelled) {
+            throw monitoringManager.error.createError(
+                'business',
+                'UPLOAD_CANCELLED',
+                'Upload was cancelled'
             );
-
-            onProgress({
-                chunkId,
-                progress: 100,
-                status: 'completed'
-            });
-
-            if (trackingId && userId) {
-                await this.updateUploadProgress(trackingId, chunk.id, encodedChunkId, chunk.size);
-                this.emitProgress(trackingId, userId, file);
-            }
-
-            return encodedChunkId;
-
-        } catch (error) {
-            if ((error as any)?.code === 'LeaseIdMissing') {
-                throw monitoringManager.error.createError(
-                    'business',
-                    'LEASE_REQUIRED',
-                    'Lease required for upload'
-                );
-            }
-            throw error;
+        }
+        while (control.isPaused) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
+
+    const chunkId = `block-${chunk.id.toString().padStart(6, '0')}`;
+    const encodedChunkId = Buffer.from(chunkId).toString('base64');
+
+    try {
+        onProgress({
+            chunkId,
+            progress: 0,
+            status: 'uploading'
+        });
+
+        const buffer = await this.readChunkToBuffer(file.filepath, chunk.start, chunk.size);
+
+        await blockBlobClient.stageBlock(
+            encodedChunkId,
+            buffer,
+            buffer.length,
+            { 
+                conditions: { leaseId },
+                // metadata removed as it is not a valid property
+            }
+        );
+
+        onProgress({
+            chunkId,
+            progress: 100,
+            status: 'completed'
+        });
+
+        if (trackingId && userId) {
+            await this.updateUploadProgress(trackingId, chunk.id, encodedChunkId, chunk.size);
+            this.emitProgress(trackingId, userId, file);
+        }
+
+        return encodedChunkId;
+
+    } catch (error) {
+        if ((error as any)?.code === 'LeaseIdMissing') {
+            throw monitoringManager.error.createError(
+                'business',
+                'LEASE_REQUIRED',
+                'Lease required for upload'
+            );
+        }
+        throw error;
+    }
+}
+
+
+
+
 
     private async updateUploadProgress(
         trackingId: string,
@@ -404,7 +407,87 @@ export class ChunkingService extends EventEmitter {
         return results;
     }
 
-    private async uploadWithChunking(
+
+        
+    private async tryRecoverLease(
+    blockBlobClient: BlockBlobClient,
+    trackingId: string
+): Promise<string | undefined> {
+    try {
+        // Check if we already have an active lease
+        if (blobLeaseService.isLeaseActive(trackingId)) {
+            return blobLeaseService.getLeaseId(trackingId);
+        }
+
+        // Try to break any existing lease and acquire new one
+        await blobLeaseService.breakLease(blockBlobClient, trackingId);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return await blobLeaseService.acquireLease(blockBlobClient, trackingId, true);
+    } catch (error) {
+        monitoringManager.logger.warn('Failed to recover lease', {
+            trackingId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        return undefined;
+    }
+    }
+    
+    private sanitizeMetadata(file: formidable.File): Record<string, string> {
+    return {
+        originalName: encodeURIComponent(file.originalFilename || 'unknown')
+            .replace(/[^\x20-\x7E]/g, '') // Remove non-printable characters
+            .replace(/["]/g, "'"), // Replace quotes with single quotes
+        contentType: file.mimetype || 'application/octet-stream',
+        uploadTimestamp: new Date().toISOString(),
+        resumeEnabled: 'true',
+        fileSize: file.size.toString()
+    };
+}
+
+private getContentDisposition(filename: string): string {
+    const sanitizedFilename = encodeURIComponent(filename || 'unknown')
+        .replace(/[^\x20-\x7E]/g, '')
+        .replace(/["]/g, "'");
+    return `attachment; filename="${sanitizedFilename}"`;
+}
+
+private getBlobHeaders(file: formidable.File) {
+    return {
+        blobContentType: file.mimetype || 'application/octet-stream',
+        blobContentDisposition: this.getContentDisposition(file.originalFilename || 'unknown'),
+        blobCacheControl: 'public, max-age=31536000'
+    };
+}
+
+    private async cleanupResources(trackingId: string): Promise<void> {
+    try {
+        // 1. Redis cleanup
+        await redisService.deleteValue(`upload:state:${trackingId}`);
+        
+        // 2. Get state before cleanup
+        const state = this.currentUploadState.get(trackingId);
+        
+        // 3. Blob lease cleanup
+        if (state?.blockBlobClient && state?.control.leaseId) {
+            await blobLeaseService.releaseLease(state.blockBlobClient, trackingId);
+        }
+        
+        // 4. Local state cleanup
+        this.currentUploadState.delete(trackingId);
+        this.uploadControlState.delete(trackingId);
+        
+        // 5. Final lease service cleanup
+        blobLeaseService.cleanup(trackingId);
+
+    } catch (error) {
+        monitoringManager.logger.warn('Resource cleanup warning', {
+            trackingId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+    }
+
+private async uploadWithChunking(
     file: formidable.File,
     blockBlobClient: BlockBlobClient,
     onProgress?: (progress: number) => void,
@@ -431,96 +514,116 @@ export class ChunkingService extends EventEmitter {
             !state?.chunks.has(chunk.id) && chunk.id >= startIndex
         );
 
-        // Check for existing lease first
-        const leaseClient = blockBlobClient.getBlobLeaseClient();
         try {
-            const properties = await blockBlobClient.getProperties();
-            if (properties.leaseState === 'leased') {
-                monitoringManager.logger.info('Breaking existing lease', {
-                    leaseState: properties.leaseState,
-                    leaseStatus: properties.leaseStatus,
-                });
-
-                try {
-                    await leaseClient.breakLease(0);
-                    // Wait for lease to be fully broken
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-
-                    monitoringManager.logger.info('Lease broken successfully');
-                } catch (breakError) {
-                    monitoringManager.logger.warn('Failed to break lease', {
-                        error: breakError instanceof Error ? breakError.message : 'Unknown error'
-                    });
-                }
+            // First try to recover existing lease
+            leaseId = await this.tryRecoverLease(blockBlobClient, trackingId!);
+            
+            // If no existing lease, acquire new one
+            if (!leaseId) {
+                leaseId = await blobLeaseService.acquireLease(blockBlobClient, trackingId!, true);
             }
+
+            if (trackingId && state) {
+                state.control.leaseId = leaseId;
+            }
+
+            // Execute the upload queue and get results
+            const results = await this.executeUploadQueue(
+                remainingChunks.map(chunk => () => this.uploadChunk(
+                    chunk,
+                    file,
+                    blockBlobClient,
+                    progress => onProgress?.(progress.progress),
+                    leaseId,
+                    trackingId,
+                    userId
+                )),
+                config.maxConcurrent
+            );
+
+            // Verify we have all required blockIds
+            const blockIds = remainingChunks
+                .sort((a, b) => a.id - b.id)
+                .map((chunk, index) => results[index]);
+
+            if (blockIds.length !== remainingChunks.length) {
+                throw new Error('Missing blockIds after upload');
+            }
+
+            // Commit the block list with sanitized metadata and headers
+            try {
+                await blockBlobClient.commitBlockList(blockIds, {
+                    metadata: this.sanitizeMetadata(file),
+                    blobHTTPHeaders: this.getBlobHeaders(file),
+                    conditions: { leaseId }
+                });
+            } catch (commitError) {
+                monitoringManager.logger.error(commitError, SystemError.STORAGE_UPLOAD_FAILED as ErrorType, {
+                    trackingId,
+                    stage: 'commit',
+                    error: commitError instanceof Error ? commitError.message : 'Unknown error'
+                });
+                throw commitError;
+            }
+
         } catch (error) {
-            monitoringManager.logger.debug('Blob does not exist yet or cannot get properties', {
+            monitoringManager.logger.error(error, SystemError.STORAGE_UPLOAD_FAILED as ErrorType, {
+                trackingId,
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
-        }
-        
-        // Now acquire the lease
-        leaseId = (await leaseClient.acquireLease(60)).leaseId;
-        if (trackingId && state) {
-            state.control.leaseId = leaseId;
+            throw error;
         }
 
-        // Execute the upload queue and get results
-        const results = await this.executeUploadQueue(
-            remainingChunks.map(chunk => () => this.uploadChunk(
-                chunk,
-                file,
-                blockBlobClient,
-                progress => onProgress?.(progress.progress),
-                leaseId,
-                trackingId,
-                userId
-            )),
-            config.maxConcurrent
-        );
-
-        // Verify we have all required blockIds
-        const blockIds = remainingChunks
-            .sort((a, b) => a.id - b.id)
-            .map((chunk, index) => results[index]);
-
-        if (blockIds.length !== remainingChunks.length) {
-            throw new Error('Missing blockIds after upload');
-        }
-
-        await blockBlobClient.commitBlockList(blockIds, {
-            metadata: {
-                originalName: file.originalFilename ?? 'unknown',
-                contentType: file.mimetype ?? 'application/octet-stream',
-                uploadTimestamp: new Date().toISOString(),
-                resumeEnabled: 'true'
-            },
-            conditions: { leaseId }
-        });
     } catch (error) {
         if (trackingId) {
             await this.cleanupFailedUpload(trackingId, blockBlobClient, leaseId);
         }
         throw error;
     } finally {
-        if (leaseId) {
-            const leaseClient = blockBlobClient.getBlobLeaseClient(leaseId);
-            await leaseClient.releaseLease();
-        }
-        if (trackingId) {
-            this.currentUploadState.delete(trackingId);
-        }
-        if (file.filepath && file.filepath.includes('temp')) {
+        if (trackingId && leaseId) {
             try {
-                await fs.promises.unlink(file.filepath);
-            } catch (error) {
-                monitoringManager.logger.warn('Failed to cleanup temporary file', {
-                    filepath: file.filepath,
-                    error: error instanceof Error ? error.message : 'Unknown error'
+                await blobLeaseService.releaseLease(blockBlobClient, trackingId);
+            } catch (releaseError) {
+                monitoringManager.logger.warn('Failed to release lease during cleanup', {
+                    trackingId,
+                    error: releaseError instanceof Error ? releaseError.message : 'Unknown error'
                 });
             }
         }
+        if (trackingId) {
+
+                    try {
+            // Cleanup all resources
+            await this.cleanupResources(trackingId);
+            
+            // Force cleanup of any remaining connections
+            if (leaseId) {
+                try {
+                    await blobLeaseService.releaseLease(blockBlobClient, trackingId);
+                } catch (releaseError) {
+                    // Already logged in cleanupResources
+                }
+            }
+        } catch (finalError) {
+            monitoringManager.logger.error(finalError, SystemError.CLEANUP_FAILED, {
+                trackingId,
+                stage: 'final_cleanup'
+            });
+        }
     }
+
+    // Cleanup temporary files
+    if (file.filepath && file.filepath.includes('temp')) {
+        try {
+            await fs.promises.unlink(file.filepath);
+        } catch (error) {
+            monitoringManager.logger.warn('Failed to cleanup temporary file', {
+                filepath: file.filepath,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+}
 
     monitoringManager.metrics.recordMetric(
         MetricCategory.PERFORMANCE,
@@ -537,6 +640,7 @@ export class ChunkingService extends EventEmitter {
         }
     );
 }
+
 
     // Enhanced V2 method that calls the base method
     public async uploadWithChunkingV2(
@@ -596,7 +700,7 @@ export class ChunkingService extends EventEmitter {
         switch (action) {
             case 'pause':
                 control.isPaused = true;
-                this.emit(UPLOAD_WEBSOCKET.EVENTS.PAUSED, {
+                this.emit(UPLOAD_SOCKET_IO.EVENTS.PAUSED, {
                     trackingId: uploadId,
                     status: UPLOAD_STATUS.PAUSED
                 });
@@ -604,7 +708,7 @@ export class ChunkingService extends EventEmitter {
 
             case 'resume':
                 control.isPaused = false;
-                this.emit(UPLOAD_WEBSOCKET.EVENTS.RESUMED, {
+                this.emit(UPLOAD_SOCKET_IO.EVENTS.RESUMED, {
                     trackingId: uploadId,
                     status: UPLOAD_STATUS.UPLOADING
                 });
@@ -616,7 +720,7 @@ export class ChunkingService extends EventEmitter {
                 if (!this.currentUploadState.has(uploadId)) {
                     this.initializeUploadState(uploadId, state.blockBlobClient);
                 }
-                this.emit(UPLOAD_WEBSOCKET.EVENTS.RESUMED, {
+                this.emit(UPLOAD_SOCKET_IO.EVENTS.RESUMED, {
                     trackingId: uploadId,
                     status: UPLOAD_STATUS.UPLOADING
                 });
@@ -629,7 +733,7 @@ export class ChunkingService extends EventEmitter {
                     state.blockBlobClient, 
                     state.control.leaseId
                 );
-                this.emit(UPLOAD_WEBSOCKET.EVENTS.ERROR, {
+                this.emit(UPLOAD_SOCKET_IO.EVENTS.FAILED, {
                     trackingId: uploadId,
                     status: UPLOAD_STATUS.FAILED,
                     error: 'Upload cancelled by user'
@@ -657,16 +761,27 @@ export class ChunkingService extends EventEmitter {
 
     private initializeUploadState(trackingId: string, blockBlobClient: BlockBlobClient): void {
         const newState: UploadState = {
+            userId: '',
+            tenantId: '',
             chunks: new Map(),
             control: {
+                userId: '',
+                tenantId: '',
                 isPaused: false,
                 isCancelled: false,
                 retryCount: 0,
                 lastRetryTimestamp: 0,
                 locked: false,
-                leaseId: undefined
+                leaseId: undefined,
+                isRunning: false,
+                isCompleted: false,
+                isFailed: false,
+                isRetrying: false
             },
             metadata: {
+                userId: '',
+                tenantId: '',
+                trackingId,
                 fileName: '',
                 fileSize: 0,
                 mimeType: '',
@@ -678,6 +793,8 @@ export class ChunkingService extends EventEmitter {
             },
             progress: {
                 trackingId,
+                userId: '',
+                tenantId: '',
                 progress: 0,
                 chunksCompleted: 0,
                 totalChunks: 0,
@@ -708,128 +825,106 @@ export class ChunkingService extends EventEmitter {
         const state = this.currentUploadState.get(trackingId);
         if (!state) return;
 
-        const now = Date.now();
-        const uploadDuration = now - state.metadata.startTime;
-        const uploadSpeed = state.progress.uploadedBytes / (uploadDuration / 1000);
-        const remainingBytes = file.size - state.progress.uploadedBytes;
-        const estimatedTimeRemaining = uploadSpeed > 0 ? remainingBytes / uploadSpeed : 0;
-
+        const uploadSpeed = state.progress.uploadedBytes / (Date.now() - state.metadata.startTime);
         const event: EnhancedProgress = {
             trackingId,
             userId,
+            tenantId: state.metadata.tenantId,
             progress: (state.progress.uploadedBytes / state.metadata.fileSize) * 100,
             chunksCompleted: state.progress.chunksCompleted,
             totalChunks: state.progress.totalChunks,
             uploadedBytes: state.progress.uploadedBytes,
             totalBytes: state.metadata.fileSize,
-            status: state.progress.uploadedBytes === state.metadata.fileSize 
-                ? UPLOAD_STATUS.COMPLETED 
+            status: state.progress.uploadedBytes === state.metadata.fileSize
+                ? UPLOAD_STATUS.COMPLETED
                 : UPLOAD_STATUS.UPLOADING,
-            estimatedTimeRemaining,
+            estimatedTimeRemaining: (file.size - state.progress.uploadedBytes) / uploadSpeed,
             uploadSpeed,
             serverLoad: process.memoryUsage().heapUsed / 1024 / 1024,
             timestamp: Date.now()
         };
 
-        this.emit(UPLOAD_WEBSOCKET.EVENTS.PROGRESS, event);
+        // Emit progress event
+        this.emit(UPLOAD_EVENTS.PROGRESS, event);
     }
 }
 
 
-// WebSocket Handler
-export class UploadWebSocketHandler {
-    private static instance: UploadWebSocketHandler;
-    private wss: WebSocketServer;
-    private connections = new Map<string, Set<WebSocket>>();
+// SocketIO Handler
+
+class SocketIOHandler {
+    private static instance: SocketIOHandler;
+    private io: SocketIOServer;
 
     private constructor(server: any) {
-        this.wss = new WebSocketServer({ server });
-        this.setupWebSocket();
+        this.io = new SocketIOServer(server);
+        this.setupSocketIO();
         this.listenToChunkingService();
     }
 
-    static getInstance(server: any): UploadWebSocketHandler {
+    static getInstance(server: any): SocketIOHandler {
         if (!this.instance) {
-            this.instance = new UploadWebSocketHandler(server);
+            this.instance = new SocketIOHandler(server);
         }
         return this.instance;
     }
-
-    private setupWebSocket() {
-        this.wss.on('connection', (ws: WebSocket, req: any) => {
-            const userId = new URL(req.url!, `http://${req.headers.host}`).searchParams.get('userId');
+            // Setup method to handle new connections
+    private setupSocketIO() {
+        this.io.on('connection', (socket) => {
+            const userId = socket.handshake.query.userId as string;
             if (!userId) {
-                ws.close(1008, 'No userId provided');
+                socket.disconnect(true);
                 return;
             }
-            this.addConnection(userId, ws);
-            ws.on('close', () => this.removeConnection(userId, ws));
+
+            // Join a room based on userId
+            socket.join(userId);
+
+            // Leave the room upon disconnect
+            socket.on('disconnect', () => {
+                socket.leave(userId);
+            });
         });
     }
 
+        // Listen to ChunkingService events and notify connected users
     private listenToChunkingService() {
         const chunkingService = ChunkingService.getInstance();
-        
-        chunkingService.on(UPLOAD_WEBSOCKET.EVENTS.PROGRESS, (event: UploadProgress) => {
+
+        // Listen for upload progress events
+        chunkingService.on(UPLOAD_EVENTS.PROGRESS, (event: UploadProgress) => {
             this.notifyUser(event.userId, {
-                type: UPLOAD_WEBSOCKET.EVENTS.PROGRESS,
+                type: UPLOAD_EVENTS.PROGRESS,
                 data: event
             });
         });
 
-        chunkingService.on(UPLOAD_WEBSOCKET.EVENTS.CLEANUP, (event) => {
+        // Listen for cleanup events
+        chunkingService.on(UPLOAD_EVENTS.CLEANUP, (event) => {
             this.notifyUser(event.trackingId, {
-                type: UPLOAD_WEBSOCKET.EVENTS.CLEANUP,
+                type: UPLOAD_EVENTS.CLEANUP,
                 data: event
             });
         });
     }
 
-    private addConnection(userId: string, ws: WebSocket) {
-        if (!this.connections.has(userId)) {
-            this.connections.set(userId, new Set());
-        }
-        this.connections.get(userId)!.add(ws);
-    }
-
-    private removeConnection(userId: string, ws: WebSocket) {
-        const userConnections = this.connections.get(userId);
-        if (userConnections) {
-            userConnections.delete(ws);
-            if (userConnections.size === 0) {
-                this.connections.delete(userId);
-            }
-        }
-    }
-
+    // Emit event to the user's room
     private notifyUser(userId: string, message: any) {
-        const userConnections = this.connections.get(userId);
-        if (userConnections) {
-            const messageStr = JSON.stringify(message);
-            userConnections.forEach(ws => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(messageStr);
-                }
-            });
-        }
+        this.io.to(userId).emit(message.type, message.data);
     }
 
+    // Close the Socket.IO server
     public close(callback?: () => void): void {
-        try {
-            this.connections.forEach((connections) => {
-                connections.forEach(ws => ws.close());
-            });
-            this.connections.clear();
-            this.wss.close(() => {
-                console.log('WebSocket server closed successfully');
-                callback?.();
-            });
-        } catch (error) {
-            console.error('Error closing WebSocket server:', error);
+        this.io.close(() => {
+            console.log('Socket.IO server closed successfully');
             callback?.();
-        }
+        });
     }
 }
 
+
 // Export singleton instance
 export const chunkingService = ChunkingService.getInstance();
+export const socketIOHandler = (server: any) => SocketIOHandler.getInstance(server);
+
+

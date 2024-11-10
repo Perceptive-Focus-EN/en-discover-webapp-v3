@@ -12,7 +12,7 @@ export function useUpload() {
         setIsUploading(true);
         setError(null);
         try {
-            const response = await uploadApi.uploadFile(file, category, setProgress);
+            const response = await uploadApi.uploadFile(file, category, (info) => setProgress((info.loaded / info.total) * 100));
             return response;
         } catch (err) {
             const error = err as Error;
@@ -37,7 +37,7 @@ export function useUpload() {
                 trackingId,
                 lastChunk,
                 category,
-                setProgress
+                (info) => setProgress(info.loaded / info.total * 100)
             );
             return response;
         } catch (err) {

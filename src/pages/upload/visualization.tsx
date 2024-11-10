@@ -1,11 +1,11 @@
-// src/pages/upload/visualization.tsx
-import { NextPage } from 'next';
+import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult, NextPage } from 'next';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { Box, Container, Typography } from '@mui/material';
+import { Box, Container, Typography, Button } from '@mui/material';
+import { ArrowBack } from '@mui/icons-material';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import UploadFlowVisualization from '@/UploadingSystem/components/upload/UploadFlowVisualization';
-import { WebSocketProgress } from '@/UploadingSystem/types/progress';
+import { SocketIOProgress } from '@/UploadingSystem/types/progress';
 import { messageHandler } from '@/MonitoringSystem/managers/FrontendMessageHandler';
 import { UPLOAD_STATUS } from '@/UploadingSystem/constants/uploadConstants';
 import { uploadApi } from '@/lib/api/uploads';
@@ -16,12 +16,7 @@ interface UploadVisualizationPageProps {
 
 const LoadingState: React.FC = () => (
     <Container maxWidth="lg">
-        <Box 
-            className="p-8 text-center"
-            display="flex"
-            justifyContent="center"
-            alignItems="center"
-        >
+        <Box className="p-8 text-center">
             <Typography variant="h6" color="textSecondary">
                 Loading visualization...
             </Typography>
@@ -38,24 +33,23 @@ const UploadVisualizationPage: NextPage<UploadVisualizationPageProps> = ({
     );
 
     useEffect(() => {
+        // If accessed directly without trackingId, redirect to main upload page
         if (!trackingId && router.isReady) {
             const queryTrackingId = router.query.trackingId as string;
-            if (queryTrackingId) {
-                setTrackingId(queryTrackingId);
-            } else {
-                messageHandler.error('No tracking ID provided');
+            if (!queryTrackingId) {
                 router.push('/upload');
+                return;
             }
+            setTrackingId(queryTrackingId);
         }
     }, [router.isReady, router.query.trackingId, trackingId]);
 
-    const handleProgress = async (progress: WebSocketProgress) => {
-        document.title = `Upload ${Math.round(progress.progress)}% - Upload Visualization`;
+    const handleProgress = (progress: SocketIOProgress) => {
+        document.title = `Upload ${Math.round(progress.progress)}% - Visualization`;
 
         switch (progress.status) {
             case UPLOAD_STATUS.COMPLETED:
                 messageHandler.success('Upload completed successfully');
-                // Optionally redirect or update UI
                 break;
             case UPLOAD_STATUS.FAILED:
                 messageHandler.error(progress.error || 'Upload failed');
@@ -77,6 +71,14 @@ const UploadVisualizationPage: NextPage<UploadVisualizationPageProps> = ({
         <ErrorBoundary>
             <Container maxWidth="lg">
                 <Box className="py-8">
+                    <Box className="mb-4">
+                        <Button 
+                            onClick={() => router.push('/upload')}
+                            startIcon={<ArrowBack />}
+                        >
+                            Back to Upload
+                        </Button>
+                    </Box>
                     <UploadFlowVisualization
                         trackingId={trackingId}
                         onProgress={handleProgress}
@@ -87,19 +89,12 @@ const UploadVisualizationPage: NextPage<UploadVisualizationPageProps> = ({
     );
 };
 
-import { GetServerSideProps, GetServerSidePropsContext, GetServerSidePropsResult } from 'next';
-
-interface ServerSideProps {
-    defaultTrackingId: string | null;
-}
-
-export const getServerSideProps: GetServerSideProps<ServerSideProps> = async (
+export const getServerSideProps: GetServerSideProps<UploadVisualizationPageProps> = async (
     context: GetServerSidePropsContext
-): Promise<GetServerSidePropsResult<ServerSideProps>> => {
+): Promise<GetServerSidePropsResult<UploadVisualizationPageProps>> => {
     try {
         const { trackingId } = context.query;
         if (trackingId) {
-            // Optional: Validate tracking ID exists
             try {
                 await uploadApi.getUploadStatus(trackingId as string);
             } catch {
